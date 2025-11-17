@@ -8,9 +8,9 @@ export const sidebarData = [
   },
   {
     id: 2,
-    title: 'Webinars',
+    title: 'Projects',
     icon: Webcam,
-    link: '/webinars',
+    link: '/projects',
   },
   {
     id: 3,
@@ -34,7 +34,7 @@ export const sidebarData = [
 ]
 
 export const onBoardingSteps = [
-  { id: 1, title: 'Create a webinar', complete: false, link: '' },
+  { id: 1, title: 'Create a video', complete: false, link: '' },
   { id: 2, title: 'Get leads', complete: false, link: '' },
   { id: 3, title: 'Conversion status', complete: false, link: '' },
 ]
@@ -84,7 +84,7 @@ export const potentialCustomer = [
   },
 ]
 
-export const subscriptionPriceId = `price_1RLtR0Fj9oKEERu1zShQbtgG`
+export const subscriptionPriceId = process.env.NEXT_PUBLIC_STRIPE_SUBSCRIPTION_PRICE_ID || ''
 
 export const aiAgentPrompt = `# Lead Qualification & Nurturing Agent Prompt
 

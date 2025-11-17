@@ -1,0 +1,92 @@
+export const leadData = [
+  {
+    name: 'Sarah Williams',
+    email: 'sarah.williams@example.com',
+    phone: '+1 (555) 234-5678',
+    tags: ['Hot Lead', 'Enterprise', 'VIP'],
+  },
+  {
+    name: 'Michael Chen',
+    email: 'michael.chen@example.com',
+    phone: '+1 (555) 345-6789',
+    tags: ['New', 'Starter'],
+  },
+  {
+    name: 'Emily Rodriguez',
+    email: 'emily.rodriguez@example.com',
+    phone: '+1 (555) 456-7890',
+    tags: ['Hot Lead', 'Follow Up'],
+  },
+  {
+    name: 'David Thompson',
+    email: 'david.thompson@example.com',
+    phone: '+1 (555) 567-8901',
+    tags: ['Enterprise', 'VIP'],
+  },
+  {
+    name: 'Jessica Martinez',
+    email: 'jessica.martinez@example.com',
+    phone: '+1 (555) 678-9012',
+    tags: ['Hot Lead', 'Starter'],
+  },
+  {
+    name: 'Robert Anderson',
+    email: 'robert.anderson@example.com',
+    phone: '+1 (555) 789-0123',
+    tags: ['New', 'Follow Up'],
+  },
+  {
+    name: 'Lisa Brown',
+    email: 'lisa.brown@example.com',
+    phone: '+1 (555) 890-1234',
+    tags: ['Hot Lead', 'Enterprise'],
+  },
+  {
+    name: 'James Wilson',
+    email: 'james.wilson@example.com',
+    phone: '+1 (555) 901-2345',
+    tags: ['VIP', 'Follow Up'],
+  },
+  {
+    name: 'Amanda Taylor',
+    email: 'amanda.taylor@example.com',
+    phone: '+1 (555) 012-3456',
+    tags: ['New', 'Starter'],
+  },
+  {
+    name: 'Christopher Lee',
+    email: 'christopher.lee@example.com',
+    phone: '+1 (555) 123-4567',
+    tags: ['Hot Lead', 'VIP', 'Enterprise'],
+  },
+  {
+    name: 'Michelle Garcia',
+    email: 'michelle.garcia@example.com',
+    phone: '+1 (555) 234-5678',
+    tags: ['Follow Up', 'Starter'],
+  },
+  {
+    name: 'Daniel White',
+    email: 'daniel.white@example.com',
+    phone: '+1 (555) 345-6789',
+    tags: ['Hot Lead', 'New'],
+  },
+  {
+    name: 'Nicole Harris',
+    email: 'nicole.harris@example.com',
+    phone: '+1 (555) 456-7890',
+    tags: ['Enterprise', 'VIP', 'Hot Lead'],
+  },
+  {
+    name: 'Kevin Jackson',
+    email: 'kevin.jackson@example.com',
+    phone: '+1 (555) 567-8901',
+    tags: ['Starter', 'New'],
+  },
+  {
+    name: 'Rachel Green',
+    email: 'rachel.green@example.com',
+    phone: '+1 (555) 678-9012',
+    tags: ['Hot Lead', 'Follow Up', 'VIP'],
+  },
+]

@@ -6,6 +6,7 @@ import { sidebarData } from '@/lib/data'
 import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import Link from 'next/link'
 import { UserButton } from '@clerk/nextjs'
+import { TooltipContent } from '@radix-ui/react-tooltip'
 type Props = {}
 
 const Sidebar = (props: Props) => {
@@ -31,6 +32,9 @@ const Sidebar = (props: Props) => {
                  />
               </Link>
             </TooltipTrigger>
+            < TooltipContent side="right" >
+              <span className="text-sm">{item.title}</span>
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
           ))}

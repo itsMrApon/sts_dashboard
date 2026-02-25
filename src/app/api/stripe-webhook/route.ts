@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { stripe } from '@/lib/stripe'
 import { headers } from "next/headers";
 import { updateSubscription } from "@/actions/stripe";
+import { changeAttendanceType } from "@/actions/attendance";
 
 const STRIPE_SUBSCRIPTION_EVENTS = new Set([
   "invoice.created",
@@ -22,8 +23,8 @@ const getStripeEvent = async (
 
   if (!sig || !webhookSecret) {
     throw new Error('Missing signature or webhook secret')
-  }
-  return stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+}
+return stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
 }
 
 export async function POST(req: NextRequest) {
@@ -58,6 +59,16 @@ export async function POST(req: NextRequest) {
     )
     {
       console.log('Handling connect account event', stripeEvent.type)
+
+      if (event.metadata && event.metadata.attendeeId) {
+        switch (stripeEvent.type){
+        case "checkout.session.completed":
+          await changeAttendanceType(event?.metadata?.attendeeId, event?.metadata?.webinarId, "CONVERTED");
+          break;
+      }
+      }
+      
+
       return NextResponse.json(
         {message: 'Skipping connected account event'}, 
         {status: 200}

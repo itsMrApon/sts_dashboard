@@ -6,18 +6,27 @@ import { onAuthenticateUser } from '@/actions/auth'
 import { redirect } from 'next/navigation'
 import { getProjectByPresenterId } from '@/actions/webiner'
 import ProjectCard from './_components/ProjectCard '
-import { Webinar } from '@prisma/client'
+import { Webinar, WebinarStatusEnum } from '@prisma/client'
+import Link from 'next/link'
 
-type Props = {}
+type Props = {
+  searchParams: Promise<{
+    webinarStatus?: string
+  }> 
+}
 
-const page = async(Props: Props) => {
+const page = async({searchParams}: Props) => {
+  const { webinarStatus } =  await searchParams
   const checkUser = await onAuthenticateUser()
 
   if (!checkUser.user) {
     redirect('/')
   }
 
-  const webinars = await getProjectByPresenterId(checkUser?.user?.id)
+  const webinars = await getProjectByPresenterId(
+    checkUser?.user?.id,
+    webinarStatus as WebinarStatusEnum
+  )
 
   const now = new Date()
   const upcomingWebinars = webinars.filter((project: Webinar) => {
@@ -52,17 +61,20 @@ const page = async(Props: Props) => {
           <TabsTrigger
             value="all"
             className="bg-secondary opacity-50 data-[state=active]:opacity-100 px-6 py-4"
-          >All
+          >
+            <Link href="/webinars?webinarStatus=all">All</Link>
           </TabsTrigger>
           <TabsTrigger 
             value="active"
             className="bg-secondary px-6 py-4"
-          >Ondemand
+          >
+            <Link href="/webinars?webinarStatus=upcoming">OnDemand</Link>
           </TabsTrigger>
           <TabsTrigger 
             value="completed"
             className="bg-secondary px-6 py-4"
-          >Ended
+          >
+            <Link href="/webinars?webinarStatus=ended">Ended</Link>
           </TabsTrigger>
         </TabsList>
       </PageHeader>
@@ -71,7 +83,7 @@ const page = async(Props: Props) => {
         value="all"
         className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
       >
-        {webinars.length > 0 ? (
+        {webinars?.length > 0 ? (
           webinars.map((project: Webinar, index: number) => 
             (<ProjectCard
                 key={index} 
@@ -86,11 +98,11 @@ const page = async(Props: Props) => {
       </TabsContent>
 
       <TabsContent
-        value="active"
+        value="onDemand"
         className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
       >
-        {upcomingWebinars.length > 0 ? (
-          upcomingWebinars.map((project: Webinar, index: number) => 
+        {webinars?.length > 0 ? (
+          webinars.map((project: Webinar, index: number) => 
             (<ProjectCard
                 key={index} 
                 project={project} 
@@ -98,17 +110,17 @@ const page = async(Props: Props) => {
           ))
         ) : (
           <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >
-            No upcoming projects found
+            No onDemand projects found
           </div>
         )}
       </TabsContent>
 
       <TabsContent
-        value="completed"
+        value="ended"
         className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
       >
-        {completedWebinars.length > 0 ? (
-          completedWebinars.map((project: Webinar, index: number) => 
+        {webinars?.length > 0 ? (
+          webinars.map((project: Webinar, index: number) => 
             (<ProjectCard
                 key={index} 
                 project={project} 

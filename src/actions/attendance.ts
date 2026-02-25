@@ -2,7 +2,7 @@
 
 import { prismaClient } from '@/lib/prismaClient'
 import { AttendanceData } from '@/lib/type'
-import { AttendedTypeEnum, CtaTypeEnum } from '@prisma/client'
+import { AttendedTypeEnum, CallStatusEnum, CtaTypeEnum } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 
 export const getWebinarAttendance = async (
@@ -19,6 +19,7 @@ export const getWebinarAttendance = async (
         id: true, 
         ctaType: true, 
         tags: true,
+        presenter: true,
         _count: {
           select: {
             attendances: true,
@@ -103,7 +104,7 @@ export const getWebinarAttendance = async (
               joinedAt: 'desc', // Most recent first
             },
           })
-
+// fix this type
           result[type].users = attendances.map((attendance) => ({
             id: attendance.user.id, 
             name: attendance.user.name, 
@@ -111,6 +112,8 @@ export const getWebinarAttendance = async (
             attendedAt: attendance.joinedAt,
             stripeConnectId: null, 
             callStatus: attendance.user.callStatus,
+            createdAt: attendance.user.createdAt,
+            updatedAt: attendance.user.updatedAt,
           }))
         }
       }
@@ -122,6 +125,7 @@ export const getWebinarAttendance = async (
       data: result,
       ctaType: webinar.ctaType, 
       webinarTags: webinar.tags || [],  
+      presenter: webinar.presenter,
     }
 
   } catch (error) {
@@ -129,6 +133,187 @@ export const getWebinarAttendance = async (
     return {
       success: false, 
       error: 'Failed to fetch attendance data',
+    }
+  }
+}
+
+export const registerAttendee = async ({
+  email,
+  name,
+  projectId,
+}: {
+  projectId: string
+  email: string
+  name: string
+}) => {
+  try {
+    if (!projectId || !email) {
+      return {
+        success: false,
+        status: 400,
+        message: "Project ID and email are required",
+      }
+    }
+    const webinar = await prismaClient.webinar.findUnique({
+      where: { id: projectId },
+    })
+    if (!webinar) {
+      return {
+        success: false,
+        status: 404,
+        message: "Project not found",
+      }
+    }
+    // Find or create the attendee by email
+    let attendee = await prismaClient.attendee.findUnique({
+      where: { email },
+    })
+    if (!attendee) {
+      attendee = await prismaClient.attendee.create({
+        data: {
+          email,
+          name,
+        },
+      })
+    }
+    // Check for existing attendance
+    const existingAttendance = await prismaClient.attendance.findFirst({
+      where: {
+        attendeeId: attendee.id,
+        webinarId: projectId,
+      },
+      include: {
+        user: true,
+      },
+    })
+    if (existingAttendance) {
+      return {
+        success: false,
+        status: 400,
+        data: existingAttendance,
+        message: "You have already registered for this project",
+      }
+    }
+    // Create attendance
+    const attendance = await prismaClient.attendance.create({
+      data: {
+        attendedType: AttendedTypeEnum.REGISTERED,
+        attendeeId: attendee.id,
+        webinarId: projectId,
+      },
+      include: {
+        user: true,
+      },
+    })
+
+    revalidatePath(`/${projectId}`)
+
+    return {
+      success: true,
+      status: 200,
+      data: attendance,
+      message: "You have been added to the waiting list",
+    }
+  } catch (error) {
+    console.error('register error 🦺:', error)
+    return {
+      success: false,
+      status: 500,
+      error: error,
+      message: "Failed to register attendee",
+    }
+  }
+}
+
+export
+const changeAttendanceType = async (
+  attendeeId: string, 
+  webinarId: string, 
+  attendedType: AttendedTypeEnum
+) => {
+  try {
+    const attendance = await prismaClient.attendance.update({
+      where: { 
+        attendeeId_webinarId: { 
+          attendeeId, 
+          webinarId 
+        } 
+      },
+      data: { 
+        attendedType,
+      },
+    })
+    return {
+      success: true,
+      status: 200,
+      message: "Attendance type changed successfully",
+      data: attendance,
+    }
+  } catch (error) {
+    console.error('changeAttendanceType error 🦺:', error)
+    return {
+      success: false,
+      status: 500,
+      message: "Failed to change attendance type",
+      error,
+    }
+  }
+}
+
+export const getAttendeeById = async (id: string, projectId: string) => {
+  try {
+    const attendee = await prismaClient.attendee.findUnique({
+      where: { id },
+    })
+    const attendance = await prismaClient.attendance.findFirst({
+       where: { attendeeId: id, webinarId: projectId },
+    })
+    if (!attendee || !attendance) {
+      return {
+        success: false,
+        status: 404,
+        message: "Attendee not found",
+      }
+    }
+    return {
+      success: true,
+      status: 200,
+      message: "Attendee found",
+      data: attendee,
+    }
+  } catch (error) {
+    console.log('Error', error)
+    return {
+      status: 500,
+      success: false,
+      message: "Failed to get attendee by id",
+      error,
+    }
+  }
+}
+
+export const changeCallStatus = async (
+  attendeeId: string, 
+  callStatus: CallStatusEnum
+) => {
+  try {
+    const attendee = await prismaClient.attendee.update({
+      where: { id: attendeeId },
+      data: { callStatus },
+    })
+    return {
+      success: true,
+      status: 200,
+      message: "Call status updated successfully",
+      data: attendee,
+    }
+  } catch (error) {
+    console.error('changeCallStatus error 🦺:', error)
+    return {
+      success: false,
+      status: 500,
+      message: "Failed to change call status",
+      error,
     }
   }
 }

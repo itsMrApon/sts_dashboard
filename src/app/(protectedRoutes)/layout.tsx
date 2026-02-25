@@ -4,6 +4,7 @@ import Sidebar from '@/components/ReusableComponent/LayoutComponent/Sidebar'
 import { redirect } from 'next/navigation'
 import Header from '@/components/ReusableComponent/LayoutComponent/Header'
 import { getAllProductsFromStripe } from '@/actions/stripe'
+import { getAllAssistants } from '@/actions/vapi'
 
 type Props = {
   children: React.ReactNode
@@ -17,6 +18,7 @@ const Layout = async ({ children }: Props) => {
   }
 
   const stripeProducts = await getAllProductsFromStripe()
+  const assistants = await getAllAssistants()
 
   return (
     <div className='flex w-full min-h-screen'>
@@ -28,6 +30,7 @@ const Layout = async ({ children }: Props) => {
         <Header 
           user={userExists.user}
          stripeProducts={stripeProducts.products || []}
+         assistants={assistants.data || []}
         />
         
         <div className="flex-1 py-10">

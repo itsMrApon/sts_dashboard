@@ -4,6 +4,7 @@ import { WebinarFormState } from "@/store/useStsStore"
 import { onAuthenticateUser } from "./auth"
 import { revalidatePath } from "next/cache"
 import { prismaClient } from "@/lib/prismaClient"
+import { WebinarStatusEnum } from "@prisma/client"
 
 
 function combineDateTime(
@@ -36,10 +37,10 @@ export const createProject = async(formData: WebinarFormState) => {
     if (!user.user) {
       return { status : 401, message : 'Unauthorized' }
     }
-    // todo  later
-    // if (!user.user.isSubscription) {
-      //   return { status : 402, message : 'Subscription required' }
-      // }
+
+    if (!user.user.subscription) {
+        return { status : 402, message : 'Subscription required' }
+      }
       const presenterId = user.user.id
       
       console.log('Form Data:', formData, presenterId)
@@ -100,10 +101,26 @@ export const createProject = async(formData: WebinarFormState) => {
   }
 }
 
-export const getProjectByPresenterId = async (presenterId: string) => {
+//todo update frontend to pass webinarstatus
+export const getProjectByPresenterId = async (
+  presenterId: string,
+  webinarStatus?: string
+) => {
   try {
+    let statusFilter: WebinarStatusEnum | undefined
+    switch (webinarStatus) {
+      case 'upcoming':
+        statusFilter = WebinarStatusEnum.SCHEDULED
+        break
+      case 'ended':
+        statusFilter = WebinarStatusEnum. ENDED
+        break
+      default:
+        statusFilter = undefined
+    }
+
     const webinars = await prismaClient.webinar.findMany({
-      where: { presenterId: presenterId },
+      where: { presenterId: presenterId, webinarStatus: statusFilter },
       include: {
         presenter: {
           select: {
@@ -123,8 +140,8 @@ export const getProjectByPresenterId = async (presenterId: string) => {
 
 export const getProjectbyId = async (projectId: string) =>{
   try {
-    const webinar = await prismaClient.webinar. findUnique({
-      where: { id: webinerID },
+    const project = await prismaClient.webinar.findUnique({
+      where: { id: projectId },
       include: {
         presenter: {
           select: {
@@ -137,9 +154,34 @@ export const getProjectbyId = async (projectId: string) =>{
       },
     })  
 
-    return webinar
+    return project
   } catch (error) {
     console.error ('Error fetching project:', error)
     throw new Error ('Failed to fetch project')
   }
 }
+
+export const changeProjectStatus = async (
+  webinarId: string,
+  status: WebinarStatusEnum
+) => {
+  try {
+    const webinar = await prismaClient.webinar.update({
+      where: { id: webinarId },
+      data: { webinarStatus: status },
+    })
+    return {
+      status: 200,
+      success: true,
+      message: 'project status changed successfully',
+      data: webinar,
+    }
+  } catch (error) {
+    console.error('Error changing webinar status:', error)
+    return {
+      status: 500,
+      success: false,
+      message: 'Failed to change webinar status',
+    };
+  }
+};

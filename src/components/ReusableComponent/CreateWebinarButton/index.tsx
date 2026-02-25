@@ -16,15 +16,18 @@ import BasicInfoStep from './BasicInfoStep'
 import CTAStep from './CTAStep'
 import AdditionalInfostep from './AdditionalInfostep'
 import Stripe from 'stripe'
+import SuccessStep from './SuccessStep'
+import { Assistant } from '@vapi-ai/server-sdk/api'
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
+  assistants: Assistant[] | []
 }
 
-const CreateWebinarButton = ({stripeProducts}: Props) => {
-  const { isModalOpen, setModalOpen, isComplete, setComplete } = useStsStore()
+const CreateWebinarButton = ({stripeProducts, assistants}: Props) => {
+  const { isModalOpen, setModalOpen, isComplete, setComplete, resetForm } = useStsStore()
 
-  const [webinarLink, setWebinarLink] = useState('')
+  const [projectLink, setProjectLink] = useState('')
 
   const steps = [
     {
@@ -38,7 +41,7 @@ const CreateWebinarButton = ({stripeProducts}: Props) => {
       description: 'Please provide the end-point for your customers through your chat',
       component: (
         <CTAStep
-          assistants={[]}
+          assistants={assistants}
           stripeProducts={stripeProducts}
         />
       ),
@@ -52,10 +55,14 @@ const CreateWebinarButton = ({stripeProducts}: Props) => {
   ]  
   const handleComplete = (webinarid: string) => {
      setComplete(true)
-     setWebinarLink(
-      `${process. env.NEXT_PUBLIC_BASE_URL}/live-webinar/${webinarid}`
+     setProjectLink(
+      `${process. env.NEXT_PUBLIC_BASE_URL}/live-project/${webinarid}`
      )
   }
+  const handleCreateNew = () => {
+    resetForm()
+  }
+
 
   return (
     <Dialog 
@@ -74,7 +81,10 @@ const CreateWebinarButton = ({stripeProducts}: Props) => {
       {isComplete ? (
         <div className="bg-muted text-primary rounded-lg overflow-hidden">
         <DialogTitle className="sr-only">Project Created </DialogTitle>
-        {/* success step */}
+        <SuccessStep
+          projectLink={projectLink} 
+          onCreateNew={handleCreateNew}
+        />
       </div>
     ) : (
     <>

@@ -5,7 +5,7 @@ import { AlertCircle, Check, Loader2, ChevronRight } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { createWebinar } from '@/actions/webiner'
+import { createProject } from '@/actions/webiner'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -58,7 +58,7 @@ const MultiStepForm = ({ steps, onComplete }: Props) => {
     if (isLastStep) {
       try {
         setSubmitting(true)
-        const result = await createWebinar(formData)
+        const result = await createProject(formData)
         if (result.status === 201 && result.webinarId){
           toast.success('Your webinar has been created successfully.')
           onComplete(result.webinarId)
@@ -142,7 +142,7 @@ const MultiStepForm = ({ steps, onComplete }: Props) => {
                       }}
                       animate={{
                         height: isPast || isCompleted ? '100%' : '0%',
-                        backgroundColor: 'rgb(147,51,234)',
+                         backgroundColor: 'rgb(147,51,234)',
                       }}
                       transition={{ duration: 0.5, ease: 'easeInOut' }}
                       className="w-full h-full"
@@ -195,7 +195,7 @@ const MultiStepForm = ({ steps, onComplete }: Props) => {
               </p>
             </div>
             <div className="w-full">
-              {currentStep.component}
+            {currentStep.component}
             </div>
 
             {validationError && (

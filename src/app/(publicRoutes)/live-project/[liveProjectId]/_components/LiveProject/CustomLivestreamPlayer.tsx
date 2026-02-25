@@ -27,14 +27,25 @@ const CustomLivestreamPlayer = ({
     if(!client) return
     const myCall = client.call(callType, callId)
     setCall(myCall)
-    myCall.join().catch((e) =>{
-      console.error('Failed to join call', e)
-    })
-
+    //     // myCall.join().catch((e) =>{
+    // myCall.join({ create: true }).then(
+    //   () => setCall(myCall),
+    //   () => console.error('Failed to join call', e)
+    // )
+    const joinAsHost = async () => {
+      try {
+        await myCall.join({ create: true })
+        await myCall.goLive()
+        setCall(myCall)
+      } catch (error) {
+        console.error('Failed to join call', error)
+      }
+    }
+    joinAsHost()
     return () => {
-      myCall.leave().catch((e) =>{
-        console.error('Failed to leave call', e)
-      })
+      // myCall.leave().catch((e) =>{
+      //   console.error('Failed to leave call', e)
+      // })
       setCall(undefined)
     }
 
@@ -49,9 +60,10 @@ const CustomLivestreamPlayer = ({
         setShowChat={setshowchat}
         isHost={true}
         username={username}
-        userId={process.env.NEXT_PUBLIC_STREAM_USER_ID!}
+        userId={project.presenter.id}
         userToken={token}
         project={project}
+        call={call}
       />
     </StreamCall>
   )

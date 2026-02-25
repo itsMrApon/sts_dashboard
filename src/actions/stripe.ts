@@ -5,6 +5,7 @@ import { subscriptionPriceId } from '@/lib/data'
 import { prismaClient } from '@/lib/prismaClient'
 import { stripe } from '@/lib/stripe'
 import Stripe from 'stripe'
+import { changeAttendanceType } from './attendance'
 
 export const getAllProductsFromStripe = async () => {
   try {
@@ -140,5 +141,52 @@ export const syncSubscriptionStatus = async (userId: string) => {
   } catch (error) {
     console.error('Sync subscription error:', error)
     return { success: false, message: 'Failed to sync subscription' }
+  }
+}
+
+export const createCheckoutLink = async (
+  priceId: string, 
+  stripeId: string, 
+  attendeeId: string, 
+  projectId: string,
+  bookCall: boolean = false
+) => {
+  try {
+    const session = await stripe.checkout.sessions.create(
+      {
+        line_items: [
+          {
+            price: priceId, 
+            quantity: 1,
+          }
+        ],
+        mode: 'payment', 
+        // make dynamic in future
+        success_url: `${process. env.NEXT_PUBLIC_BASE_URL}/`,
+        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/`,
+        metadata: {
+          attendeeld: attendeeId, 
+          webinarId: projectId,
+        }
+      },
+      {
+        stripeAccount: stripeId,
+      }
+    )
+    if (bookCall) {
+      await changeAttendanceType(attendeeId, projectId, 'ADDED_TO_CART' )
+    }
+    return {
+      sessionUrl: session.url,
+      status: 200,
+      success: true,
+    }
+  } catch (error) {
+    console.error('Create checkout link error:', error)
+    return {
+      error: "Failed to create checkout link",
+      status: 500,
+      success: false,
+    }
   }
 }

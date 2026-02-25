@@ -14,12 +14,14 @@ import { X, Search } from 'lucide-react';
 import React, { useState } from 'react'
 import { CtaTypeEnum } from '@prisma/client'
 import Stripe from 'stripe';
+import { Assistant } from '@vapi-ai/server-sdk/api'
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
+  assistants: Assistant[] | []
 }
 
-const CTAStep = ({stripeProducts}: Props) => {
+const CTAStep = ({stripeProducts, assistants}: Props) => {
 
   const {
     formData, updateCTAField, addTag, removeTag, getStepValidationErrors,
@@ -50,6 +52,9 @@ const CTAStep = ({stripeProducts}: Props) => {
 
   const handleProductChange = (value: string) => {
     updateCTAField('priceld', value)
+  }
+  const handleAgentChange = (value: string) => {
+    updateCTAField('aiAgent', value)
   }
 
   return (
@@ -128,7 +133,50 @@ const CTAStep = ({stripeProducts}: Props) => {
           </TabsList>
         </Tabs>
       </div>
-      {/* stripe products */}
+      
+      {ctaType === CtaTypeEnum.BOOK_A_CALL && (
+        <div className="space-y-2">
+          <Label>Attach an AI Agent</Label>
+          <div className="relative">
+            <div className="md-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-500"/>
+                <Input
+                  placeholder="Search agents"
+                  className="pl-9 !bg-background/50 border border-input"
+                />
+              </div>
+            </div>
+            <Select
+              value={aiAgent || undefined}
+              onValueChange={handleAgentChange}
+            >
+              <SelectTrigger className="w-full !bg-background/50 border border-input">
+                <SelectValue placeholder="Select an agent" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border border-input max-h-48">
+                {assistants?.length > 0 ? (
+                  assistants.map((assistant) => (
+                    <SelectItem 
+                      key={assistant.id} 
+                      value={assistant.id}
+                      className="!bg-background/50 hover:!bg-white/10"
+                    >
+                      {assistant.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="no-agents" disabled>
+                    No agents found
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      {ctaType === CtaTypeEnum.BUY_NOW && (
       <div className="space-y-2">
         <Label>Stripe Products</Label>
         <div className="relative">
@@ -171,6 +219,7 @@ const CTAStep = ({stripeProducts}: Props) => {
           </Select>
         </div>
       </div>
+      )}
     </div>
   )
 }

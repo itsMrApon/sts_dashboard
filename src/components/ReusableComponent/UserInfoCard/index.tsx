@@ -12,9 +12,9 @@ const formatTime = (date: Date) => {
   return new Date(date).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
+    // hour: '2-digit',
+    // minute: '2-digit',
+    // hour12: true
   })
 }
 
@@ -41,7 +41,7 @@ const UserInfoCard = ({ customer, tags, className }: Props)=>{
         </div>
         {customer.attendedAt && (
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            Updated {formatTime(customer.attendedAt)}
+            Updated {formatTime(customer?.updatedAt)}
           </p>
         )}
       </div>

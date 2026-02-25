@@ -10,13 +10,18 @@ import CreateWebinarButton from '../CreateWebinarButton'
 import Stripe from 'stripe'
 import { StripeElements } from '../Stripe/Element'
 import SubscriptionModel from '../SubscriptionModel'
+import { Assistant } from '@vapi-ai/server-sdk/api'
 
-type Props = {user: User; stripeProducts: Stripe.Product[] | []}
+type Props = {
+  user: User; 
+  stripeProducts: Stripe.Product[] | []
+  assistants: Assistant[] | []
+}
 
 
 // todo stripe integration
 
-const Header = ({user, stripeProducts}: Props) => {
+const Header = ({user, stripeProducts, assistants}: Props) => {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -42,7 +47,10 @@ const Header = ({user, stripeProducts}: Props) => {
           </PurpleIcon>
           {/* TODO: Add stripe subscription and create webinar button */}
           {user.subscription? (
-            <CreateWebinarButton stripeProducts={stripeProducts} />
+            <CreateWebinarButton 
+              stripeProducts={stripeProducts} 
+              assistants={assistants}
+            />
           ) : (
             <StripeElements>
               <SubscriptionModel user={user} />

@@ -55,7 +55,7 @@ const page = async ({params, searchParams}: Props) => {
   return (
     <AutoConnectCall
       userName={attendee.data.name}
-      assistantid={project.aiAgentId}
+      assistantId={project.aiAgentId}
       project={project as WebinarWithPresenter} 
       userId={attendeeId}
     />

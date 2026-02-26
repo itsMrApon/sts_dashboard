@@ -21,11 +21,10 @@ const ModelConfiguration = (props: Props) => {
   const handleUpdateAssistant = async () => {
     setLoading(true)
     try {
-      if (!assistant?.id) {
-        throw new Error('No assistant selected')
-      }
-
-      const res = await updateAssistant(assistant.id, firstMessage, systemPrompt)
+      const res = await updateAssistant(assistant?.id, {
+        firstMessage,
+        systemPrompt,
+      })
       if (!res.success) {
         throw new Error(res.message)
       }

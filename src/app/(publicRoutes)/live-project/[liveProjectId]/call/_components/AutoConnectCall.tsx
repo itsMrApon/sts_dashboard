@@ -378,7 +378,7 @@ const AutoConnectCall = ({
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
                 <span
-                  classname={cn(
+                  className={cn(
                     'text-sm font-medium'
                     , timeRemaining < 30
                     ? 'text-destructive animate-pulse' 

@@ -86,7 +86,7 @@ export const potentialCustomer = [
 
 export const subscriptionPriceId = process.env.NEXT_PUBLIC_STRIPE_SUBSCRIPTION_PRICE_ID || ''
 
-export const aiAgentPrompt = `# Lead Qualification & Nurturing Agent Prompt
+export const aiAgentPrompt = `# Lead Qualification & Digital Agent Prompt
 
 
 🔹 AI Sales Setter & Closer Prompt for Voice AI Agent

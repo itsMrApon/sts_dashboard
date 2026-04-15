@@ -26,6 +26,11 @@ try {
   const createAssistant = await vapiServer.assistants.create({
     name,
     firstMessage: `Hi there, this is ${name} from customer support. How can I help you today?`,
+    serverMessages: [],
+    voice: {
+      provider: 'deepgram',
+      voiceId: 'asteria',
+    },
     model: {
       model: 'gpt-4o',
       provider: 'openai',
@@ -52,6 +57,11 @@ export const updateAssistant = async (
   try {
     const updateAssistant = await vapiServer.assistants.update(assistantId, {
       firstMessage: firstMessage,
+      serverMessages: [],
+      voice: {
+        provider: 'deepgram',
+        voiceId: 'asteria',
+      },
       model: {
         model: 'gpt-4o',
         provider: 'openai',
@@ -67,5 +77,15 @@ export const updateAssistant = async (
   } catch (error) {
     console.error('Error updating assistant:', error)
     return { success: false, status: 500, message: 'Error updating assistant', error: error }
+  }
+}
+
+export const deleteAssistant = async (assistantId: string) => {
+  try {
+    await vapiServer.assistants.delete(assistantId)
+    return { success: true, status: 200 }
+  } catch (error) {
+    console.error('Error deleting assistant:', error)
+    return { success: false, status: 500, error: 'Error deleting assistant' }
   }
 }

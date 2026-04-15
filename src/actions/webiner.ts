@@ -1,10 +1,10 @@
-"use server"
+ "use server"
 
-import { WebinarFormState } from "@/store/useStsStore"
-import { onAuthenticateUser } from "./auth"
-import { revalidatePath } from "next/cache"
-import { prismaClient } from "@/lib/prismaClient"
-import { WebinarStatusEnum } from "@prisma/client"
+ import { WebinarFormState } from "@/store/useStsStore"
+ import { onAuthenticateUser } from "./auth"
+ import { revalidatePath } from "next/cache"
+ import { prismaClient } from "@/lib/prismaClient"
+ import { CtaTypeEnum, WebinarStatusEnum } from "@prisma/client"
 
 
 function combineDateTime(
@@ -45,46 +45,78 @@ export const createProject = async(formData: WebinarFormState) => {
       
       console.log('Form Data:', formData, presenterId)
       
+      const kind = formData.basicInfo.kind || 'project'
+
       if (!formData.basicInfo.webinarName) {
         return { status : 404, message : 'Project name is required' }
       }
-      if (!formData.basicInfo.date) {
-        return { status : 404, message : 'Project date is required' }
-      }
-      if (!formData.basicInfo.time) {
-        return { status : 404, message : 'Project time is required' }
-      }
-      const combinedDateTime = combineDateTime(
-        formData.basicInfo.date,
-        formData.basicInfo.time,
-        formData.basicInfo.timeFormat as 'AM' | 'PM'
-      )
-      const now = new Date()
-      if (combinedDateTime < now) {
-        return { 
-          status : 400, 
-          message : 'Project date and time must be in the past' 
+      let startTime: Date
+
+      if (kind === 'product') {
+        // Products are always-on; use current time as startTime and skip scheduling checks.
+        startTime = new Date()
+      } else {
+        if (!formData.basicInfo.date) {
+          return { status: 404, message: 'Project date is required' }
         }
+        if (!formData.basicInfo.time) {
+          return { status: 404, message: 'Project time is required' }
+        }
+        const combinedDateTime = combineDateTime(
+          formData.basicInfo.date,
+          formData.basicInfo.time,
+          formData.basicInfo.timeFormat as 'AM' | 'PM',
+        )
+        const now = new Date()
+        if (combinedDateTime < now) {
+          return {
+            status: 400,
+            message: 'Project date and time must be in the future',
+          }
+        }
+        startTime = combinedDateTime
       }
 
-      const webinar = await prismaClient.webinar.create({
-        data: {
-          title: formData.basicInfo.webinarName,
-          description: formData.basicInfo.description || "",
-          startTime: combinedDateTime,
-          tags: formData.cta.tags || [],
-          ctaLabel: formData.cta.ctaLabel,
-          ctaType: formData.cta.ctaType, 
-          aiAgentId: formData.cta.aiAgent || null,
-          priceId: formData.cta.priceld || null, 
-          lockChat: formData.additionalInfo.lockChat || false, 
-          couponCode: formData.additionalInfo.couponEnabled
-            ? formData.additionalInfo.couponCode 
-            : null,
-          couponEnabled: formData.additionalInfo.couponEnabled || false, 
-          presenterId: presenterId,
-        },
-      });
+      // Parse aiAgent: "vapi:id" or "livekit:id" format
+      let aiAgentId: string | null = null
+      let livekitAgentId: string | null = null
+      const aiAgentValue = formData.cta.aiAgent || ''
+      if (aiAgentValue.startsWith('livekit:')) {
+        livekitAgentId = aiAgentValue.slice(8) || null
+      } else if (aiAgentValue.startsWith('vapi:')) {
+        aiAgentId = aiAgentValue.slice(5) || null
+      } else if (aiAgentValue) {
+        // Backward compat: plain id treated as vapi
+        aiAgentId = aiAgentValue
+      }
+
+      // Ensure ctaType is a valid Prisma enum (handle "Book a Call" etc)
+      const ctaTypeRaw = formData.cta.ctaType
+      const ctaType =
+        ctaTypeRaw === CtaTypeEnum.BUY_NOW
+          ? CtaTypeEnum.BUY_NOW
+          : CtaTypeEnum.BOOK_A_CALL
+
+      const data = {
+        title: formData.basicInfo.webinarName,
+        description: formData.basicInfo.description || "",
+        startTime,
+        tags: formData.cta.tags || [],
+        ctaLabel: formData.cta.ctaLabel,
+        ctaType,
+        kind: kind === 'product' ? 'PRODUCT' : 'PROJECT',
+        aiAgentId,
+        livekitAgentId,
+        priceId: formData.cta.priceld || null,
+        lockChat: formData.additionalInfo.lockChat || false,
+        couponCode: formData.additionalInfo.couponEnabled
+          ? formData.additionalInfo.couponCode
+          : null,
+        couponEnabled: formData.additionalInfo.couponEnabled || false,
+        presenterId: presenterId,
+      }
+
+      const webinar = await prismaClient.webinar.create({ data })
       revalidatePath('/')
       return {
         status : 201,
@@ -94,9 +126,10 @@ export const createProject = async(formData: WebinarFormState) => {
       }
   } catch (error) {
     console.error('Error creating project:', error)
+    const message = error instanceof Error ? error.message : 'Failed to create project, please try again later'
     return {
       status : 500,
-      message : 'Failed to create project, please try again later',
+      message,
     }
   }
 }

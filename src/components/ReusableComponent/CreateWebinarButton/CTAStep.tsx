@@ -13,15 +13,17 @@ import { useStsStore } from '@/store/useStsStore';
 import { X, Search } from 'lucide-react';
 import React, { useState } from 'react'
 import { CtaTypeEnum } from '@prisma/client'
-import Stripe from 'stripe';
+import type Stripe from 'stripe'
 import { Assistant } from '@vapi-ai/server-sdk/api'
+import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
   assistants: Assistant[] | []
+  livekitAgents?: LiveKitUiAgentConfig[]
 }
 
-const CTAStep = ({stripeProducts, assistants}: Props) => {
+const CTAStep = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
 
   const {
     formData, updateCTAField, addTag, removeTag, getStepValidationErrors,
@@ -155,21 +157,35 @@ const CTAStep = ({stripeProducts, assistants}: Props) => {
                 <SelectValue placeholder="Select an agent" />
               </SelectTrigger>
               <SelectContent className="bg-background border border-input max-h-48">
-                {assistants?.length > 0 ? (
-                  assistants.map((assistant) => (
-                    <SelectItem 
-                      key={assistant.id} 
-                      value={assistant.id}
-                      className="!bg-background/50 hover:!bg-white/10"
-                    >
+                {livekitAgents?.map((agent) => (
+                  <SelectItem
+                    key={`livekit-${agent.id}`}
+                    value={`livekit:${agent.id}`}
+                    className="!bg-background/50 hover:!bg-white/10"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-primary/70">LiveKit</span>
+                      {agent.name}
+                    </span>
+                  </SelectItem>
+                ))}
+                {assistants?.map((assistant) => (
+                  <SelectItem
+                    key={`vapi-${assistant.id}`}
+                    value={`vapi:${assistant.id}`}
+                    className="!bg-background/50 hover:!bg-white/10"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-primary/70">Vapi</span>
                       {assistant.name}
-                    </SelectItem>
-                  ))
-                ) : (
+                    </span>
+                  </SelectItem>
+                ))}
+                {(!livekitAgents?.length && !assistants?.length) ? (
                   <SelectItem value="no-agents" disabled>
                     No agents found
                   </SelectItem>
-                )}
+                ) : null}
               </SelectContent>
             </Select>
           </div>

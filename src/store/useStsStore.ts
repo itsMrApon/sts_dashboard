@@ -1,9 +1,16 @@
 import { create } from 'zustand'
 import { CtaTypeEnum } from '@prisma/client'
-import { validateBasicInfo, validateAdditionalInfo, validateCTA, ValidationErrors } from '@/lib/type'
+import {
+  validateBasicInfo,
+  validateAdditionalInfo,
+  validateCTA,
+  ValidationErrors,
+  ValidationResult,
+} from '@/lib/type'
 
 export type WebinarFormState = {
   basicInfo: {
+    kind?: 'project' | 'product'
     webinarName?: string
     description?: string
     date?: Date
@@ -80,6 +87,7 @@ type StsStore = {
 
 const initialState: WebinarFormState = {
   basicInfo: {
+    kind: 'project',
     webinarName: "",
     description: "",
     date: undefined,
@@ -89,7 +97,7 @@ const initialState: WebinarFormState = {
   cta: {
     ctaLabel: "",
     tags: [],
-    ctaType: "Book a Call",
+    ctaType: CtaTypeEnum.BOOK_A_CALL,
     aiAgent: "",
     priceld: "",
   },
@@ -152,10 +160,12 @@ export const useStsStore = create<StsStore>((set, get) => ({
     },
 
     validateStep: (stepId: keyof WebinarFormState) => {
-      const {formData} = get()
-      let validationResult;
+      const { formData } = get()
 
-      switch(stepId) {
+      // Default: steps without validation (e.g. "type") are always valid
+      let validationResult: ValidationResult = { valid: true, errors: {} }
+
+      switch (stepId) {
         case 'basicInfo':
           validationResult = validateBasicInfo(formData.basicInfo)
           break
@@ -165,12 +175,15 @@ export const useStsStore = create<StsStore>((set, get) => ({
         case 'additionalInfo':
           validationResult = validateAdditionalInfo(formData.additionalInfo)
           break
+        default:
+          // keep default valid: true
+          break
       }
-      set((state) => {
-        return {
-          validation: { ...state.validation, [stepId]:validationResult},
-        }
-      })
+
+      set((state) => ({
+        validation: { ...state.validation, [stepId]: validationResult },
+      }))
+
       return validationResult.valid
     },
 

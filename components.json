@@ -18,5 +18,7 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "registries": {}
+  "registries": {
+    "@agents-ui": "https://livekit.io/ui/r/{name}.json"
+  }
 }

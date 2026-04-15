@@ -1,4 +1,4 @@
-import { Sparkle, Webcam, Home, Users, Settings } from 'lucide-react'
+import { Sparkle, Webcam, Home, Users, Settings, MessageCircle, Megaphone } from 'lucide-react'
 export const sidebarData = [
   {
     id: 1,
@@ -14,19 +14,30 @@ export const sidebarData = [
   },
   {
     id: 3,
+    title: 'Messages',
+    icon: MessageCircle,
+    link: '/messages',
+  },
+  {
+    id: 4,
     title: 'Leads',
     icon: Users,
     link: '/lead',
   },
   {
-    id: 4,
+    id: 5,
+    title: 'Tenants',
+    icon: Megaphone,
+    link: '/tenants',
+  },
+  {
+    id: 6,
     title: 'Ai Agents',
     icon: Sparkle,
     link: '/ai-agents',
   },
-
   {
-    id: 5,
+    id: 7,
     title: 'Settings',
     icon: Settings,
     link: '/settings',
@@ -98,16 +109,11 @@ The call is only 30 minutes long so try to keep everything as short as possible 
 
 🔹 INITIAL CONTEXT INJECTION (knowledge base):
 Here are the company’s core details:
-[Company Name] ABC corp. 
-We help content creators who have a technical skills and are struggling to make money through their audience go from $10k/mo tp $50k/mo
+[Company Name] STS AI corp. 
+We help businesses who are struggling to generate leads and convert them into customers go from $10k/mo tp $50k/mo
 
 [Offer/Product Description]
-Accelerator program, provides mentorship, unlimited courses, and a software that helps them automate lead generation. 
-
-[3 Unique Pillars] (Key elements that make this business unique. These should not be changed but can be tweaked slightly based on the lead’s pain points to appear hyper-personalized)
-- 1 on 1 mentorship that no one else offers because courses alone don’t help.
-- free software tool that costs 6k per year for free which they will need anyways to generate leads.
--  Unlimited courses with lifetime access so no need to buy stuff again. LAst investment they will ever make. 
+We provide a voice agent that can help you generate leads and convert them into customers. 
 
 ### Personality
 - Sound friendly, consultative, and genuinely interested in the prospect's business

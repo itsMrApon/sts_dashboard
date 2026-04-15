@@ -1,35 +1,42 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader,
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog'
 import { useStsStore } from '@/store/useStsStore'
 import { DialogTrigger } from '@radix-ui/react-dialog'
 import { PlusIcon } from 'lucide-react'
 import React, { useState } from 'react'
 import MultiStepForm from './MultiStepForm'
+import TypeStep from './TypeStep'
 import BasicInfoStep from './BasicInfoStep'
 import CTAStep from './CTAStep'
 import AdditionalInfostep from './AdditionalInfostep'
-import Stripe from 'stripe'
+import type Stripe from 'stripe'
 import SuccessStep from './SuccessStep'
 import { Assistant } from '@vapi-ai/server-sdk/api'
+import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
   assistants: Assistant[] | []
+  livekitAgents?: LiveKitUiAgentConfig[]
 }
 
-const CreateWebinarButton = ({stripeProducts, assistants}: Props) => {
-  const { isModalOpen, setModalOpen, isComplete, setComplete, resetForm } = useStsStore()
+const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
+  const { isModalOpen, setModalOpen, isComplete, setComplete, resetForm, formData } = useStsStore()
 
   const [projectLink, setProjectLink] = useState('')
 
   const steps = [
+    {
+      id: 'type',
+      title: 'Type',
+      description: 'Choose whether you want to create a project or a product',
+      component: <TypeStep />,
+    },
     {
       id: 'basicInfo', 
       title: 'Basic Information', 
@@ -42,6 +49,7 @@ const CreateWebinarButton = ({stripeProducts, assistants}: Props) => {
       component: (
         <CTAStep
           assistants={assistants}
+          livekitAgents={livekitAgents}
           stripeProducts={stripeProducts}
         />
       ),
@@ -54,10 +62,14 @@ const CreateWebinarButton = ({stripeProducts, assistants}: Props) => {
     },
   ]  
   const handleComplete = (webinarid: string) => {
-     setComplete(true)
-     setProjectLink(
-      `${process. env.NEXT_PUBLIC_BASE_URL}/live-project/${webinarid}`
-     )
+    setComplete(true)
+    const kind = formData.basicInfo.kind || 'project'
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
+    const path =
+      kind === 'product'
+        ? `/live-product/${webinarid}`
+        : `/live-project/${webinarid}`
+    setProjectLink(`${baseUrl}${path}`)
   }
   const handleCreateNew = () => {
     resetForm()
@@ -70,8 +82,9 @@ const CreateWebinarButton = ({stripeProducts, assistants}: Props) => {
     onOpenChange={setModalOpen}
     > 
     <DialogTrigger asChild>
-      <button className="rounded-xl flex gap-2 items-center hover: cursor-pointer px-4 py-2 border border-border bg-primary/10 backdrop-blur-sm text-sm font-normal text-primary hover: bg-primary-20"
-      onClick={() => setModalOpen (true) }
+      <button
+        className="rounded-xl flex gap-2 items-center hover: cursor-pointer px-4 py-2 border border-border bg-primary/10 backdrop-blur-sm text-sm font-normal text-primary hover:bg-primary-20"
+        onClick={() => setModalOpen(true)}
       >
         <PlusIcon />
         Create Project

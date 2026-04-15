@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import React from 'react'
-import RightIcon from '@/icons/RightIcon' 
+import RightIcon from '@/icons/RightIcon'
+import { cn } from '@/lib/utils'
 
 type Props = {
   children: React.ReactNode
@@ -11,7 +12,12 @@ type Props = {
 
 const FeatureSectionLayout = ({ children, heading, link, className }: Props) => {
   return (
-    <div className={`p-10 flex items-center justify-between flex-col gap-10 border rounded-3xl border-border bg-background-10 ${className}`}>
+    <div
+      className={cn(
+        'flex flex-col items-center justify-between gap-10 rounded-3xl border border-border bg-background-10 p-10',
+        className,
+      )}
+    >
       {children}
       <div className="w-full justify-between items-center flex flex-wrap gap-10">
         <h3 className="sm:w- [70%] font-semibold text-3x1 text-primary">

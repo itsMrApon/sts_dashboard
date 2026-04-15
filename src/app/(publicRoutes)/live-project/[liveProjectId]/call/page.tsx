@@ -1,10 +1,12 @@
 import { getAttendeeById } from '@/actions/attendance'
+import { getLiveKitAgentById } from '@/actions/livekitAgent'
 import { getProjectbyId } from '@/actions/webiner'
 import { WebinarWithPresenter } from '@/lib/type'
-import { CallStatusEnum, CtaTypeEnum, WebinarStatusEnum } from '@prisma/client'
+import { CtaTypeEnum, WebinarStatusEnum } from '@prisma/client'
 import { redirect } from 'next/navigation'
 import React from 'react'
 import AutoConnectCall from './_components/AutoConnectCall'
+import LiveKitCall from './_components/LiveKitCall'
 
 type Props = {
   params: Promise<{
@@ -40,23 +42,42 @@ const page = async ({params, searchParams}: Props) => {
     redirect(`/live-project/${liveProjectId}?error=project-not-started`)
   }
 
-  if(
-    project.ctaType !== CtaTypeEnum.BOOK_A_CALL ||
-    !project.aiAgentId ||
-    !project.priceId 
-  ) {
+  // Book a Call requires an AI agent (Vapi or LiveKit). priceId is only for Buy Now.
+  const livekitAgentId = (project as { livekitAgentId?: string | null }).livekitAgentId
+  const hasAiAgent = project.aiAgentId || livekitAgentId
+  if (project.ctaType !== CtaTypeEnum.BOOK_A_CALL || !hasAiAgent) {
     redirect(`/live-project/${liveProjectId}?error=cannot-book-a-call`)
   }
 
-  if(attendee.data.callStatus === CallStatusEnum.COMPLETED) {
-    redirect(`/live-project/${liveProjectId}?error=call-not-pending`)
+  // LiveKit agents: render LiveKitCall (same flow as Vapi, different backend)
+  if (livekitAgentId && !project.aiAgentId) {
+    const livekitResult = await getLiveKitAgentById(livekitAgentId)
+    if (livekitResult.success && livekitResult.data?.roomName) {
+      return (
+        <LiveKitCall
+          roomName={livekitResult.data.roomName}
+          userName={attendee.data.name}
+          assistantName={livekitResult.data.name}
+          callTimeLimit={180}
+          project={project as WebinarWithPresenter}
+          userId={attendeeId}
+        />
+      )
+    }
+  }
+
+  if (!project.aiAgentId) {
+    redirect(`/live-project/${liveProjectId}?error=cannot-book-a-call`)
   }
 
   return (
     <AutoConnectCall
       userName={attendee.data.name}
       assistantId={project.aiAgentId}
-      project={project as WebinarWithPresenter} 
+      assistantName="AI Assistant"
+      assistantImage=""
+      callTimeLimit={180}
+      project={project as WebinarWithPresenter}
       userId={attendeeId}
     />
   )

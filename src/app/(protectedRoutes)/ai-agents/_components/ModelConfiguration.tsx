@@ -1,53 +1,80 @@
 'use client'
 import { updateAssistant } from '@/actions/vapi'
+import { updateLiveKitAgent } from '@/actions/livekitAgent'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAiAgentStore } from '@/store/useAiAgentstore'
+import type { Assistant } from '@vapi-ai/server-sdk/api'
 import { Info, Loader2 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import ConfigField from './ConfigField'
-import DropdownSelect from './DropdownSelect'
 import { toast } from 'sonner'
+import { DEFAULT_LLM_MODEL } from '@/lib/llm/defaultModel'
 
-type Props = {}
+const ModelConfiguration = () => {
+  const { assistant: selectedAssistant, livekitAgent, source } = useAiAgentStore()
+  const assistant = selectedAssistant as Assistant | null
+  const [firstMessage, setFirstMessage] = useState('')
+  const [systemPrompt, setSystemPrompt] = useState('')
+  const [llmProvider, setLlmProvider] = useState('google')
+  const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
+  const [voiceProvider, setVoiceProvider] = useState('deepgram')
+  const [voiceModel, setVoiceModel] = useState('aura-asteria-en')
+  const [loading, setLoading] = useState(false)
 
-const ModelConfiguration = (props: Props) => {
-  const { assistant } = useAiAgentStore()
-  const [firstMessage, setFirstMessage] = useState('');
-  const [systemPrompt, setSystemPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleUpdateAssistant = async () => {
+  const handleSave = async () => {
     setLoading(true)
     try {
-      const res = await updateAssistant(assistant?.id, {
-        firstMessage,
-        systemPrompt,
-      })
-      if (!res.success) {
-        throw new Error(res.message)
+      if (source === 'vapi' && assistant) {
+        const res = await updateAssistant(assistant.id as string, firstMessage, systemPrompt)
+        if (!res.success) {
+          throw new Error(res.message)
+        }
+        toast.success('Assistant updated successfully.')
+      } else if (source === 'livekit' && livekitAgent) {
+        const res = await updateLiveKitAgent(livekitAgent.id, {
+          firstMessage,
+          systemPrompt,
+          llmProvider,
+          llmModel,
+          voiceProvider,
+          voiceModel,
+        })
+        if (!res.success) {
+          throw new Error(res.error || 'Failed to update LiveKit agent.')
+        }
+        toast.success('LiveKit agent updated successfully.')
       }
-      toast.success('Assistant updated successfully.')
-    }
-    catch (error) {
-      console.error('Error updating assistant:', error)
-      toast.error('Failed to update assistant. Please try again.')
-    }
-    finally {
+    } catch (error) {
+      console.error('Error updating model configuration:', error)
+      toast.error('Failed to update configuration. Please try again.')
+    } finally {
       setLoading(false)
     }
   }
 
-  useEffect (() => {
-    if (assistant) {
-      setFirstMessage(assistant?.firstMessage || '')
-      setSystemPrompt(assistant?.model?.messages?.[0]?.content || '')
+  useEffect(() => {
+    if (source === 'vapi' && assistant) {
+      setFirstMessage(assistant.firstMessage || '')
+      setSystemPrompt(assistant.model?.messages?.[0]?.content || '')
+    } else if (source === 'livekit' && livekitAgent) {
+      setFirstMessage(livekitAgent.firstMessage || '')
+      setSystemPrompt(livekitAgent.systemPrompt || '')
+      setLlmProvider(livekitAgent.llmProvider || 'google')
+      setLlmModel(livekitAgent.llmModel || DEFAULT_LLM_MODEL)
+      setVoiceProvider(livekitAgent.voiceProvider || 'deepgram')
+      setVoiceModel(livekitAgent.voiceModel || 'aura-asteria-en')
     }
-  }, [assistant])
+  }, [assistant, livekitAgent, source])
 
-
-  if (!assistant) {
+  if (source === 'vapi' && !assistant) {
     return (
       <div className="flex justify-center items-center h-[500px] w-full">
         <div className=" bg-neutral-900 rounded-xl p-6 w-full">
@@ -59,12 +86,24 @@ const ModelConfiguration = (props: Props) => {
     )
   }
 
+  if (source === 'livekit' && !livekitAgent) {
+    return (
+      <div className="flex justify-center items-center h-[500px] w-full">
+        <div className=" bg-neutral-900 rounded-xl p-6 w-full">
+          <p className="text-primary/80 text-center">
+            LiveKit agent configuration is not available.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-neutral-900 rounded-xl p-6 mb-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Model</h2>
         <Button
-          onClick={handleUpdateAssistant}
+          onClick={handleSave}
           disabled={loading}
         >
           {loading? (
@@ -102,18 +141,65 @@ const ModelConfiguration = (props: Props) => {
         <Textarea
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
-          className="bg-primary/10 border-input"
+          className="bg-primary/10 border-input h-[220px] md:h-[260px] lg:h-[300px] resize-y"
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <ConfigField label="Provider" >
-          <DropdownSelect value={assistant.model?.provider || ""} />
-        </ConfigField>
-
-        <ConfigField label="Model" showInfo={true} >
-          <DropdownSelect value={assistant.model?.model || ""} />
-        </ConfigField>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label className="text-sm text-neutral-300 mb-2 block">LLM Provider</label>
+          <Select
+            value={source === 'livekit' ? llmProvider : assistant?.model?.provider || ''}
+            onValueChange={(v) => setLlmProvider(v)}
+            disabled={source !== 'livekit'}
+          >
+            <SelectTrigger className="bg-primary/10 border-input">
+              <SelectValue placeholder="Select provider" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="google">Google Gemini</SelectItem>
+              <SelectItem value="openai" disabled>
+                OpenAI (Phase 2)
+              </SelectItem>
+              <SelectItem value="anthropic" disabled>
+                Claude (Phase 2)
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-sm text-neutral-300 mb-2 block">LLM Model</label>
+          <Input
+            value={source === 'livekit' ? llmModel : assistant?.model?.model || ''}
+            onChange={(e) => setLlmModel(e.target.value)}
+            className="bg-primary/10 border-input"
+            disabled={source !== 'livekit'}
+          />
+        </div>
+        <div>
+          <label className="text-sm text-neutral-300 mb-2 block">Voice Provider</label>
+          <Select
+            value={voiceProvider}
+            onValueChange={(v) => setVoiceProvider(v)}
+            disabled={source !== 'livekit'}
+          >
+            <SelectTrigger className="bg-primary/10 border-input">
+              <SelectValue placeholder="Select voice provider" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="deepgram">Deepgram</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-sm text-neutral-300 mb-2 block">Voice Model</label>
+          <Input
+            value={voiceModel}
+            onChange={(e) => setVoiceModel(e.target.value)}
+            className="bg-primary/10 border-input"
+            disabled={source !== 'livekit'}
+          />
+        </div>
       </div>
     </div>
   )

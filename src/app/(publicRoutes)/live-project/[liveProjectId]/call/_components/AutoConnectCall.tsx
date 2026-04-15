@@ -12,6 +12,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 const CallStatus = {
+  IDLE: 'IDLE',
   CONNECTING: 'CONNECTING',
   ACTIVE: 'ACTIVE',
   FINISHED: 'FINISHED',
@@ -25,18 +26,23 @@ type Props = {
   callTimeLimit: number
   project: WebinarWithPresenter
   userId: string
+  /** When true, hide the Buy Now button (e.g. product page has its own). */
+  hideBuyNow?: boolean
+  /** Optional callback when the call has fully ended (for parent UIs). */
+  onCallEnd?: () => void
 }
 
 const AutoConnectCall = ({
   userName ='user', 
   assistantId, 
   assistantName ='Ai Assistant', 
-  assistantImage, 
   callTimeLimit = 180, 
   project, 
-  userId
+  userId,
+  hideBuyNow,
+  onCallEnd,
 }: Props) => {
-  const[callStatus, setCallStatus] = useState(CallStatus.CONNECTING)
+  const[callStatus, setCallStatus] = useState(CallStatus.IDLE)
   const[assistantIsSpeaking, setAssistantIsSpeaking] = useState(false)
   const[userIsSpeaking, setUserIsSpeaking] = useState(false)
   const[isMicMuted, setIsMicMuted] = useState(false)
@@ -47,6 +53,11 @@ const AutoConnectCall = ({
     audioStream: null as MediaStream | null, 
     userSpeakingTimeout: undefined as NodeJS. Timeout | undefined,
   });
+  const startedRef = useRef(false)
+  const assistantIsSpeakingRef = useRef(false)
+  const isMicMutedRef = useRef(false)
+  assistantIsSpeakingRef.current = assistantIsSpeaking
+  isMicMutedRef.current = isMicMuted
 
   const formatTime = (seconds: number) => {
     const mins = Math. floor (seconds / 60)
@@ -71,6 +82,7 @@ const AutoConnectCall = ({
 
   const setupAudio = async () => {
     try {
+      if (refs.current.audioStream) return
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       refs.current.audioStream = stream
       
@@ -93,7 +105,7 @@ const AutoConnectCall = ({
           const normalizedVolume = average / 256;
 
         // Detect speech based on volume
-        if (normalizedVolume > 0.15 && !assistantIsSpeaking && !isMicMuted) {
+        if (normalizedVolume > 0.15 && !assistantIsSpeakingRef.current && !isMicMutedRef.current) {
           setUserIsSpeaking(true);
         }
 
@@ -129,6 +141,7 @@ const AutoConnectCall = ({
         throw new Error("Failed to update call status");
       }
       toast.success('Call ended successfully')
+      onCallEnd?.()
     } catch (error) {
       console.error('Failed to stop call:', error)
       toast.error('Failed to stop call, please try again.')
@@ -167,7 +180,6 @@ const AutoConnectCall = ({
 
   const startCall = async () => {
     try {
-      setCallStatus(CallStatus.CONNECTING)
       await vapi.start(assistantId)
       const res = await changeCallStatus(userId, CallStatusEnum.InProgress)
       if (!res.success) {
@@ -180,24 +192,25 @@ const AutoConnectCall = ({
     }
   }
   
-  //todo: vapi call use effect
-  // Call setup & cleanup
-  useEffect(() => {
-    // Start the call immediately on mount
-    startCall()
-    return () => {
-      // return cleanup function
-      stopCall()
+  const startCallFromUserGesture = async () => {
+    if (startedRef.current) return
+    startedRef.current = true
+
+    setCallStatus(CallStatus.CONNECTING)
+    try {
+      await setupAudio()
+    } catch (e) {
+      console.warn('Audio setup failed; continuing to start call anyway', e)
     }
-  }, [])
+    await startCall()
+  }
 
   useEffect(() => {
     const onCallStart = async () => {
       console. log ("Call started"); 
       setCallStatus (CallStatus.ACTIVE) ; 
-      setupAudio ();
 
-      // Start countdown timer from 3 minutes
+      // Start countdown timer from configured limit
       setTimeRemaining(callTimeLimit);
       refs.current.countdownTimer = setInterval (() => {
         setTimeRemaining( (prev) => {
@@ -211,34 +224,38 @@ const AutoConnectCall = ({
       }, 1000);
     };
 
-    const onCallEnd = ()=> {
+    const onCallEndHandler = ()=> {
       console. log( 'Call ended')
       setCallStatus(CallStatus.FINISHED)
       cleanup ( )
+      onCallEnd?.()
     }
 
     const onSpeechStart = () => {
-      setAssistantIsSpeaking(false)
+      setAssistantIsSpeaking(true)
     }
 
     const onSpeechEnd = () => {
-      setUserIsSpeaking(false)
+      setAssistantIsSpeaking(false)
     }
 
-    const onError = (error: Error)=>{
+    const onError = (error: unknown)=>{
       console.error('Vapi error:', error)
+      try {
+        console.error('Vapi error JSON:', JSON.stringify(error, null, 2))
+      } catch {}
       setCallStatus(CallStatus.FINISHED)
       cleanup ()
     }
     vapi.on('call-start', onCallStart)
-    vapi.on('call-end', onCallEnd)
+    vapi.on('call-end', onCallEndHandler)
     vapi.on('speech-start', onSpeechStart)
     vapi.on('speech-end', onSpeechEnd)
     vapi.on('error', onError)
 
     return () => {
       vapi.off('call-start', onCallStart)
-      vapi.off('call-end', onCallEnd)
+      vapi.off('call-end', onCallEndHandler)
       vapi.off('speech-start', onSpeechStart)
       vapi.off('speech-end', onSpeechEnd)
       vapi.off('error', onError)
@@ -246,7 +263,7 @@ const AutoConnectCall = ({
 
 
 
-  },[userName, callTimeLimit])
+  },[userName, callTimeLimit, assistantId, userId])
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] bg-background">
@@ -363,10 +380,18 @@ const AutoConnectCall = ({
             <h3 className="text-xl font-medium">Connecting...</h3>
           </div>
         )}
+        {callStatus === CallStatus.IDLE && (
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center flex-col gap-4 z-20">
+            <h3 className="text-xl font-medium">Start voice call</h3>
+            <Button onClick={startCallFromUserGesture} className="rounded-full">
+              Allow audio & Start
+            </Button>
+          </div>
+        )}
         {callStatus === CallStatus.FINISHED && ( 
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center flex-col gap-4 z-20" >
             <h3 className="text-2xl font-bold">Call ended</h3>
-            <p className="text-muted-foreground">Limit reached.</p>
+            <p className="text-muted-foreground">This session has finished.</p>
           </div>
         )}
       </div>
@@ -418,12 +443,11 @@ const AutoConnectCall = ({
               <PhoneOff className="h-6 w-6" />
             </button>
           </div>
-          < Button
-            onClick={checkoutLink}
-            variant="outline"
-          >
-            Buy Now
-          </Button>
+          {!hideBuyNow && (
+            <Button onClick={checkoutLink} variant="outline">
+              Buy Now
+            </Button>
+          )}
 
           <div className="hidden md:block">
             {callStatus === CallStatus.ACTIVE && timeRemaining < 30 && (

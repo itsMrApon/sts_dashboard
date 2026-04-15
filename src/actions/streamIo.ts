@@ -57,6 +57,65 @@ export const getTokenForHost = async (
   }
 }
 
+export const getTokenForGuest = async (guestUserId: string, guestName: string) => {
+  try {
+    const newUser: UserRequest = {
+      id: guestUserId,
+      role: 'user',
+      name: guestName || 'Guest',
+      image: `https://api.dicebear.com/7.x/initials/svg?seed=${guestName || 'Guest'}`,
+    }
+
+    await getStreamClient.upsertUsers([newUser])
+
+    const validity = 60 * 60 * 60
+    const token = await getStreamClient.generateUserToken({
+      user_id: guestUserId,
+      validity_in_seconds: validity,
+    })
+
+    return token
+  } catch (error) {
+    console.error('Stream IO token error 🦺:', error)
+    throw new Error('Failed to get Stream IO token')
+  }
+}
+
+export const createOrGetStream1to1Call = async (params: {
+  callId: string
+  hostUserId: string
+  attendeeUserId: string
+}) => {
+  const { callId, hostUserId, attendeeUserId } = params
+
+  const call = getStreamClient.video.call('livestream', callId)
+
+  await call.getOrCreate({
+    data: {
+      created_by_id: hostUserId,
+      members: [
+        {
+          user_id: hostUserId,
+          role: 'host',
+        },
+        {
+          user_id: attendeeUserId,
+          role: 'user',
+        },
+      ],
+    },
+  })
+
+  // Best-effort: if host hasn't joined yet, this may still be a no-op.
+  try {
+    await call.goLive()
+  } catch {
+    // ignore: host join will still work
+  }
+
+  return call
+}
+
 export const createAndStartStream = async (project: Webinar) => {
   try {
     const checkProject = await prismaClient.webinar.findMany ({

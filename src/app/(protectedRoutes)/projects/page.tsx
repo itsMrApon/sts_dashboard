@@ -15,35 +15,22 @@ type Props = {
   }> 
 }
 
-const page = async({searchParams}: Props) => {
-  const { webinarStatus } =  await searchParams
-  const checkUser = await onAuthenticateUser()
+const page = async ({ searchParams }: Props) => {
+  const [{ webinarStatus }, checkUser] = await Promise.all([
+    searchParams,
+    onAuthenticateUser(),
+  ])
 
   if (!checkUser.user) {
     redirect('/')
   }
 
   const webinars = await getProjectByPresenterId(
-    checkUser?.user?.id,
+    checkUser.user.id,
     webinarStatus as WebinarStatusEnum
   )
 
-  const now = new Date()
-  const upcomingWebinars = webinars.filter((project: Webinar) => {
-    const isUpcoming = new Date(project.startTime) > now || 
-      (project.webinarStatus === 'SCHEDULED' || 
-       project.webinarStatus === 'WAITING_ROOM' || 
-       project.webinarStatus === 'LIVE')
-    return isUpcoming
-  })
-
-  const completedWebinars = webinars.filter((project: Webinar) => {
-    const isCompleted = project.webinarStatus === 'ENDED' || 
-      project.webinarStatus === 'CANCELLED' ||
-      (project.endTime && new Date(project.endTime) < now) ||
-      (!project.endTime && new Date(project.startTime) < now)
-    return isCompleted
-  })
+  // Note: Filtering is currently driven by `webinarStatus` query param on the server action.
 
   return (
     <Tabs
@@ -84,11 +71,16 @@ const page = async({searchParams}: Props) => {
         className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
       >
         {webinars?.length > 0 ? (
-          webinars.map((project: Webinar, index: number) => 
-            (<ProjectCard
-                key={index} 
-                project={project} 
-              />
+          webinars.map((project: Webinar, index: number) => (
+            <ProjectCard
+              key={index}
+              project={project}
+              hostUser={{
+                id: checkUser.user.id,
+                name: checkUser.user.name,
+                profileImage: checkUser.user.profileImage,
+              }}
+            />
           ))
         ) : (
           <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >
@@ -102,11 +94,16 @@ const page = async({searchParams}: Props) => {
         className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
       >
         {webinars?.length > 0 ? (
-          webinars.map((project: Webinar, index: number) => 
-            (<ProjectCard
-                key={index} 
-                project={project} 
-              />
+          webinars.map((project: Webinar, index: number) => (
+            <ProjectCard
+              key={index}
+              project={project}
+              hostUser={{
+                id: checkUser.user.id,
+                name: checkUser.user.name,
+                profileImage: checkUser.user.profileImage,
+              }}
+            />
           ))
         ) : (
           <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >
@@ -120,11 +117,16 @@ const page = async({searchParams}: Props) => {
         className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
       >
         {webinars?.length > 0 ? (
-          webinars.map((project: Webinar, index: number) => 
-            (<ProjectCard
-                key={index} 
-                project={project} 
-              />
+          webinars.map((project: Webinar, index: number) => (
+            <ProjectCard
+              key={index}
+              project={project}
+              hostUser={{
+                id: checkUser.user.id,
+                name: checkUser.user.name,
+                profileImage: checkUser.user.profileImage,
+              }}
+            />
           ))
         ) : (
           <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >

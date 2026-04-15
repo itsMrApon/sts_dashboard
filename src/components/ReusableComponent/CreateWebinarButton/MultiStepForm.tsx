@@ -71,7 +71,7 @@ const MultiStepForm = ({ steps, onComplete }: Props) => {
           router.refresh()    
       } catch (error) {
         console.error('Error creating webinar:', error)
-        toast.success('Failed to create webinar. Please try again.')
+        toast.error('Failed to create webinar. Please try again.')
         setValidationError('Failed to create webinar. Please try again.')
       } finally {
         setSubmitting(false)

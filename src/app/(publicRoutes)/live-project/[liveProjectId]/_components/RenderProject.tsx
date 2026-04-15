@@ -1,13 +1,37 @@
 'use client'
 import { User, Webinar, WebinarStatusEnum } from '@prisma/client'
 import React, { useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import ProjectUpcomingState from './UpcomingProject/ProjectUpcomingState'
 import { toast } from 'sonner'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAttendeeStore } from '@/store/useAttendeeStore'
-import LiveStreamState from './LiveProject/LiveStreamState'
 import { WebinarWithPresenter } from '@/lib/type'
-import Participant from './Participant/Participant'
+import { Loader2 } from 'lucide-react'
+
+const LiveStreamState = dynamic(
+  () => import('./LiveProject/LiveStreamState'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-border bg-card">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  }
+)
+
+const Participant = dynamic(
+  () => import('./Participant/Participant'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-border bg-card">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  }
+)
 
 type Props = {
   error: string | undefined

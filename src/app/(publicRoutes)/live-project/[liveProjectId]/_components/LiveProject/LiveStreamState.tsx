@@ -5,28 +5,24 @@ import {
 } from '@stream-io/video-react-sdk'
 import { WebinarWithPresenter } from '@/lib/type'
 import { User } from '@prisma/client'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import CustomLivestreamPlayer from './CustomLivestreamPlayer'
 import { getTokenForHost } from '@/actions/streamIo'
 
 type Props = {
   apiKey: string
-  // token: string
   callId: string
   project: WebinarWithPresenter
   user: User
 }
 
-// const hostUser: StreamUser = { id: process. env.NEXT_PUBLIC_STREAM_USER_ID!}
-
-const LiveStreamState = ({apiKey,  callId, project, user}: Props) => {
-
+const LiveStreamState = ({ apiKey, callId, project, user }: Props) => {
   const [hostToken, setHostToken] = useState<string | null>(null)
-  // const client = new StreamVideoClient({ apiKey, user: hostUser, token })
-  const [client, setclient] = useState<StreamVideoClient | null>(null);
+  const [client, setclient] = useState<StreamVideoClient | null>(null)
+  const clientRef = useRef<StreamVideoClient | null>(null)
 
   useEffect(() => {
-    const init = async ()=>{
+    const init = async () => {
       try {
         const token = await getTokenForHost(
           project.presenterId,
@@ -38,19 +34,26 @@ const LiveStreamState = ({apiKey,  callId, project, user}: Props) => {
           name: project.presenter.name,
           image: project.presenter.profileImage,
         }
-        const streamClient = new StreamVideoClient({ 
-          apiKey, 
-          user: hostUser, 
-          token, 
+        const streamClient = new StreamVideoClient({
+          apiKey,
+          user: hostUser,
+          token,
         })
+        clientRef.current = streamClient
         setHostToken(token)
         setclient(streamClient)
-
       } catch (error) {
         console.error('Error initializing client:', error)
       }
     }
     init()
+    return () => {
+      const c = clientRef.current
+      clientRef.current = null
+      if (c) {
+        c.disconnectUser().catch((err) => console.error('Disconnect cleanup:', err))
+      }
+    }
   }, [apiKey, project])
 
   if (!client || !hostToken) return null

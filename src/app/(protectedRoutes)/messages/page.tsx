@@ -1,26 +1,31 @@
 import React from 'react'
+import { Suspense } from 'react'
 import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { HomeIcon, MessageCircle, Sparkles } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { redirect } from 'next/navigation'
-import { getBusinesses } from '@/actions/business'
-import { prismaClient } from '@/lib/prismaClient'
+import { getMessageRoomsData } from '@/actions/business'
 import RoomCard from './_components/RoomCard'
-import { CreateBusinessModal } from './_components/CreateBusinessModal'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { CreateBusinessModalLoader } from './_components/CreateBusinessModalLoader'
+import { Button } from '@/components/ui/button'
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 const page = async ({ searchParams }: Props) => {
+  const timer = startPerf('route.messages')
   await searchParams
 
-  const auth = await onAuthenticateUser()
+  const auth = await timeAsync('route.messages.onAuthenticateUser', () => onAuthenticateUser())
   if (!auth.user) {
     redirect('/sign-in')
   }
 
-  const allBusinesses = await getBusinesses()
+  const allBusinesses = await timeAsync('route.messages.getMessageRoomsData', () =>
+    getMessageRoomsData(auth.user.id),
+  )
 
   /**
    * Only hubs that can actually use Messages: an AI agent and/or message channels.
@@ -31,59 +36,15 @@ const page = async ({ searchParams }: Props) => {
     (b) => b.agents.length > 0 || b._count.channels > 0,
   )
 
-  const user = await prismaClient.user.findUnique({
-    where: { clerkId: auth.user.clerkId },
-    select: { id: true },
-  })
+  const userId = auth.user.id
 
-  const agents = user
-    ? await prismaClient.liveKitAgent.findMany({
-        where: {
-          OR: [
-            { businessAgents: { none: {} } },
-            {
-              businessAgents: {
-                some: { business: { userId: user.id } },
-              },
-            },
-          ],
-        },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true, roomName: true },
-      })
-    : []
-
-  const products = user
-    ? await prismaClient.webinar.findMany({
-        where: { presenterId: user.id },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, kind: true },
-      })
-    : []
-
-  const businessProfileRows = user
-    ? await prismaClient.business.findMany({
-        where: { userId: user.id },
-        select: {
-          id: true,
-          name: true,
-          tenants: {
-            orderBy: { updatedAt: 'desc' },
-            take: 1,
-            select: { id: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      })
-    : []
-
-  const businessProfiles = businessProfileRows.map((b) => ({
+  const businessProfiles = allBusinesses.map((b) => ({
     businessId: b.id,
     name: b.name,
-    pitchTenantId: b.tenants[0]?.id ?? null,
+    pitchTenantId: b.profileTenantId,
   }))
 
-  return (
+  const rendered = (
     <div className="w-full flex flex-col gap-8">
       <PageHeader
         leftIcon={<HomeIcon className="w-3 h-3" />}
@@ -92,7 +53,9 @@ const page = async ({ searchParams }: Props) => {
         heading="Messages"
         placeholder="Search rooms…"
       >
-        <CreateBusinessModal agents={agents} products={products} businessProfiles={businessProfiles} />
+        <Suspense fallback={<Button size="sm" disabled>New Room</Button>}>
+          <CreateBusinessModalLoader userId={userId} businessProfiles={businessProfiles} />
+        </Suspense>
       </PageHeader>
 
       {messagingRooms.length === 0 ? (
@@ -134,6 +97,8 @@ const page = async ({ searchParams }: Props) => {
       )}
     </div>
   )
+  timer.end({ businessCount: allBusinesses.length, roomCount: messagingRooms.length })
+  return rendered
 }
 
 export default page

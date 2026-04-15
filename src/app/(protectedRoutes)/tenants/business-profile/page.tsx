@@ -4,7 +4,7 @@ import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { ChevronLeft, Building2, Sparkles } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { getOutreachChannels } from '@/actions/outreach'
-import { getBusinesses } from '@/actions/business'
+import { getBusinessOptions } from '@/actions/business'
 import { OutreachPlatform } from '@prisma/client'
 import { PlatformSection } from './_components/PlatformSection'
 import { AddBusinessButton } from './_components/AddBusinessButton'
@@ -153,14 +153,16 @@ const page = async ({ searchParams }: PageProps) => {
   if (!auth.user) redirect('/sign-in')
 
   const { businessId: queryBusinessId } = await searchParams
-  const businesses = await getBusinesses()
+  const businesses = await getBusinessOptions(auth.user.id)
 
   const activeBusinessId =
     queryBusinessId && businesses.some((b) => b.id === queryBusinessId)
       ? queryBusinessId
       : businesses[0]?.id
 
-  const channels = activeBusinessId ? await getOutreachChannels(activeBusinessId) : []
+  const channels = activeBusinessId
+    ? await getOutreachChannels(activeBusinessId, auth.user.id)
+    : []
 
   const socialPlatforms = PLATFORMS.filter((p) => p.category === 'social')
   const messagingPlatforms = PLATFORMS.filter((p) => p.category === 'messaging')
@@ -189,7 +191,7 @@ const page = async ({ searchParams }: PageProps) => {
 
       {businesses.length > 0 && activeBusinessId && (
         <BusinessSwitcher
-          businesses={businesses.map((b) => ({ id: b.id, name: b.name }))}
+          businesses={businesses}
           activeBusinessId={activeBusinessId}
           defaultBusinessId={businesses[0]?.id ?? null}
         />

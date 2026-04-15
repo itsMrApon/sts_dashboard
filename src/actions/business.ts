@@ -1,12 +1,108 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_cache } from 'next/cache'
 import { prismaClient } from '@/lib/prismaClient'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { onAuthenticateUser } from './auth'
 
 type ActionResult<T = undefined> = T extends undefined
   ? { ok: true } | { ok: false; error: string }
   : { ok: true; data: T } | { ok: false; error: string }
+
+export type HomePreviewData = {
+  roomName: string
+  agentName: string
+  firstMessage: string | null
+  businessName: string
+  socialAccounts: { platform: string; label: string; url?: string }[]
+}
+
+export type MessageRoomData = {
+  id: string
+  name: string
+  description: string | null
+  agents: {
+    isPrimary: boolean
+    agent: { id: string; name: string; roomName: string }
+  }[]
+  channels: { roomName: string }[]
+  products: {
+    isPrimary: boolean
+    webinar: { id: string; title: string; kind: string }
+  }[]
+  productsCount: number
+  _count: { channels: number }
+}
+
+type MessageRoomRow = {
+  id: string
+  name: string
+  description: string | null
+  agents: MessageRoomData['agents']
+  channels: MessageRoomData['channels']
+  products: MessageRoomData['products']
+  tenants: { id: string }[]
+  _count: { channels: number; products: number }
+}
+
+const getHomePreviewDataCached = unstable_cache(
+  async (userId: string): Promise<HomePreviewData | null> => {
+    const business = await prismaClient.business.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        agents: {
+          orderBy: { isPrimary: 'desc' },
+          take: 1,
+          select: {
+            agent: {
+              select: {
+                roomName: true,
+                name: true,
+                firstMessage: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const primaryAgent = business?.agents[0]?.agent
+    if (!business || !primaryAgent?.roomName || !primaryAgent.name) {
+      return null
+    }
+
+    const outreach = await prismaClient.outreachChannel.findMany({
+      where: {
+        userId: business.userId,
+        status: 'ACTIVE',
+      },
+      select: {
+        platform: true,
+        accountLabel: true,
+        pageUrl: true,
+      },
+    })
+
+    return {
+      roomName: primaryAgent.roomName,
+      agentName: primaryAgent.name,
+      firstMessage: primaryAgent.firstMessage,
+      businessName: business.name,
+      socialAccounts: outreach.map((o) => ({
+        platform: o.platform,
+        label: o.accountLabel,
+        url: o.pageUrl ?? undefined,
+      })),
+    }
+  },
+  ['home-preview-data'],
+  { revalidate: 20 },
+)
 
 /** Create a business with only name/description (no agents/products). Link agents from Messages later if needed. */
 export async function createBusinessQuick(data: {
@@ -235,71 +331,227 @@ export async function updateBusiness(
  * Minimal lookup for Home AI preview only — avoids loading every business, product, and webinar.
  */
 export async function getHomePrimaryAgentRoomName(): Promise<string | null> {
-  const { userId: clerkId } = await auth()
-  if (!clerkId) return null
+  const timer = startPerf('business.getHomePrimaryAgentRoomName')
+  const authResult = await timeAsync('business.getHomePrimaryAgentRoomName.onAuthenticateUser', () =>
+    onAuthenticateUser(),
+  )
+  if (!authResult.user) {
+    timer.end({ reason: 'no-auth-user' })
+    return null
+  }
 
-  const user = await prismaClient.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  })
-  if (!user) return null
-
-  const business = await prismaClient.business.findFirst({
-    where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      agents: {
-        orderBy: { isPrimary: 'desc' },
-        take: 1,
+  const business = await timeAsync(
+    'business.getHomePrimaryAgentRoomName.business.findFirst',
+    () =>
+      prismaClient.business.findFirst({
+        where: { userId: authResult.user.id },
+        orderBy: { createdAt: 'desc' },
         select: {
-          agent: { select: { roomName: true } },
+          agents: {
+            orderBy: { isPrimary: 'desc' },
+            take: 1,
+            select: {
+              agent: { select: { roomName: true } },
+            },
+          },
         },
-      },
-    },
-  })
+      }),
+  )
 
-  return business?.agents[0]?.agent.roomName ?? null
+  const result = business?.agents[0]?.agent.roomName ?? null
+  timer.end({ hasRoom: Boolean(result) })
+  return result
+}
+
+export async function getHomePreviewData(): Promise<HomePreviewData | null> {
+  const timer = startPerf('business.getHomePreviewData')
+  const authResult = await timeAsync('business.getHomePreviewData.onAuthenticateUser', () =>
+    onAuthenticateUser(),
+  )
+  if (!authResult.user) {
+    timer.end({ reason: 'no-auth-user' })
+    return null
+  }
+
+  const result = await timeAsync('business.getHomePreviewData.cached', () =>
+    getHomePreviewDataCached(authResult.user.id),
+  )
+  if (!result) {
+    timer.end({ reason: 'no-primary-agent' })
+    return null
+  }
+
+  timer.end({
+    hasSocialAccounts: result.socialAccounts.length > 0,
+  })
+  return result
 }
 
 export async function getBusinesses() {
-  const { userId: clerkId } = await auth()
-  if (!clerkId) return []
+  const timer = startPerf('business.getBusinesses')
+  const authResult = await timeAsync('business.getBusinesses.onAuthenticateUser', () =>
+    onAuthenticateUser(),
+  )
+  if (!authResult.user) {
+    timer.end({ reason: 'no-auth-user' })
+    return []
+  }
 
-  const user = await prismaClient.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  })
-  if (!user) return []
+  const rows = await timeAsync('business.getBusinesses.business.findMany', () =>
+    prismaClient.business.findMany({
+      where: { userId: authResult.user.id },
+      include: {
+        agents: {
+          include: {
+            agent: {
+              select: { id: true, name: true, roomName: true },
+            },
+          },
+          orderBy: { isPrimary: 'desc' },
+        },
+        products: {
+          include: {
+            webinar: {
+              select: { id: true, title: true, kind: true },
+            },
+          },
+          orderBy: { isPrimary: 'desc' },
+        },
+        /** Any linked message channel carries the agent roomName for /messages/[roomName] */
+        channels: {
+          take: 1,
+          select: { roomName: true },
+          orderBy: { updatedAt: 'desc' },
+        },
+        tenants: {
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+          select: { id: true },
+        },
+        _count: { select: { channels: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  )
+  timer.end({ count: rows.length })
+  return rows
+}
 
-  return prismaClient.business.findMany({
-    where: { userId: user.id },
-    include: {
-      agents: {
-        include: {
-          agent: {
-            select: { id: true, name: true, roomName: true },
+const getBusinessOptionsCached = unstable_cache(
+  async (userId: string) =>
+    prismaClient.business.findMany({
+      where: { userId },
+      select: { id: true, name: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ['business-options'],
+  { revalidate: 15 },
+)
+
+export async function getBusinessOptions(resolvedUserId?: string) {
+  const timer = startPerf('business.getBusinessOptions')
+  let userId = resolvedUserId
+  if (!userId) {
+    const authResult = await timeAsync('business.getBusinessOptions.onAuthenticateUser', () =>
+      onAuthenticateUser(),
+    )
+    if (!authResult.user) {
+      timer.end({ reason: 'no-auth-user' })
+      return []
+    }
+    userId = authResult.user.id
+  }
+
+  const rows = await timeAsync('business.getBusinessOptions.cached', () =>
+    getBusinessOptionsCached(userId!),
+  )
+  timer.end({ count: rows.length })
+  return rows
+}
+
+const getMessageRoomsDataCached = unstable_cache(
+  async (userId: string) =>
+    (prismaClient.business as unknown as {
+      findMany: (args: unknown) => Promise<Array<{ id: string; name: string; description: string | null; agents: MessageRoomData['agents']; channels: MessageRoomData['channels']; products: MessageRoomData['products']; tenants: { id: string }[]; _count: { channels: number; products: number } }>>
+    }).findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        agents: {
+          select: {
+            isPrimary: true,
+            agent: {
+              select: { id: true, name: true, roomName: true },
+            },
           },
+          orderBy: { isPrimary: 'desc' },
         },
-        orderBy: { isPrimary: 'desc' },
-      },
-      products: {
-        include: {
-          webinar: {
-            select: { id: true, title: true, kind: true },
+        channels: {
+          take: 1,
+          select: { roomName: true },
+          orderBy: { updatedAt: 'desc' },
+        },
+        products: {
+          take: 6,
+          select: {
+            isPrimary: true,
+            webinar: {
+              select: { id: true, title: true, kind: true },
+            },
           },
+          orderBy: { isPrimary: 'desc' },
         },
-        orderBy: { isPrimary: 'desc' },
+        tenants: {
+          orderBy: { updatedAt: 'desc' },
+          take: 1,
+          select: { id: true },
+        },
+        _count: { select: { channels: true, products: true } },
       },
-      /** Any linked message channel carries the agent roomName for /messages/[roomName] */
-      channels: {
-        take: 1,
-        select: { roomName: true },
-        orderBy: { updatedAt: 'desc' },
-      },
-      _count: { select: { channels: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+      orderBy: { createdAt: 'desc' },
+    }),
+  ['message-rooms-data'],
+  { revalidate: 10 },
+)
+
+export async function getMessageRoomsData(resolvedUserId?: string): Promise<
+  Array<MessageRoomData & { profileTenantId: string | null }>
+> {
+  const timer = startPerf('business.getMessageRoomsData')
+  let userId = resolvedUserId
+  if (!userId) {
+    const authResult = await timeAsync('business.getMessageRoomsData.onAuthenticateUser', () =>
+      onAuthenticateUser(),
+    )
+    if (!authResult.user) {
+      timer.end({ reason: 'no-auth-user' })
+      return []
+    }
+    userId = authResult.user.id
+  }
+
+  const rows = (await timeAsync('business.getMessageRoomsData.cached', () =>
+    getMessageRoomsDataCached(userId!),
+  )) as unknown as MessageRoomRow[]
+
+  const rooms: MessageRoomData[] = rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    agents: row.agents,
+    channels: row.channels,
+    products: row.products,
+    productsCount: row._count.products,
+    _count: { channels: row._count.channels },
+  }))
+
+  timer.end({ count: rooms.length })
+  return rooms.map((room, index) => ({
+    ...room,
+    profileTenantId: rows[index].tenants[0]?.id ?? null,
+  }))
 }
 
 export async function getBusinessByRoomName(roomName: string) {

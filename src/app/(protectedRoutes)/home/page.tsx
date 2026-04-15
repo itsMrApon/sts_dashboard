@@ -11,21 +11,16 @@ import {
 import Image from 'next/image'
 import UserInfoCard from '@/components/ReusableComponent/UserInfoCard'
 import { potentialCustomer } from '@/lib/data'
-import { getHomePrimaryAgentRoomName } from '@/actions/business'
-import { prismaClient } from '@/lib/prismaClient'
-import { buildAgentContext } from '@/lib/messages/buildAgentContext'
+import { getHomePreviewData } from '@/actions/business'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
 
 const Pages = async () => {
-  const roomName = await getHomePrimaryAgentRoomName()
-  const agent = roomName
-    ? await prismaClient.liveKitAgent.findUnique({ where: { roomName } })
-    : null
-  const context =
-    roomName && agent
-      ? await buildAgentContext(roomName, { preloadedAgent: agent })
-      : null
+  const timer = startPerf('route.home')
+  const preview = await timeAsync('route.home.getHomePreviewData', () =>
+    getHomePreviewData(),
+  )
 
-  return (
+  const rendered = (
     <div className="w-full mx-auto h-full">
       <div className="w-full flex flex-col sm:flex-row justify-between items-start gap-14">
         <div className="space-y-6">
@@ -80,18 +75,19 @@ const Pages = async () => {
           heading="AI Support Agents For Customer Service"
           link="/messages"
         >
-          {!agent || !context ? (
+          {!preview?.agentName ? (
             <HomeAiSupportPreview state="empty" />
           ) : (
             <HomeAiSupportPreview
               state="ready"
-              roomName={roomName!}
-              agentName={agent.name}
-              businessName={context.businessName ?? agent.name}
+              roomName={preview.roomName}
+              agentName={preview.agentName}
+              businessName={preview.businessName ?? preview.agentName}
               firstMessage={
-                agent.firstMessage || `Hi! I'm ${agent.name}. How can I help you today?`
+                preview.firstMessage ||
+                `Hi! I'm ${preview.agentName}. How can I help you today?`
               }
-              socialAccounts={context.socialAccounts}
+              socialAccounts={preview.socialAccounts}
             />
           )}
         </FeatureSectionLayout>
@@ -144,6 +140,8 @@ const Pages = async () => {
       </div>
     </div>
   )
+  timer.end({ hasRoom: Boolean(preview?.roomName), hasAgent: Boolean(preview?.agentName) })
+  return rendered
 }
 
 export default Pages

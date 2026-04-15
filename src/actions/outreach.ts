@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { prismaClient } from '@/lib/prismaClient'
 import { encryptToken } from '@/lib/messages/encrypt'
 import { ChannelStatus, OutreachPlatform, Prisma } from '@prisma/client'
+import { onAuthenticateUser } from './auth'
 
 type ActionResult =
   | { ok: true }
@@ -87,21 +88,22 @@ export async function disconnectOutreachChannel(
   }
 }
 
-export async function getOutreachChannels(businessId?: string | null) {
-  const { userId: clerkId } = await auth()
-  if (!clerkId) return []
-
-  const user = await prismaClient.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  })
-  if (!user) return []
+export async function getOutreachChannels(
+  businessId?: string | null,
+  resolvedUserId?: string,
+) {
+  let userId = resolvedUserId
+  if (!userId) {
+    const authResult = await onAuthenticateUser()
+    if (!authResult.user) return []
+    userId = authResult.user.id
+  }
 
   if (!businessId) return []
 
   return prismaClient.outreachChannel.findMany({
     where: {
-      userId: user.id,
+      userId,
       businessId,
     },
     select: {

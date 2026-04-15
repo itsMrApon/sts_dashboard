@@ -1,5 +1,6 @@
 import type { LiveKitAgent } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
 
 export type AgentContext = {
   systemInstruction: string
@@ -15,14 +16,21 @@ export type AgentContext = {
 
 export async function buildAgentContext(
   roomName: string,
-  options?: { preloadedAgent?: LiveKitAgent | null },
+  options?: { preloadedAgent?: LiveKitAgent | null; mode?: 'full' | 'homePreview' },
 ): Promise<AgentContext> {
+  const mode = options?.mode ?? 'full'
+  const timer = startPerf('messages.buildAgentContext', { roomName, mode })
   const agent =
     options?.preloadedAgent !== undefined
       ? options.preloadedAgent
-      : await prismaClient.liveKitAgent.findUnique({
-          where: { roomName },
-        })
+      : await timeAsync('messages.buildAgentContext.liveKitAgent.findUnique', () =>
+          prismaClient.liveKitAgent.findUnique({
+            where: { roomName },
+            ...(mode === 'homePreview'
+              ? { select: { id: true, name: true, firstMessage: true, roomName: true } }
+              : {}),
+          }),
+        )
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
 
@@ -56,30 +64,50 @@ export async function buildAgentContext(
     },
   } as const
 
+  const businessLinkSelectForPreview = {
+    business: {
+      select: {
+        id: true,
+        name: true,
+        user: { select: { id: true } },
+      },
+    },
+  } as const
+
   const [businessLink, channel] = await Promise.all([
     agent
-      ? prismaClient.businessAgent.findFirst({
-          where: { agentId: agent.id },
-          include: businessLinkInclude,
-        })
+      ? timeAsync('messages.buildAgentContext.businessAgent.findFirst', () =>
+          prismaClient.businessAgent.findFirst({
+            where: { agentId: agent.id },
+            ...(mode === 'homePreview'
+              ? { select: businessLinkSelectForPreview }
+              : { include: businessLinkInclude }),
+          }),
+        )
       : Promise.resolve(null),
-    prismaClient.messageChannel.findFirst({
-      where: { roomName, status: 'ACTIVE' },
-    }),
+    mode === 'homePreview'
+      ? Promise.resolve(null)
+      : timeAsync('messages.buildAgentContext.messageChannel.findFirst', () =>
+          prismaClient.messageChannel.findFirst({
+            where: { roomName, status: 'ACTIVE' },
+          }),
+        ),
   ])
 
   const business = businessLink?.business || null
 
   const [outreach, tenant] = await Promise.all([
     business?.user?.id
-      ? prismaClient.outreachChannel.findMany({
-          where: {
-            userId: business.user.id,
-            status: 'ACTIVE',
-            businessId: business.id,
-          },
-          select: { platform: true, accountLabel: true, pageUrl: true },
-        })
+      ? timeAsync('messages.buildAgentContext.outreachChannel.findMany', () =>
+          prismaClient.outreachChannel.findMany({
+            where: {
+              userId: business.user.id,
+              status: 'ACTIVE',
+              businessId: business.id,
+            },
+            select: { platform: true, accountLabel: true, pageUrl: true },
+          }),
+        )
       : Promise.resolve(
           [] as {
             platform: string
@@ -88,10 +116,12 @@ export async function buildAgentContext(
           }[],
         ),
     channel?.tenantId
-      ? prismaClient.tenant.findUnique({
-          where: { id: channel.tenantId },
-          select: { name: true, pitchMessage: true, videoUrl: true },
-        })
+      ? timeAsync('messages.buildAgentContext.tenant.findUnique', () =>
+          prismaClient.tenant.findUnique({
+            where: { id: channel.tenantId },
+            select: { name: true, pitchMessage: true, videoUrl: true },
+          }),
+        )
       : Promise.resolve(null),
   ])
 
@@ -106,7 +136,7 @@ export async function buildAgentContext(
   const voiceAgentLinks: { name: string; url: string }[] = []
   const productLinks: { name: string; url: string; buyUrl?: string }[] = []
 
-  if (business) {
+  if (business && mode === 'full') {
     for (const ba of business.agents) {
       if (ba.agent.roomName !== roomName) {
         voiceAgentLinks.push({
@@ -138,11 +168,13 @@ export async function buildAgentContext(
     }
   }
 
-  if (!roomJoinLink && channel?.webinarId) {
-    const webinar = await prismaClient.webinar.findUnique({
-      where: { id: channel.webinarId },
-      select: { id: true, kind: true, ctaType: true, ctaUrl: true },
-    })
+  if (mode === 'full' && !roomJoinLink && channel?.webinarId) {
+    const webinar = await timeAsync('messages.buildAgentContext.webinar.findUnique', () =>
+      prismaClient.webinar.findUnique({
+        where: { id: channel.webinarId },
+        select: { id: true, kind: true, ctaType: true, ctaUrl: true },
+      }),
+    )
     if (webinar) {
       roomJoinLink =
         webinar.kind === 'PROJECT'
@@ -156,11 +188,11 @@ export async function buildAgentContext(
 
   const parts: string[] = []
 
-  if (agent?.systemPrompt) {
+  if (mode === 'full' && agent?.systemPrompt) {
     parts.push(agent.systemPrompt)
   }
 
-  if (business && business.products.length > 0) {
+  if (mode === 'full' && business && business.products.length > 0) {
     const productSections = business.products.map((bp) => {
       const w = bp.webinar
       const url =
@@ -179,7 +211,7 @@ export async function buildAgentContext(
     parts.push(['## Products & Offers', ...productSections].join('\n'))
   }
 
-  if (voiceAgentLinks.length > 0) {
+  if (mode === 'full' && voiceAgentLinks.length > 0) {
     const agentLines = voiceAgentLinks.map(
       (a) => `- ${a.name}: ${a.url}`,
     )
@@ -200,7 +232,7 @@ export async function buildAgentContext(
     parts.push(['## Business Social Accounts', ...socialLines].join('\n'))
   }
 
-  if (roomJoinLink || buyNowLink) {
+  if (mode === 'full' && (roomJoinLink || buyNowLink)) {
     parts.push(
       [
         '## Important Links',
@@ -212,7 +244,7 @@ export async function buildAgentContext(
     )
   }
 
-  if (tenant?.pitchMessage) {
+  if (mode === 'full' && tenant?.pitchMessage) {
     parts.push(
       [
         '## Tenant context',
@@ -224,20 +256,22 @@ export async function buildAgentContext(
     )
   }
 
-  parts.push(
-    [
-      '## Conversation Rules',
-      '- Keep replies concise — 1 to 3 sentences unless asked for more',
-      '- When relevant share product links, buy now links, or voice agent links naturally',
-      '- If asked about social accounts (Instagram, YouTube, etc.), share the business links',
-      '- If the user wants to talk about a specific product, suggest the relevant AI agent or product page',
-      '- Do not use excessive markdown or bullet points',
-      '- Sound human, warm, and confident',
-      '- If asked about pricing, share the product details above',
-    ].join('\n'),
-  )
+  if (mode === 'full') {
+    parts.push(
+      [
+        '## Conversation Rules',
+        '- Keep replies concise — 1 to 3 sentences unless asked for more',
+        '- When relevant share product links, buy now links, or voice agent links naturally',
+        '- If asked about social accounts (Instagram, YouTube, etc.), share the business links',
+        '- If the user wants to talk about a specific product, suggest the relevant AI agent or product page',
+        '- Do not use excessive markdown or bullet points',
+        '- Sound human, warm, and confident',
+        '- If asked about pricing, share the product details above',
+      ].join('\n'),
+    )
+  }
 
-  return {
+  const result = {
     systemInstruction: parts.join('\n\n').trim(),
     roomJoinLink,
     buyNowLink,
@@ -248,4 +282,9 @@ export async function buildAgentContext(
     productLinks,
     socialAccounts,
   }
+  timer.end({
+    hasBusiness: Boolean(business),
+    hasTenant: Boolean(tenant),
+  })
+  return result
 }

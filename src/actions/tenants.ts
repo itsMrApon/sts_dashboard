@@ -1,9 +1,10 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_cache } from 'next/cache'
 import { prismaClient } from '@/lib/prismaClient'
 import { VideoType } from '@prisma/client'
+import { onAuthenticateUser } from './auth'
 
 export async function createTenant(data: {
   name: string
@@ -96,23 +97,28 @@ export async function updateTenant(
   return { success: true, tenant }
 }
 
-export async function getTenants() {
-  const { userId } = await auth()
-  if (!userId) return []
+const getTenantsCached = unstable_cache(
+  async (userId: string) =>
+    prismaClient.tenant.findMany({
+      where: { userId },
+      include: {
+        business: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ['tenants-list'],
+  { revalidate: 10 },
+)
 
-  const user = await prismaClient.user.findUnique({
-    where: { clerkId: userId },
-    select: { id: true },
-  })
-  if (!user) return []
+export async function getTenants(resolvedUserId?: string) {
+  let userId = resolvedUserId
+  if (!userId) {
+    const authResult = await onAuthenticateUser()
+    if (!authResult.user) return []
+    userId = authResult.user.id
+  }
 
-  return prismaClient.tenant.findMany({
-    where: { userId: user.id },
-    include: {
-      business: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+  return getTenantsCached(userId)
 }
 
 export async function getTenantById(tenantId: string) {

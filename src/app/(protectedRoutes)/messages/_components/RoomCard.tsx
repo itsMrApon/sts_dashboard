@@ -30,6 +30,7 @@ export type RoomCardData = {
     isPrimary: boolean
     webinar: { id: string; title: string; kind: string }
   }[]
+  productsCount?: number
   channels: { roomName: string }[]
   _count: { channels: number }
 }
@@ -37,6 +38,7 @@ export type RoomCardData = {
 type Props = { room: RoomCardData }
 
 const RoomCard = ({ room }: Props) => {
+  const productsCount = room.productsCount ?? room.products.length
   const router = useRouter()
   const headingId = useId()
   const [removeOpen, setRemoveOpen] = useState(false)
@@ -161,7 +163,7 @@ const RoomCard = ({ room }: Props) => {
           <span className="inline-flex items-center gap-1.5">
             <Package className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span>
-              {room.products.length} project{room.products.length !== 1 ? 's' : ''}
+              {productsCount} project{productsCount !== 1 ? 's' : ''}
             </span>
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -204,9 +206,9 @@ const RoomCard = ({ room }: Props) => {
                     {bp.webinar.title}
                   </span>
                 ))}
-                {room.products.length > 5 && (
+                {productsCount > 5 && (
                   <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                    +{room.products.length - 5} more
+                    +{productsCount - 5} more
                   </span>
                 )}
               </div>

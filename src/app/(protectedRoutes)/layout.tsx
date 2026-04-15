@@ -3,6 +3,7 @@ import { onAuthenticateUser } from '../../actions/auth'
 import Sidebar from '@/components/ReusableComponent/LayoutComponent/Sidebar'
 import { redirect } from 'next/navigation'
 import Header from '@/components/ReusableComponent/LayoutComponent/Header'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
 
 type Props = {
   children: React.ReactNode
@@ -14,13 +15,14 @@ type Props = {
  * Header loads that data client-side only when the Create flow is needed.
  */
 const Layout = async ({ children }: Props) => {
-  const userExists = await onAuthenticateUser()
+  const timer = startPerf('route.layout.protected')
+  const userExists = await timeAsync('route.layout.protected.auth', () => onAuthenticateUser())
 
   if (!userExists.user) {
     redirect('/sign-in')
   }
 
-  return (
+  const rendered = (
     <div className='flex w-full min-h-screen'>
       <Sidebar />
       <div className="flex flex-col w-full min-h-screen overflow-x-hidden px-4 scrollbar-hide container mx-auto">
@@ -31,5 +33,7 @@ const Layout = async ({ children }: Props) => {
       </div>
     </div>
   )
+  timer.end()
+  return rendered
 }
 export default Layout

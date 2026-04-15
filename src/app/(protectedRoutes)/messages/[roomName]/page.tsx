@@ -1,11 +1,12 @@
 import React from 'react'
 import { notFound, redirect } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
 import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { ChevronLeft, MessageCircle, Sparkles, Briefcase, Bot, Package, ExternalLink } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
 import { verifyRoomOwnership } from '@/lib/messages/verifyRoomOwnership'
-import { Platform, ChannelStatus, Prisma } from '@prisma/client'
+import { Platform, ChannelStatus, type MessageChannel } from '@prisma/client'
 import { PlatformCard } from '@/components/messages/PlatformCard'
 import { TelegramCard } from './_components/TelegramCard'
 import { DiscordCard } from './_components/DiscordCard'
@@ -14,29 +15,192 @@ import { WebChatCard } from './_components/WebChatCard'
 import { RoomTenantPicker } from './_components/RoomTenantPicker'
 import { RoomPageChrome } from './_components/RoomPageChrome'
 import Link from 'next/link'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
 
-const businessIncludeForRoomPage = {
+type RoomBusinessData = {
+  id: string
+  name: string
   agents: {
-    include: {
-      agent: { select: { id: true, name: true, roomName: true } },
-    },
-    orderBy: { isPrimary: 'desc' as const },
-  },
+    isPrimary: boolean
+    agent: { id: string; name: string; roomName: string }
+  }[]
   products: {
-    include: {
-      webinar: {
-        select: { id: true, title: true, kind: true, description: true },
-      },
-    },
-    orderBy: { isPrimary: 'desc' as const },
-  },
-} as const
+    isPrimary: boolean
+    webinar: { id: string; title: string; kind: 'PROJECT' | 'PRODUCT'; description: string | null }
+  }[]
+}
 
 type Props = {
   params: Promise<{ roomName: string }>
 }
 
+type RoomPageData = {
+  business: RoomBusinessData | null
+  channels: MessageChannel[]
+  businessProfileOptions: Array<{
+    businessId: string
+    name: string
+    pitchTenantId: string | null
+  }>
+  legacyPitchTenant: { id: string; name: string } | null
+}
+
+const getRoomPageDataCached = unstable_cache(
+  async (userId: string, roomName: string, agentId: string | null): Promise<RoomPageData> => {
+    let business: RoomBusinessData | null = null
+    let resolvedBusinessId: string | null = null
+
+    if (agentId) {
+      const businessLink = await prismaClient.businessAgent.findFirst({
+        where: { agentId },
+        select: { businessId: true },
+      })
+      resolvedBusinessId = businessLink?.businessId ?? null
+    }
+
+    if (!resolvedBusinessId) {
+      const channelRow = await prismaClient.messageChannel.findFirst({
+        where: {
+          roomName,
+          businessId: { not: null },
+          business: { userId },
+        },
+        select: { businessId: true },
+      })
+      resolvedBusinessId = channelRow?.businessId ?? null
+    }
+
+    if (resolvedBusinessId) {
+      const [businessRow, businessAgentRows, businessProductRows] = await Promise.all([
+        prismaClient.business.findFirst({
+          where: { id: resolvedBusinessId, userId },
+          select: { id: true, name: true },
+        }),
+        prismaClient.businessAgent.findMany({
+          where: { businessId: resolvedBusinessId },
+          orderBy: { isPrimary: 'desc' },
+          select: {
+            isPrimary: true,
+            agentId: true,
+          },
+        }),
+        prismaClient.businessProduct.findMany({
+          where: { businessId: resolvedBusinessId },
+          orderBy: { isPrimary: 'desc' },
+          select: {
+            isPrimary: true,
+            webinarId: true,
+          },
+        }),
+      ])
+
+      if (businessRow) {
+        const [agentMapRows, webinarMapRows] = await Promise.all([
+          prismaClient.liveKitAgent.findMany({
+            where: { id: { in: businessAgentRows.map((row) => row.agentId) } },
+            select: { id: true, name: true, roomName: true },
+          }),
+          prismaClient.webinar.findMany({
+            where: { id: { in: businessProductRows.map((row) => row.webinarId) } },
+            select: { id: true, title: true, kind: true, description: true },
+          }),
+        ])
+
+        const agentById = new Map(agentMapRows.map((row) => [row.id, row]))
+        const webinarById = new Map(webinarMapRows.map((row) => [row.id, row]))
+
+        business = {
+          id: businessRow.id,
+          name: businessRow.name,
+          agents: businessAgentRows
+            .map((row) => {
+              const agent = agentById.get(row.agentId)
+              if (!agent) return null
+              return {
+                isPrimary: row.isPrimary,
+                agent,
+              }
+            })
+            .filter((row): row is NonNullable<typeof row> => Boolean(row)),
+          products: businessProductRows
+            .map((row) => {
+              const webinar = webinarById.get(row.webinarId)
+              if (!webinar) return null
+              return {
+                isPrimary: row.isPrimary,
+                webinar,
+              }
+            })
+            .filter((row): row is NonNullable<typeof row> => Boolean(row)),
+        }
+      }
+    }
+
+    const [channels, businessProfileRows] = await Promise.all([
+      prismaClient.messageChannel.findMany({
+        where: { roomName },
+      }),
+      (
+        prismaClient.business as unknown as {
+          findMany: (
+            args: unknown,
+          ) => Promise<Array<{ id: string; name: string; tenants: Array<{ id: string }> }>>
+        }
+      ).findMany({
+        where: { userId },
+        select: {
+          id: true,
+          name: true,
+          tenants: {
+            orderBy: { updatedAt: 'desc' },
+            take: 1,
+            select: { id: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ])
+
+    const activeChannel = channels.find((c) => c.status === ChannelStatus.ACTIVE)
+    const currentTenantId =
+      (activeChannel as unknown as { tenantId?: string } | undefined)?.tenantId || null
+
+    const businessProfileOptions = businessProfileRows.map((b) => ({
+      businessId: b.id,
+      name: b.name,
+      pitchTenantId: b.tenants[0]?.id ?? null,
+    }))
+
+    let legacyPitchTenant: { id: string; name: string } | null = null
+    if (currentTenantId) {
+      const pitchRow = await (
+        prismaClient as unknown as {
+          tenant: {
+            findFirst: (args: unknown) => Promise<{ id: string; name: string; businessId: string | null } | null>
+          }
+        }
+      ).tenant.findFirst({
+        where: { id: currentTenantId, userId },
+        select: { id: true, name: true, businessId: true },
+      })
+      if (pitchRow && !pitchRow.businessId) {
+        legacyPitchTenant = { id: pitchRow.id, name: pitchRow.name }
+      }
+    }
+
+    return {
+      business,
+      channels,
+      businessProfileOptions,
+      legacyPitchTenant,
+    }
+  },
+  ['messages-room-page-data'],
+  { revalidate: 10 },
+)
+
 const Page = async ({ params }: Props) => {
+  const timer = startPerf('route.messages.room')
   const { roomName: rawRoomName } = await params
   let roomName = rawRoomName.trim()
   try {
@@ -46,86 +210,32 @@ const Page = async ({ params }: Props) => {
   }
   if (!roomName) notFound()
 
-  const auth = await onAuthenticateUser()
+  const auth = await timeAsync('route.messages.room.onAuthenticateUser', () =>
+    onAuthenticateUser(),
+  )
   if (!auth.user) redirect('/sign-in')
 
-  const ownership = await verifyRoomOwnership(roomName)
+  const ownership = await timeAsync('route.messages.room.verifyRoomOwnership', () =>
+    verifyRoomOwnership(roomName, { id: auth.user.id, clerkId: auth.user.clerkId }),
+  )
   if (!ownership.ok) {
     if (ownership.reason === 'UNAUTHENTICATED') redirect('/sign-in')
     notFound()
   }
 
   const agent = ownership.agent
-
-  let business:
-    | Prisma.BusinessGetPayload<{ include: typeof businessIncludeForRoomPage }>
-    | null = null
-
-  if (agent) {
-    const businessLink = await prismaClient.businessAgent.findFirst({
-      where: { agentId: agent.id },
-      include: { business: { include: businessIncludeForRoomPage } },
-    })
-    business = businessLink?.business ?? null
-  }
-
-  if (!business) {
-    const channelRow = await prismaClient.messageChannel.findFirst({
-      where: {
-        roomName,
-        businessId: { not: null },
-        business: { userId: auth.user.id },
-      },
-      select: { businessId: true },
-    })
-    if (channelRow?.businessId) {
-      business = await prismaClient.business.findFirst({
-        where: { id: channelRow.businessId, userId: auth.user.id },
-        include: businessIncludeForRoomPage,
-      })
-    }
-  }
-
-  const channels = await prismaClient.messageChannel.findMany({
-    where: { roomName },
-  })
+  const roomData = await timeAsync('route.messages.room.getRoomPageDataCached', () =>
+    getRoomPageDataCached(auth.user.id, roomName, agent?.id ?? null),
+  )
+  const { business, channels, businessProfileOptions, legacyPitchTenant } = roomData
 
   const telegram = channels.find((c) => c.platform === Platform.TELEGRAM)
   const discord = channels.find((c) => c.platform === Platform.DISCORD)
   const slack = channels.find((c) => c.platform === Platform.SLACK)
 
   const activeChannel = channels.find((c) => c.status === ChannelStatus.ACTIVE)
-  const currentTenantId = activeChannel?.tenantId || null
-
-  const businessProfileRows = await prismaClient.business.findMany({
-    where: { userId: auth.user.id },
-    select: {
-      id: true,
-      name: true,
-      tenants: {
-        orderBy: { updatedAt: 'desc' },
-        take: 1,
-        select: { id: true },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-  const businessProfileOptions = businessProfileRows.map((b) => ({
-    businessId: b.id,
-    name: b.name,
-    pitchTenantId: b.tenants[0]?.id ?? null,
-  }))
-
-  let legacyPitchTenant: { id: string; name: string } | null = null
-  if (currentTenantId) {
-    const pitchRow = await prismaClient.tenant.findFirst({
-      where: { id: currentTenantId, userId: auth.user.id },
-      select: { id: true, name: true, businessId: true },
-    })
-    if (pitchRow && !pitchRow.businessId) {
-      legacyPitchTenant = { id: pitchRow.id, name: pitchRow.name }
-    }
-  }
+  const currentTenantId =
+    (activeChannel as unknown as { tenantId?: string | null } | undefined)?.tenantId ?? null
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
 
@@ -138,7 +248,7 @@ const Page = async ({ params }: Props) => {
 
   const roomNameEncoded = encodeURIComponent(roomName)
 
-  return (
+  const rendered = (
     <div className="relative w-full flex flex-col gap-8 pb-28 pt-2 sm:pt-3">
       <RoomPageChrome roomNameEncoded={roomNameEncoded} />
       <PageHeader
@@ -332,6 +442,12 @@ const Page = async ({ params }: Props) => {
       </div>
     </div>
   )
+  timer.end({
+    roomName,
+    hasBusiness: Boolean(business),
+    channelCount: channels.length,
+  })
+  return rendered
 }
 
 export default Page

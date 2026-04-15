@@ -164,8 +164,10 @@ model MessageChannel {
 
   @@unique([roomName, platform])
   @@index([roomName])
+  @@index([roomName, updatedAt])
   @@index([userId])
   @@index([businessId])
+  @@index([businessId, updatedAt])
   @@index([tenantId])
 }
 
@@ -291,7 +293,9 @@ model Tenant {
   messageChannels MessageChannel[]
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@index([businessId])
+  @@index([businessId, updatedAt])
 }
 
 model HuntedLead {
@@ -428,6 +432,7 @@ model OutreachChannel {
   business     Business?        @relation(fields: [businessId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([userId, status])
   @@index([userId, platform])
   @@index([businessId])
 }
@@ -449,6 +454,7 @@ model Business {
   tenants           Tenant[]
 
   @@index([userId])
+  @@index([userId, createdAt])
 }
 
 model BusinessAgent {
@@ -463,7 +469,9 @@ model BusinessAgent {
 
   @@unique([businessId, agentId])
   @@index([businessId])
+  @@index([businessId, isPrimary])
   @@index([agentId])
+  @@index([agentId, businessId])
 }
 
 model BusinessProduct {
@@ -478,6 +486,7 @@ model BusinessProduct {
 
   @@unique([businessId, webinarId])
   @@index([businessId])
+  @@index([businessId, isPrimary])
   @@index([webinarId])
 }
 

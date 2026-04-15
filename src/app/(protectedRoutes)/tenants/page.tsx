@@ -1,16 +1,27 @@
 import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { ChevronLeft, Megaphone, Sparkles } from 'lucide-react'
 import { getTenants } from '@/actions/tenants'
-import { getBusinesses } from '@/actions/business'
+import { getBusinessOptions } from '@/actions/business'
+import { onAuthenticateUser } from '@/actions/auth'
 import { TenantCard } from './_components/TenantCard'
 import { TenantActions } from './_components/TenantActions'
 import Link from 'next/link'
+import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { redirect } from 'next/navigation'
 
 const page = async () => {
-  const [tenants, businesses] = await Promise.all([getTenants(), getBusinesses()])
-  const businessOptions = businesses.map((b) => ({ id: b.id, name: b.name }))
+  const timer = startPerf('route.tenants')
+  const auth = await timeAsync('route.tenants.onAuthenticateUser', () => onAuthenticateUser())
+  if (!auth.user) {
+    redirect('/sign-in')
+  }
 
-  return (
+  const [tenants, businessOptions] = await Promise.all([
+    timeAsync('route.tenants.getTenants', () => getTenants(auth.user.id)),
+    timeAsync('route.tenants.getBusinessOptions', () => getBusinessOptions(auth.user.id)),
+  ])
+
+  const rendered = (
     <div className="w-full flex flex-col gap-8">
       <PageHeader
         leftIcon={<ChevronLeft className="w-3 h-3" />}
@@ -47,13 +58,15 @@ const page = async () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tenants.map((tenant) => (
+          {tenants.map((tenant: (typeof tenants)[number]) => (
             <TenantCard key={tenant.id} tenant={tenant} />
           ))}
         </div>
       )}
     </div>
   )
+  timer.end({ tenantCount: tenants.length, businessCount: businessOptions.length })
+  return rendered
 }
 
 export default page

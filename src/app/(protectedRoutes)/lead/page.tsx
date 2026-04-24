@@ -10,8 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import PipelineIcon from '@/icons/PipelineIcon'
-import { Users, Webcam } from 'lucide-react'
+import { Megaphone, Users, Webcam } from 'lucide-react'
 import { prismaClient } from '@/lib/prismaClient'
 import type { AttendedTypeEnum, WebinarKind } from '@prisma/client'
 import { LeadSourceBadge } from './_components/LeadSourceBadge'
@@ -73,7 +72,7 @@ const page = async () => {
       <PageHeader
         leftIcon={<Webcam className="w-3 h-3" />}
         mainIcon={<Users className="w-12 h-12" />}
-        rightIcon={<PipelineIcon className="w-3 h-3" />}
+        rightIcon={<Megaphone className="w-3 h-3" />}
         heading="The home to all your customers"
         placeholder="Search customer..."
       />

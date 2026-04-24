@@ -55,6 +55,7 @@ export default function RenderProduct({
   return (
     <ProductLanding
       product={product}
+      ctaType={ctaType}
       onEnter={() => setEntered(true)}
     />
   )

@@ -79,6 +79,7 @@ model Webinar {
   attendeeId      String?           @db.Uuid
   livekitAgentId  String?           @db.Uuid
   kind            WebinarKind       @default(PROJECT)
+  linkVariants    String[]          @default([])
   attendances      Attendance[]
   businessProducts BusinessProduct[]
   Attendee         Attendee?         @relation(fields: [attendeeId], references: [id])

@@ -1,4 +1,11 @@
 import { Attendee, User, Webinar } from "@prisma/client"
+import {
+  WebinarLinkVariant,
+  hasBookCallVariant,
+  hasBuyNowVariant,
+  hasProjectVariant,
+  sanitizeVariants,
+} from './webinarLinkVariants'
 
 export type ValidationErrors = Record<string, string>
 
@@ -9,14 +16,16 @@ export type ValidationResult = {
 } 
 
 export const validateBasicInfo = (data: {
-  kind?: 'project' | 'product'
+  selectedVariants?: WebinarLinkVariant[]
   webinarName?: string
   description?: string
   date?: Date
   time?: string
   timeFormat?: 'AM' | 'PM'
+  thumbnail?: string
 }): ValidationResult => {
   const errors: ValidationErrors = {}
+  const selectedVariants = sanitizeVariants(data.selectedVariants)
 
   if (!data.webinarName?.trim ()) {
     errors.webinarName = "Webinar name is required"
@@ -24,9 +33,11 @@ export const validateBasicInfo = (data: {
   if (!data.description?.trim ()) {
     errors.description = "Description is required"
   }
-  const isProduct = data.kind === 'product'
+  if (!selectedVariants.length) {
+    errors.selectedVariants = 'Select at least one link option'
+  }
 
-  if (!isProduct) {
+  if (hasProjectVariant(selectedVariants)) {
     if (!data.date) {
       errors.date = 'Date is required'
     }
@@ -49,16 +60,23 @@ export const validateBasicInfo = (data: {
 export const validateCTA = (data: {
   ctaLabel?: string 
   tags?: string[] 
-  ctaType: string
+  selectedVariants?: WebinarLinkVariant[]
   aiAgent?: string
+  priceld?: string
 }): ValidationResult => {
   const errors: ValidationErrors = {}
+  const selectedVariants = sanitizeVariants(data.selectedVariants)
+  const needsBookCall = hasBookCallVariant(selectedVariants)
+  const needsCheckout = hasBuyNowVariant(selectedVariants) || needsBookCall
 
   if (!data.ctaLabel?.trim()) {
     errors.ctaLabel = 'CTA label is required'
   }
-  if (!data.ctaType) {
-    errors.ctaType = 'Please select a CTA type'
+  if (needsBookCall && !data.aiAgent?.trim()) {
+    errors.aiAgent = 'AI agent is required for Book a Call links'
+  }
+  if (needsCheckout && !data.priceld?.trim()) {
+    errors.priceld = 'Stripe product is required for selected links'
   }
   return {
     errors,

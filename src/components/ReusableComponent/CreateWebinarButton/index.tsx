@@ -18,6 +18,7 @@ import type Stripe from 'stripe'
 import SuccessStep from './SuccessStep'
 import { Assistant } from '@vapi-ai/server-sdk/api'
 import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
+import { buildVariantLinks, sanitizeVariants } from '@/lib/webinarLinkVariants'
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
@@ -28,13 +29,13 @@ type Props = {
 const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
   const { isModalOpen, setModalOpen, isComplete, setComplete, resetForm, formData } = useStsStore()
 
-  const [projectLink, setProjectLink] = useState('')
+  const [projectLinks, setProjectLinks] = useState<Array<{ label: string; url: string }>>([])
 
   const steps = [
     {
       id: 'type',
       title: 'Type',
-      description: 'Choose whether you want to create a project or a product',
+      description: 'Select one or more destination link options for your project',
       component: <TypeStep />,
     },
     {
@@ -63,13 +64,9 @@ const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }:
   ]  
   const handleComplete = (webinarid: string) => {
     setComplete(true)
-    const kind = formData.basicInfo.kind || 'project'
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
-    const path =
-      kind === 'product'
-        ? `/live-product/${webinarid}`
-        : `/live-project/${webinarid}`
-    setProjectLink(`${baseUrl}${path}`)
+    const selectedVariants = sanitizeVariants(formData.basicInfo.selectedVariants)
+    setProjectLinks(buildVariantLinks(webinarid, selectedVariants, baseUrl))
   }
   const handleCreateNew = () => {
     resetForm()
@@ -95,7 +92,7 @@ const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }:
         <div className="bg-muted text-primary rounded-lg overflow-hidden">
         <DialogTitle className="sr-only">Project Created </DialogTitle>
         <SuccessStep
-          projectLink={projectLink} 
+          links={projectLinks} 
           onCreateNew={handleCreateNew}
         />
       </div>

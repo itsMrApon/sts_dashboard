@@ -9,14 +9,16 @@ import { Loader2 } from 'lucide-react'
 import React, { useState } from 'react'
 import { toast } from 'sonner'
 import { WebinarWithPresenter } from '@/lib/type'
-import { Attendee } from '@prisma/client'
+import { Attendee, CtaTypeEnum } from '@prisma/client'
+import Image from 'next/image'
 
 type Props = {
   product: WebinarWithPresenter
+  ctaType: CtaTypeEnum
   onEnter: () => void
 }
 
-export default function ProductLanding({ product, onEnter }: Props) {
+export default function ProductLanding({ product, ctaType, onEnter }: Props) {
   const { setAttendee, setEnteredProductId, attendee: storedAttendee } = useAttendeeStore()
   const [name, setName] = useState(storedAttendee?.name ?? '')
   const [email, setEmail] = useState(storedAttendee?.email ?? '')
@@ -54,54 +56,74 @@ export default function ProductLanding({ product, onEnter }: Props) {
   }
 
   return (
-    <div className="w-full min-h-screen flex items-center justify-center p-4 bg-background">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-lg">
-        <h1 className="text-xl font-semibold text-primary mb-1">{product.title}</h1>
-        {product.description && (
-          <p className="text-sm text-muted-foreground mb-6">{product.description}</p>
-        )}
-        <p className="text-sm text-muted-foreground mb-4">
-          Enter your details to start a 1:1 call with the AI and chat. You can purchase at any time.
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="product-name">Name</Label>
+    <div className="w-full min-h-screen bg-background px-4 py-10 sm:py-16">
+      <div className="mx-auto flex w-full max-w-md flex-col items-center">
+        <div className="w-full rounded-3xl border border-border/70 bg-card p-6 shadow-lg sm:p-7">
+          <div className="mb-5 space-y-2 text-center">
+            <h1 className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
+              {product.title}
+            </h1>
+            {product.description && (
+              <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+            )}
+            <p className="pt-1 text-sm text-muted-foreground">
+              {ctaType === CtaTypeEnum.BUY_NOW
+                ? 'Enter your details to continue to Stripe checkout.'
+                : 'Enter your details to start a 1:1 call with AI and chat. You can purchase at any time.'}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="mx-auto mb-5 w-full max-w-sm">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-3xl">
+                <Image
+                  src={product.thumbnail || '/darkthumbnail.png'}
+                  alt={product.title}
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-name">Name</Label>
             <Input
               id="product-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
-              className="bg-background border-border"
+              className="h-11 rounded-xl border-border bg-background"
               required
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="product-email">Email</Label>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="product-email">Email</Label>
             <Input
               id="product-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="bg-background border-border"
+              className="h-11 rounded-xl border-border bg-background"
               required
             />
-          </div>
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Starting…
-              </>
-            ) : (
-              'Start 1:1 with AI'
-            )}
-          </Button>
-        </form>
+            </div>
+            <Button
+              type="submit"
+              className="h-11 w-full rounded-xl font-semibold"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Starting…
+                </>
+              ) : (
+                ctaType === CtaTypeEnum.BUY_NOW ? 'Go to Stripe' : 'Start 1:1 with AI'
+              )}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   )

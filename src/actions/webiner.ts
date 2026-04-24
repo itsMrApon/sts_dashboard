@@ -4,7 +4,13 @@
  import { onAuthenticateUser } from "./auth"
  import { revalidatePath } from "next/cache"
  import { prismaClient } from "@/lib/prismaClient"
- import { CtaTypeEnum, WebinarStatusEnum } from "@prisma/client"
+ import { CtaTypeEnum, WebinarKind, WebinarStatusEnum } from "@prisma/client"
+ import {
+  hasBookCallVariant,
+  hasProjectVariant,
+  sanitizeVariants,
+  VARIANT_META,
+ } from '@/lib/webinarLinkVariants'
 
 
 function combineDateTime(
@@ -45,14 +51,16 @@ export const createProject = async(formData: WebinarFormState) => {
       
       console.log('Form Data:', formData, presenterId)
       
-      const kind = formData.basicInfo.kind || 'project'
+      const selectedVariants = sanitizeVariants(formData.basicInfo.selectedVariants)
+      const primaryVariant = selectedVariants[0]
+      const primaryMeta = VARIANT_META[primaryVariant]
 
       if (!formData.basicInfo.webinarName) {
         return { status : 404, message : 'Project name is required' }
       }
       let startTime: Date
 
-      if (kind === 'product') {
+      if (!hasProjectVariant(selectedVariants)) {
         // Products are always-on; use current time as startTime and skip scheduling checks.
         startTime = new Date()
       } else {
@@ -90,12 +98,17 @@ export const createProject = async(formData: WebinarFormState) => {
         aiAgentId = aiAgentValue
       }
 
-      // Ensure ctaType is a valid Prisma enum (handle "Book a Call" etc)
-      const ctaTypeRaw = formData.cta.ctaType
-      const ctaType =
-        ctaTypeRaw === CtaTypeEnum.BUY_NOW
-          ? CtaTypeEnum.BUY_NOW
-          : CtaTypeEnum.BOOK_A_CALL
+      // Default record fields keep compatibility for existing readers.
+      const ctaType = primaryMeta.ctaType === 'BUY_NOW'
+        ? CtaTypeEnum.BUY_NOW
+        : CtaTypeEnum.BOOK_A_CALL
+
+      if (hasBookCallVariant(selectedVariants) && !aiAgentId && !livekitAgentId) {
+        return { status: 400, message: 'AI agent is required for Book a Call links' }
+      }
+      if (!formData.cta.priceld) {
+        return { status: 400, message: 'Stripe product is required for selected links' }
+      }
 
       const data = {
         title: formData.basicInfo.webinarName,
@@ -104,10 +117,12 @@ export const createProject = async(formData: WebinarFormState) => {
         tags: formData.cta.tags || [],
         ctaLabel: formData.cta.ctaLabel,
         ctaType,
-        kind: kind === 'product' ? 'PRODUCT' : 'PROJECT',
+        kind: primaryMeta.kind === 'product' ? WebinarKind.PRODUCT : WebinarKind.PROJECT,
         aiAgentId,
         livekitAgentId,
         priceId: formData.cta.priceld || null,
+        linkVariants: selectedVariants,
+        thumbnail: formData.basicInfo.thumbnail || null,
         lockChat: formData.additionalInfo.lockChat || false,
         couponCode: formData.additionalInfo.couponEnabled
           ? formData.additionalInfo.couponCode

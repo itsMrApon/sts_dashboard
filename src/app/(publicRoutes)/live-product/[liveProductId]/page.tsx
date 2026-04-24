@@ -7,14 +7,15 @@ import RenderProduct from './_components/RenderProduct'
 import { WebinarWithPresenter } from '@/lib/type'
 import { CtaTypeEnum } from '@prisma/client'
 import CreatorProductInbox from './_components/CreatorProductInbox'
+import { resolveVariantFromParam, VARIANT_META } from '@/lib/webinarLinkVariants'
 
 type Props = {
   params: Promise<{ liveProductId: string }>
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; variant?: string }>
 }
 
 export default async function LiveProductPage({ params, searchParams }: Props) {
-  const [{ liveProductId }, { error = '' }] = await Promise.all([params, searchParams])
+  const [{ liveProductId }, { error = '', variant }] = await Promise.all([params, searchParams])
 
   const [product, checkUser] = await Promise.all([
     getProjectbyId(liveProductId),
@@ -29,7 +30,10 @@ export default async function LiveProductPage({ params, searchParams }: Props) {
     )
   }
 
-  const ctaType = product.ctaType as CtaTypeEnum
+  const resolvedVariant = resolveVariantFromParam(variant)
+  const ctaType = resolvedVariant
+    ? (VARIANT_META[resolvedVariant].ctaType as CtaTypeEnum)
+    : (product.ctaType as CtaTypeEnum)
   const isBookACall = ctaType === CtaTypeEnum.BOOK_A_CALL
   const isBuyNow = ctaType === CtaTypeEnum.BUY_NOW
 

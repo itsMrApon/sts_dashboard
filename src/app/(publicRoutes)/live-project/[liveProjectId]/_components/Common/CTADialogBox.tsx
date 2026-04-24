@@ -1,11 +1,13 @@
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ChevronRight, Loader2, Play } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import React, { useState } from 'react'
 import { WebinarWithPresenter } from '@/lib/type'
 import { toast } from 'sonner'
 import { createCheckoutLink } from '@/actions/stripe'
+import { CtaTypeEnum } from '@prisma/client'
+import { resolveVariantFromParam, VARIANT_META } from '@/lib/webinarLinkVariants'
 
 type Props = {
   open?:boolean
@@ -23,12 +25,18 @@ const CTADialogBox = ({
   userId,
 }: Props) => {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const[loading, setLoading] = useState(false)
+  const variant = resolveVariantFromParam(searchParams.get('variant'))
+  const resolvedCtaType: CtaTypeEnum = variant
+    ? (VARIANT_META[variant].ctaType as CtaTypeEnum)
+    : (project?.ctaType as CtaTypeEnum)
 
   const handleClick = async () => {
     try {
-      if(project?.ctaType === 'BOOK_A_CALL') {
-        router.push(`/live-project/${project.id}/call?attendeeId=${userId}`)
+      if(resolvedCtaType === CtaTypeEnum.BOOK_A_CALL) {
+        const variantPart = variant ? `&variant=${variant}` : ''
+        router.push(`/live-project/${project.id}/call?attendeeId=${userId}${variantPart}`)
       } else {
         if (!project.priceId || !project.presenter.stripeConnectId) {
           return toast.error('No priceld or stripeConnectId found' )
@@ -67,10 +75,10 @@ const CTADialogBox = ({
       <DialogContent className="sm:max-w-md bg-card text-card-foreground border-border">
         <DialogHeader>
           <DialogTitle className="text-lg font-medium">
-            {project?.ctaType === 'BOOK_A_CALL' ? 'Book a Call' : 'Get Now'}
+            {resolvedCtaType === CtaTypeEnum.BOOK_A_CALL ? 'Book a Call' : 'Get Now'}
           </DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            {project?.ctaType === 'BOOK_A_CALL' 
+            {resolvedCtaType === CtaTypeEnum.BOOK_A_CALL 
             ? 'You will be redirected to a call on another page' 
             : 'You will be redirected to checkout'}
           </p>
@@ -101,7 +109,7 @@ const CTADialogBox = ({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Loading...
               </>
-            ): project?.ctaType === 'BOOK_A_CALL' ? (
+            ): resolvedCtaType === CtaTypeEnum.BOOK_A_CALL ? (
               'Join Break-room'
             ) : (
               'Buy Now'

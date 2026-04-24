@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { CtaTypeEnum } from '@prisma/client'
 import {
   validateBasicInfo,
   validateAdditionalInfo,
@@ -7,20 +6,25 @@ import {
   ValidationErrors,
   ValidationResult,
 } from '@/lib/type'
+import {
+  DEFAULT_VARIANT,
+  WebinarLinkVariant,
+  sanitizeVariants,
+} from '@/lib/webinarLinkVariants'
 
 export type WebinarFormState = {
   basicInfo: {
-    kind?: 'project' | 'product'
+    selectedVariants: WebinarLinkVariant[]
     webinarName?: string
     description?: string
     date?: Date
     time?: string
     timeFormat?: 'AM' | 'PM'
+    thumbnail?: string
   }
   cta: {
     ctaLabel?: string 
     tags?: string[] 
-    ctaType: CtaTypeEnum
     aiAgent?: string 
     priceld?: string
   }
@@ -67,6 +71,8 @@ type StsStore = {
     value: WebinarFormState['cta'][K]
    ) => void
 
+  setSelectedVariants: (variants: WebinarLinkVariant[]) => void
+
   updateAdditionalInfoField: <K extends keyof WebinarFormState['additionalInfo']>(
     field: K,
     value: WebinarFormState['additionalInfo'][K]
@@ -87,17 +93,17 @@ type StsStore = {
 
 const initialState: WebinarFormState = {
   basicInfo: {
-    kind: 'project',
+    selectedVariants: [DEFAULT_VARIANT],
     webinarName: "",
     description: "",
     date: undefined,
     time: "",
     timeFormat: "AM",
+    thumbnail: '',
   },
   cta: {
     ctaLabel: "",
     tags: [],
-    ctaType: CtaTypeEnum.BOOK_A_CALL,
     aiAgent: "",
     priceld: "",
   },
@@ -140,12 +146,35 @@ export const useStsStore = create<StsStore>((set, get) => ({
         set((state) => {
           const newCTA = { ...state.formData.cta, [field]: value }
 
-          const validationResult = validateCTA(newCTA)
+          const validationResult = validateCTA({
+            ...newCTA,
+            selectedVariants: state.formData.basicInfo.selectedVariants,
+          })
           return {
             formData: { ...state.formData, cta: newCTA },
             validation: { ...state.validation, cta: validationResult },
           }
         })
+    },
+
+    setSelectedVariants: (variants) => {
+      set((state) => {
+        const selectedVariants = sanitizeVariants(variants)
+        const nextBasicInfo = { ...state.formData.basicInfo, selectedVariants }
+        const basicValidation = validateBasicInfo(nextBasicInfo)
+        const ctaValidation = validateCTA({
+          ...state.formData.cta,
+          selectedVariants,
+        })
+        return {
+          formData: { ...state.formData, basicInfo: nextBasicInfo },
+          validation: {
+            ...state.validation,
+            basicInfo: basicValidation,
+            cta: ctaValidation,
+          },
+        }
+      })
     },
     
     updateAdditionalInfoField: (field, value) => {
@@ -170,7 +199,10 @@ export const useStsStore = create<StsStore>((set, get) => ({
           validationResult = validateBasicInfo(formData.basicInfo)
           break
         case 'cta':
-          validationResult = validateCTA(formData.cta)
+          validationResult = validateCTA({
+            ...formData.cta,
+            selectedVariants: formData.basicInfo.selectedVariants,
+          })
           break
         case 'additionalInfo':
           validationResult = validateAdditionalInfo(formData.additionalInfo)

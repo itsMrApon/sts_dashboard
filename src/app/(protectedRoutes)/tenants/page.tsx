@@ -1,5 +1,5 @@
 import PageHeader from '@/components/ReusableComponent/PageHeader'
-import { ChevronLeft, Megaphone, Sparkles } from 'lucide-react'
+import { Megaphone, Sparkles, Users } from 'lucide-react'
 import { getTenants } from '@/actions/tenants'
 import { getBusinessOptions } from '@/actions/business'
 import { onAuthenticateUser } from '@/actions/auth'
@@ -24,7 +24,7 @@ const page = async () => {
   const rendered = (
     <div className="w-full flex flex-col gap-8">
       <PageHeader
-        leftIcon={<ChevronLeft className="w-3 h-3" />}
+        leftIcon={<Users className="w-3 h-3" />}
         mainIcon={<Megaphone className="w-12 h-12" />}
         rightIcon={<Sparkles className="w-4 h-4" />}
         heading="Tenants"

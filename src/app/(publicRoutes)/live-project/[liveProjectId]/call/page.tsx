@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import React from 'react'
 import AutoConnectCall from './_components/AutoConnectCall'
 import LiveKitCall from './_components/LiveKitCall'
+import { resolveVariantFromParam, VARIANT_META } from '@/lib/webinarLinkVariants'
 
 type Props = {
   params: Promise<{
@@ -14,12 +15,13 @@ type Props = {
   }>
   searchParams: Promise<{
     attendeeId: string
+    variant?: string
   }>
 }
 
 const page = async ({params, searchParams}: Props) => {
   const {liveProjectId} = await params
-  const {attendeeId} = await searchParams
+  const {attendeeId, variant} = await searchParams
 
   if (!liveProjectId || !attendeeId) {
     redirect('/404')
@@ -45,7 +47,10 @@ const page = async ({params, searchParams}: Props) => {
   // Book a Call requires an AI agent (Vapi or LiveKit). priceId is only for Buy Now.
   const livekitAgentId = (project as { livekitAgentId?: string | null }).livekitAgentId
   const hasAiAgent = project.aiAgentId || livekitAgentId
-  if (project.ctaType !== CtaTypeEnum.BOOK_A_CALL || !hasAiAgent) {
+  const resolvedVariant = resolveVariantFromParam(variant)
+  const resolvedCtaType =
+    resolvedVariant ? VARIANT_META[resolvedVariant].ctaType : project.ctaType
+  if (resolvedCtaType !== CtaTypeEnum.BOOK_A_CALL || !hasAiAgent) {
     redirect(`/live-project/${liveProjectId}?error=cannot-book-a-call`)
   }
 

@@ -55,7 +55,7 @@ const Orb = dynamic(
 
 /** Standalone `/chat/[room]` and home embed use the same frame (matches home preview). */
 const CHAT_CARD_FRAME =
-  'relative flex flex-col overflow-hidden rounded-[28px] border-0 bg-background text-foreground shadow-none backdrop-blur-none pb-2 pt-0'
+  'relative flex flex-col gap-2 overflow-hidden rounded-[28px] border-0 bg-background text-foreground shadow-none backdrop-blur-none pb-2 pt-0'
 
 /** One toast line for mic / getUserMedia / LiveKit track permission issues (avoid raw DOMException text). */
 const MIC_ACCESS_TOAST =
@@ -514,7 +514,6 @@ export const ChatClient = ({
   const [voiceActive, setVoiceActive] = useState(false)
   const [callHumenOpen, setCallHumenOpen] = useState(false)
   const [voicePhase, setVoicePhase] = useState<VoiceUIPhase>('idle')
-  const [voiceError, setVoiceError] = useState<string | null>(null)
   const [voiceStartKey, setVoiceStartKey] = useState(0)
   const [showContactPopup, setShowContactPopup] = useState(false)
   const [mobileName, setMobileName] = useState('John')
@@ -560,7 +559,6 @@ export const ChatClient = ({
   )
 
   const onVoiceSessionError = useCallback((msg: string | null) => {
-    setVoiceError(msg)
     if (msg) toast.error(msg)
   }, [])
 
@@ -650,12 +648,6 @@ export const ChatClient = ({
   }, [voiceActive])
 
   useEffect(() => {
-    if (voicePhase === 'listening' || voicePhase === 'talking') {
-      setVoiceError(null)
-    }
-  }, [voicePhase])
-
-  useEffect(() => {
     voicePhaseRef.current = voicePhase
   }, [voicePhase])
 
@@ -668,7 +660,6 @@ export const ChatClient = ({
       if (!voiceActive) return
       if (voicePhaseRef.current === 'listening' || voicePhaseRef.current === 'talking') return
       voiceQuotaToastShownForKeyRef.current = voiceStartKey
-      setVoiceError(GEMINI_QUOTA_TOAST)
       toast.error(GEMINI_QUOTA_TOAST)
     }, VOICE_AGENT_WATCHDOG_MS)
 
@@ -722,7 +713,6 @@ export const ChatClient = ({
       })
 
       setCallHumenOpen(false)
-      setVoiceError(null)
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       stream.getTracks().forEach((t) => t.stop())
@@ -811,7 +801,7 @@ export const ChatClient = ({
           </div>
         </div>
 
-        <CardContent className="flex-1 overflow-hidden p-2.5">
+        <CardContent className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {tab === 'chat' ? (
             <Conversation className="h-full rounded-[28px] border-0 bg-background">
               <ConversationContent className="flex flex-col gap-0.5 p-4">
@@ -868,8 +858,9 @@ export const ChatClient = ({
               </ConversationContent>
             </Conversation>
           ) : tab === 'voice' ? (
-            <div className="relative flex h-full min-h-0 flex-col rounded-[24px] border-0 bg-background px-5 py-8">
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 pt-16 pb-8">
+            <div className="relative flex h-full min-h-0 flex-col rounded-[24px] border-0 bg-background px-5 py-4">
+              {/* Orb + session: centered in remaining space so status chips are not pushed into the footer/clipped */}
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-2">
                 <div
                   className="relative mx-auto shrink-0 overflow-hidden rounded-full"
                   style={{ width: 208, height: 208 }}
@@ -893,11 +884,9 @@ export const ChatClient = ({
                     onFullyDisconnected={onVoiceSessionFullyDisconnected}
                   />
                 )}
-                <div
-                  className="grid w-full max-w-[280px] shrink-0 grid-cols-3 gap-2 text-center text-[11px] font-medium leading-tight sm:text-xs"
-                  role="status"
-                  aria-live="polite"
-                >
+              </div>
+              <div className="shrink-0 px-0 pb-1 pt-2" role="status" aria-live="polite">
+                <div className="mx-auto grid w-full max-w-[280px] grid-cols-3 gap-2 text-center text-[11px] font-medium leading-normal sm:text-xs">
                   {(
                     [
                       { phase: 'idle' as const, label: 'Idle' },
@@ -908,7 +897,7 @@ export const ChatClient = ({
                     <span
                       key={phase}
                       className={cn(
-                        'rounded-lg px-1.5 py-1 transition-colors sm:px-2',
+                        'rounded-lg px-1.5 py-1.5 transition-colors sm:px-2',
                         voicePhase === phase
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'bg-muted/60 text-muted-foreground',
@@ -918,9 +907,6 @@ export const ChatClient = ({
                     </span>
                   ))}
                 </div>
-                {voiceError && (
-                  <p className="max-w-[320px] text-center text-xs text-destructive">{voiceError}</p>
-                )}
               </div>
 
               {/* Call Humen: overlay only — does not resize or move the orb stack */}

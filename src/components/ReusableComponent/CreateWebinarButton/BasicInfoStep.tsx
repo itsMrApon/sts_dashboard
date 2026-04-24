@@ -12,14 +12,16 @@ import { CalendarIcon, Clock, Upload } from 'lucide-react'
 import { Calendar } from '@/components/ui/calendar'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { hasProjectVariant } from '@/lib/webinarLinkVariants'
 
 
 const BasicInfoStep = () => {
   const { formData, updateBasicInfoField, getStepValidationErrors } =
     useStsStore()
 
-  const { kind = 'project', webinarName, description, date, time, timeFormat } =
+  const { selectedVariants = [], webinarName, description, date, time, timeFormat } =
     formData.basicInfo
+  const needsSchedule = hasProjectVariant(selectedVariants)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -46,6 +48,23 @@ const BasicInfoStep = () => {
     updateBasicInfoField('timeFormat', value as 'AM' | 'PM')
   }
 
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        updateBasicInfoField('thumbnail', reader.result)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   return (
     <div className="space-y-6">
@@ -94,7 +113,7 @@ const BasicInfoStep = () => {
         )}
       </div>
 
-      {kind === 'project' && (
+      {needsSchedule && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className={errors.date ? 'text-red-400' : ''}>
@@ -176,9 +195,9 @@ const BasicInfoStep = () => {
       )}
 
       <div className="flex items-center gap-2 text-sm text-gray-400 mt-4">
-        <div className="flex ite-center">
+        <div className="flex items-center">
           <Upload className="h-4 w-4 mr-2 "/>
-            Uploading a video makes this chat pre-recorded.
+            Upload a poster image (recommended 1200x675, minimum 800x450) to keep layouts stable.
         </div>
         <Button
           variant="outline"
@@ -188,6 +207,8 @@ const BasicInfoStep = () => {
           <Input
             className="absolute inset-0 opacity-0 cursor-pointer"
             type="file"
+            accept="image/*"
+            onChange={handleThumbnailUpload}
            /> 
         </Button>  
       </div>

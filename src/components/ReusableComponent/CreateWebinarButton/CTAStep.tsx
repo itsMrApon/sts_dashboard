@@ -7,15 +7,14 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useStsStore } from '@/store/useStsStore';
 import { X, Search } from 'lucide-react';
 import React, { useState } from 'react'
-import { CtaTypeEnum } from '@prisma/client'
 import type Stripe from 'stripe'
 import { Assistant } from '@vapi-ai/server-sdk/api'
 import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
+import { hasBookCallVariant, hasBuyNowVariant } from '@/lib/webinarLinkVariants';
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
@@ -31,7 +30,10 @@ const CTAStep = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
 
   const [tagInput, setTagInput] = useState('')
 
-  const { ctaLabel, tags, aiAgent, priceld, ctaType } = formData.cta
+  const { ctaLabel, tags, aiAgent, priceld } = formData.cta
+  const selectedVariants = formData.basicInfo.selectedVariants || []
+  const needsBookCall = hasBookCallVariant(selectedVariants)
+  const needsCheckout = needsBookCall || hasBuyNowVariant(selectedVariants)
 
   const errors = getStepValidationErrors('cta')
 
@@ -41,10 +43,6 @@ const CTAStep = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
       addTag(tagInput.trim())
       setTagInput('')
     }
-  }
-
-  const handleSelectCTAType = (value: string) => {
-    updateCTAField('ctaType', value as CtaTypeEnum)
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,34 +109,9 @@ const CTAStep = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
           </div>
         )}
       </div>
-      <div className="space-y-2 w-full">
-        <Label>CTA Type</Label>
-        <Tabs
-          defaultValue={CtaTypeEnum.BOOK_A_CALL}
-          className="w-full"
-        >
-          <TabsList className="w-full bg-transparent">
-            <TabsTrigger 
-              value={CtaTypeEnum.BOOK_A_CALL}
-              className="w-1/2 data-[state=active]:!bg-background/50"
-              onClick={()=>handleSelectCTAType(CtaTypeEnum.BOOK_A_CALL)}
-            >
-              Book a Call
-            </TabsTrigger>
-            <TabsTrigger 
-              value={CtaTypeEnum.BUY_NOW}
-              className="w-1/2"
-              onClick={()=>handleSelectCTAType(CtaTypeEnum.BUY_NOW)}
-            >
-              Order Now
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-      
-      {ctaType === CtaTypeEnum.BOOK_A_CALL && (
+      {needsBookCall && (
         <div className="space-y-2">
-          <Label>Attach an AI Agent</Label>
+          <Label className={errors.aiAgent ? 'text-red-400' : ''}>Attach an AI Agent</Label>
           <div className="relative">
             <div className="md-2">
               <div className="relative">
@@ -189,12 +162,15 @@ const CTAStep = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
               </SelectContent>
             </Select>
           </div>
+          {errors.aiAgent && <p className="text-sm text-red-400">{errors.aiAgent}</p>}
         </div>
       )}
 
-      {ctaType === CtaTypeEnum.BUY_NOW && (
+      {needsCheckout && (
       <div className="space-y-2">
-        <Label>Stripe Products</Label>
+        <Label className={errors.priceld ? 'text-red-400' : ''}>
+          Stripe Products {needsBookCall && <span className="text-xs text-muted-foreground">(required for in-call Order Now)</span>}
+        </Label>
         <div className="relative">
           <div className="mb-2">
             <div className="relative">
@@ -234,6 +210,7 @@ const CTAStep = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
             </SelectContent>
           </Select>
         </div>
+        {errors.priceld && <p className="text-sm text-red-400">{errors.priceld}</p>}
       </div>
       )}
     </div>

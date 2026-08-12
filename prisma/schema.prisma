@@ -314,6 +314,8 @@ model HuntedLead {
   niche           String?    @db.VarChar(255)
   location        String?    @db.VarChar(255)
   rawData         Json?
+  /** ScrapeGraphAI website enrichment (replaces meeting/Fathom-style summary for Google leads) */
+  websiteScrapeJson Json?
   outreachSent    Boolean    @default(false)
   outreachChannel String?    @db.VarChar(50)
   outreachSentAt  DateTime?

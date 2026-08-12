@@ -6,7 +6,7 @@ Python sidecar that enriches Google lead websites with [ScrapeGraphAI](https://g
 
 ```bash
 cd agents/python/scrape-agent
-cp .env.example .env
+cp env.example .env
 # set SCRAPE_AGENT_API_KEY + GOOGLE_API_KEY
 
 uv sync

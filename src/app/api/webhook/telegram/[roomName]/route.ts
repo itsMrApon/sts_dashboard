@@ -3,6 +3,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import { decryptToken } from '@/lib/messages/encrypt'
 import { generateReply } from '@/lib/messages/geminiText'
 import { buildAgentContext } from '@/lib/messages/buildAgentContext'
+import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId'
 import { DEFAULT_LLM_MODEL } from '@/lib/llm/defaultModel'
 import { Platform } from '@prisma/client'
 
@@ -169,6 +170,7 @@ export async function POST(
   const cleanHistory = limitedHistory.filter((m) => m.role !== 'error')
 
   const context = await buildAgentContext(roomName)
+  const ownerUserId = await resolveRoomOwnerUserId(agent.id, roomName)
 
   console.log(`[${tag}] Calling Gemini (model: ${agent.llmModel || DEFAULT_LLM_MODEL}, history: ${cleanHistory.length} msgs)...`)
   const startTime = Date.now()
@@ -181,6 +183,8 @@ export async function POST(
     })),
     systemPrompt: context.systemInstruction,
     llmModel: agent.llmModel || undefined,
+    accountUserId: ownerUserId,
+    usageSurface: 'messages',
   })
 
   const elapsed = Date.now() - startTime

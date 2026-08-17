@@ -54,6 +54,8 @@ class RoomConfig(BaseModel):
     user_id: Optional[str] = None
     transcript_ingest_url: Optional[str] = None
     transcript_api_key: Optional[str] = None
+    usage_ingest_url: Optional[str] = None
+    usage_surface: Optional[str] = None
 
 
 # --- Simulated SaaS Database (fallback for local/dev) ---
@@ -137,7 +139,7 @@ async def load_room_config(room_name: str) -> RoomConfig:
 
         def _fetch() -> Dict:
             req = request.Request(url, headers=headers, method="GET")
-            with request.urlopen(req, timeout=10) as resp:
+            with request.urlopen(req, timeout=25) as resp:
                 return json.load(resp)
 
         try:

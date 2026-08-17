@@ -29,13 +29,21 @@ export function decryptToken(encrypted: string | null | undefined): string | nul
   const [ivHex, dataHex] = encrypted.split(':')
   if (!ivHex || !dataHex) return null
 
-  const iv = Buffer.from(ivHex, 'hex')
-  const key = getKey()
-  const encryptedBuf = Buffer.from(dataHex, 'hex')
+  try {
+    const iv = Buffer.from(ivHex, 'hex')
+    const key = getKey()
+    const encryptedBuf = Buffer.from(dataHex, 'hex')
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
-  const decrypted = Buffer.concat([decipher.update(encryptedBuf), decipher.final()])
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+    const decrypted = Buffer.concat([
+      decipher.update(encryptedBuf),
+      decipher.final(),
+    ])
 
-  return decrypted.toString('utf8')
+    return decrypted.toString('utf8')
+  } catch {
+    // Wrong ENCRYPTION_KEY or corrupt ciphertext — treat as missing.
+    return null
+  }
 }
 

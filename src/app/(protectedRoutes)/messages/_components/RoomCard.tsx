@@ -17,7 +17,7 @@ import {
 import { removeMessagingRoom } from '@/actions/messages'
 import { toast } from 'sonner'
 
-/** Messaging hub row from getBusinesses — shown as a “room” in the UI */
+/** Messaging hub row from getPublishProfiles — shown as a “room” in the UI */
 export type RoomCardData = {
   id: string
   name: string
@@ -35,9 +35,14 @@ export type RoomCardData = {
   _count: { channels: number }
 }
 
-type Props = { room: RoomCardData }
+type Props = {
+  room: RoomCardData
+  /** When embedded on the main Messages page, configuration sits below the header. */
+  embedded?: boolean
+  roomName?: string | null
+}
 
-const RoomCard = ({ room }: Props) => {
+const RoomCard = ({ room, embedded = false, roomName: roomNameProp }: Props) => {
   const productsCount = room.productsCount ?? room.products.length
   const router = useRouter()
   const headingId = useId()
@@ -47,11 +52,11 @@ const RoomCard = ({ room }: Props) => {
   const primaryAgent = room.agents.find((a) => a.isPrimary) || room.agents[0]
   const roomFromAgent = primaryAgent?.agent.roomName
   const roomFromChannel = room.channels[0]?.roomName
-  const messagingRoomName = roomFromAgent ?? roomFromChannel ?? null
+  const messagingRoomName = roomNameProp ?? roomFromAgent ?? roomFromChannel ?? null
 
   const configureHref = messagingRoomName
-    ? `/messages/${encodeURIComponent(messagingRoomName)}`
-    : `/tenants/business-profile?businessId=${encodeURIComponent(room.id)}`
+    ? `/messages?room=${encodeURIComponent(messagingRoomName)}`
+    : `/messages/publish`
 
   const handleRemove = () => {
     if (!messagingRoomName) return
@@ -71,11 +76,16 @@ const RoomCard = ({ room }: Props) => {
     })
   }
 
-  return (
-    <article
-      className="relative w-full min-w-0 rounded-2xl border border-border bg-card shadow-sm transition-colors hover:border-primary/50"
-      aria-labelledby={headingId}
-    >
+  const shellClass = embedded
+    ? 'relative w-full min-w-0'
+    : 'relative w-full min-w-0 rounded-2xl border border-border bg-card shadow-sm transition-colors hover:border-primary/50'
+
+  const bodyClass = embedded
+    ? 'flex w-full min-w-0 flex-col gap-4 p-4 pt-3 sm:p-5 sm:pr-14 sm:pt-4'
+    : 'group flex w-full min-w-0 flex-col gap-4 rounded-2xl p-4 pt-3 outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring sm:p-5 sm:pr-14 sm:pt-4'
+
+  const inner = (
+    <>
       {messagingRoomName && (
         <>
           <Button
@@ -99,7 +109,7 @@ const RoomCard = ({ room }: Props) => {
                 <AlertDialogTitle>Remove this room?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This removes messaging channels for @{messagingRoomName} and unlinks linked AI
-                  agents from this hub. Agents and profiles stay in AI Agents and Tenants — use{' '}
+                  agents from this hub. Agents and profiles stay in AI Agents and Workspaces — use{' '}
                   <strong>New room</strong> to connect again.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -114,12 +124,7 @@ const RoomCard = ({ room }: Props) => {
         </>
       )}
 
-      <Link
-        href={configureHref}
-        className="group flex w-full min-w-0 flex-col gap-4 rounded-2xl p-4 pt-3 outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring sm:p-5 sm:pr-14 sm:pt-4"
-        aria-describedby={room.description ? `${headingId}-desc` : undefined}
-      >
-        {/* Identity row */}
+      <div className={bodyClass} aria-describedby={room.description ? `${headingId}-desc` : undefined}>
         <div className="flex w-full min-w-0 items-start gap-3 sm:gap-4">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
@@ -148,7 +153,6 @@ const RoomCard = ({ room }: Props) => {
           </div>
         </div>
 
-        {/* Stats — aligned row, wraps on narrow screens */}
         <div
           className="flex w-full min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-t border-border/60 pt-3 text-xs text-muted-foreground"
           role="group"
@@ -174,7 +178,6 @@ const RoomCard = ({ room }: Props) => {
           </span>
         </div>
 
-        {/* Agent & project chips */}
         {(room.agents.length > 0 || room.products.length > 0) && (
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-2 sm:gap-y-2">
             {room.agents.length > 0 && (
@@ -216,13 +219,26 @@ const RoomCard = ({ room }: Props) => {
           </div>
         )}
 
-        {/* Configure — bottom-right within full-width card */}
-        <div className="flex w-full justify-end border-t border-border/60 pt-3">
-          <span className="text-sm font-medium text-primary underline-offset-4 group-hover:underline">
-            Configure
-            <span aria-hidden> →</span>
-          </span>
-        </div>
+        {!embedded && (
+          <div className="flex w-full justify-end border-t border-border/60 pt-3">
+            <span className="text-sm font-medium text-primary underline-offset-4 group-hover:underline">
+              Configure
+              <span aria-hidden> →</span>
+            </span>
+          </div>
+        )}
+      </div>
+    </>
+  )
+
+  if (embedded) {
+    return <div className={shellClass}>{inner}</div>
+  }
+
+  return (
+    <article className={shellClass} aria-labelledby={headingId}>
+      <Link href={configureHref} className="block">
+        {inner}
       </Link>
     </article>
   )

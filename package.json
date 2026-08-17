@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && node scripts/sync-prisma-client.js && next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && node scripts/sync-prisma-client.js",
+    "prisma:generate": "prisma generate && node scripts/sync-prisma-client.js"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.33.4",
@@ -57,7 +58,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
-    "framer-motion": "^11.0.3",
+    "framer-motion": "11",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
     "livekit-client": "^2.17.2",
@@ -73,8 +74,12 @@
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.65.0",
+    "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.6",
     "recharts": "^2.15.4",
+    "remark-gfm": "^4.0.1",
+    "remeda": "^2.39.0",
+    "shiki": "^1.29.2",
     "sonner": "^2.0.7",
     "stream-chat": "^8.60.0",
     "stream-chat-react": "^12.14.0",

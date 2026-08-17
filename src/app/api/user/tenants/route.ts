@@ -14,7 +14,7 @@ export async function GET() {
   })
   if (!user) return NextResponse.json([])
 
-  const tenants = await prismaClient.tenant.findMany({
+  const tenants = await prismaClient.workspace.findMany({
     where: { userId: user.id },
     select: { id: true, name: true },
     orderBy: { createdAt: 'desc' },

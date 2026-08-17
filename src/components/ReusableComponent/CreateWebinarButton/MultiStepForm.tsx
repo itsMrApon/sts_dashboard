@@ -19,9 +19,10 @@ type Step = {
 type Props = {
   steps: Step[]
   onComplete: (id: string) => void
+  tenantId?: string
 }
 
-const MultiStepForm = ({ steps, onComplete }: Props) => {
+const MultiStepForm = ({ steps, onComplete, tenantId }: Props) => {
   const { setModalOpen, formData, validateStep, isSubmitting, setSubmitting } = 
   useStsStore()
   const router = useRouter()
@@ -58,7 +59,7 @@ const MultiStepForm = ({ steps, onComplete }: Props) => {
     if (isLastStep) {
       try {
         setSubmitting(true)
-        const result = await createProject(formData)
+        const result = await createProject(formData, { tenantId })
         if (result.status === 201 && result.webinarId){
           toast.success('Your webinar has been created successfully.')
           onComplete(result.webinarId)

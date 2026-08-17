@@ -16,7 +16,7 @@ export async function connectOutreachChannel(
   credentials: Record<string, string>,
   label: string,
   pageUrl?: string,
-  businessId?: string,
+  publishProfileId?: string,
 ): Promise<ActionResult> {
   const { userId: clerkId } = await auth()
   if (!clerkId) return { ok: false, error: 'UNAUTHENTICATED' }
@@ -29,9 +29,9 @@ export async function connectOutreachChannel(
 
   if (!label.trim()) return { ok: false, error: 'Account label is required' }
 
-  if (!businessId) return { ok: false, error: 'Business profile is required' }
-  const biz = await prismaClient.business.findFirst({
-    where: { id: businessId, userId: user.id },
+  if (!publishProfileId) return { ok: false, error: 'Publish profile is required' }
+  const biz = await prismaClient.publishProfile.findFirst({
+    where: { id: publishProfileId, userId: user.id },
     select: { id: true },
   })
   if (!biz) return { ok: false, error: 'Business not found' }
@@ -45,7 +45,7 @@ export async function connectOutreachChannel(
     await prismaClient.outreachChannel.create({
       data: {
         userId: user.id,
-        businessId,
+        publishProfileId,
         platform,
         credentials:
           Object.keys(encrypted).length > 0 ? encrypted : Prisma.DbNull,
@@ -55,7 +55,8 @@ export async function connectOutreachChannel(
       },
     })
 
-    revalidatePath('/tenants/business-profile')
+    revalidatePath('/tenants/publish')
+    revalidatePath('/tenants/publish')
     return { ok: true }
   } catch (error) {
     console.error(`connectOutreach[${platform}] error`, error)
@@ -80,7 +81,8 @@ export async function disconnectOutreachChannel(
       where: { id: channelId, userId: user.id },
     })
 
-    revalidatePath('/tenants/business-profile')
+    revalidatePath('/tenants/publish')
+    revalidatePath('/tenants/publish')
     return { ok: true }
   } catch (error) {
     console.error(`disconnectOutreach error`, error)
@@ -89,7 +91,7 @@ export async function disconnectOutreachChannel(
 }
 
 export async function getOutreachChannels(
-  businessId?: string | null,
+  publishProfileId?: string | null,
   resolvedUserId?: string,
 ) {
   let userId = resolvedUserId
@@ -99,12 +101,12 @@ export async function getOutreachChannels(
     userId = authResult.user.id
   }
 
-  if (!businessId) return []
+  if (!publishProfileId) return []
 
   return prismaClient.outreachChannel.findMany({
     where: {
       userId,
-      businessId,
+      publishProfileId,
     },
     select: {
       id: true,
@@ -112,7 +114,7 @@ export async function getOutreachChannels(
       status: true,
       accountLabel: true,
       pageUrl: true,
-      businessId: true,
+      publishProfileId: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'asc' },

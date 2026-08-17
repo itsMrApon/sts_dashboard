@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
         outcome?: string
       }
 
-    const resolvedTenantId = tenantId ?? campaignId
+    const resolvedWorkspaceId = tenantId ?? campaignId
 
     if (!userId || !roomName || !transcript?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         userId,
         roomName,
         leadId: leadId || null,
-        tenantId: resolvedTenantId || null,
+        workspaceId: resolvedWorkspaceId || null,
         transcript,
         duration: duration || 0,
         outcome: outcome || analysis.outcome,
@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
         userId,
         eventType: 'CALL_ENDED',
         leadId,
-        tenantId: resolvedTenantId,
+        tenantId: resolvedWorkspaceId,
+        workspaceId: resolvedWorkspaceId,
         metadata: {
           outcome: outcome || analysis.outcome,
           duration,
@@ -78,7 +79,8 @@ export async function POST(req: NextRequest) {
           userId,
           eventType: 'LEAD_CONVERTED',
           leadId,
-          tenantId: resolvedTenantId,
+          tenantId: resolvedWorkspaceId,
+        workspaceId: resolvedWorkspaceId,
         }),
       })
     }

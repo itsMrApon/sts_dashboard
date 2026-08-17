@@ -2,7 +2,7 @@
 
  import { WebinarFormState } from "@/store/useStsStore"
  import { onAuthenticateUser } from "./auth"
- import { revalidatePath } from "next/cache"
+ import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
  import { prismaClient } from "@/lib/prismaClient"
  import { CtaTypeEnum, WebinarKind, WebinarStatusEnum } from "@prisma/client"
  import {
@@ -37,7 +37,10 @@ function combineDateTime(
 
 
 
-export const createProject = async(formData: WebinarFormState) => {
+export const createProject = async(
+  formData: WebinarFormState,
+  options?: { tenantId?: string; workspaceId?: string },
+) => {
   try {
     const user = await onAuthenticateUser()
     if (!user.user) {
@@ -110,6 +113,8 @@ export const createProject = async(formData: WebinarFormState) => {
         return { status: 400, message: 'Stripe product is required for selected links' }
       }
 
+      const workspaceId = options?.workspaceId ?? options?.tenantId
+
       const data = {
         title: formData.basicInfo.webinarName,
         description: formData.basicInfo.description || "",
@@ -129,10 +134,39 @@ export const createProject = async(formData: WebinarFormState) => {
           : null,
         couponEnabled: formData.additionalInfo.couponEnabled || false,
         presenterId: presenterId,
+        workspaceId: workspaceId || null,
       }
 
       const webinar = await prismaClient.webinar.create({ data })
+
+      // Phase 2 unified add flow: if a workspace is selected, attach created project/webinar
+      // to the workspace's publish profile so Messages/Publish can discover it immediately.
+      if (workspaceId) {
+        const workspace = await prismaClient.workspace.findFirst({
+          where: { id: workspaceId, userId: presenterId },
+          select: { publishProfileId: true },
+        })
+        if (workspace?.publishProfileId) {
+          await prismaClient.publishProduct.upsert({
+            where: {
+              publishProfileId_webinarId: {
+                publishProfileId: workspace.publishProfileId,
+                webinarId: webinar.id,
+              },
+            },
+            update: {},
+            create: {
+              publishProfileId: workspace.publishProfileId,
+              webinarId: webinar.id,
+              isPrimary: false,
+            },
+          })
+        }
+      }
+
       revalidatePath('/')
+      revalidatePath('/projects')
+      revalidateTag('projects-list')
       return {
         status : 201,
         message : 'Project created successfully',
@@ -150,6 +184,30 @@ export const createProject = async(formData: WebinarFormState) => {
 }
 
 //todo update frontend to pass webinarstatus
+const getProjectsByPresenterCached = unstable_cache(
+  async (userId: string, statusKey: string) =>
+    prismaClient.webinar.findMany({
+      where: {
+        presenterId: userId,
+        webinarStatus: statusKey === 'all' ? undefined : (statusKey as WebinarStatusEnum),
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnail: true,
+        startTime: true,
+        kind: true,
+        ctaType: true,
+        linkVariants: true,
+        webinarStatus: true,
+      },
+    }),
+  ['projects-by-presenter-v1'],
+  { revalidate: 20, tags: ['projects-list'] },
+)
+
 export const getProjectByPresenterId = async (
   presenterId: string,
   webinarStatus?: string
@@ -161,25 +219,13 @@ export const getProjectByPresenterId = async (
         statusFilter = WebinarStatusEnum.SCHEDULED
         break
       case 'ended':
-        statusFilter = WebinarStatusEnum. ENDED
+        statusFilter = WebinarStatusEnum.ENDED
         break
       default:
         statusFilter = undefined
     }
 
-    const webinars = await prismaClient.webinar.findMany({
-      where: { presenterId: presenterId, webinarStatus: statusFilter },
-      include: {
-        presenter: {
-          select: {
-            name: true,
-            stripeConnectId: true,
-            id: true,
-          },
-        },
-      },
-    })
-    return webinars
+    return await getProjectsByPresenterCached(presenterId, statusFilter ?? 'all')
   } catch (error) {
     console.error('Error getting projects:', error)
     return []

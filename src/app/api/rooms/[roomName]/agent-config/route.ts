@@ -50,10 +50,29 @@ export async function GET(
       const deepgramApiKey = safeDecrypt(userCredential?.deepgramApiKey) || process.env.DEEPGRAM_API_KEY || null;
       const openaiApiKey = safeDecrypt(userCredential?.openaiApiKey) || process.env.OPENAI_API_KEY || null;
       const anthropicApiKey = safeDecrypt(userCredential?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY || null;
+      const fishApiKey = safeDecrypt(userCredential?.fishApiKey) || process.env.FISH_API_KEY || null;
+      const deepseekApiKey =
+        safeDecrypt(userCredential?.deepseekApiKey) || process.env.DEEPSEEK_API_KEY || null;
+      const kimiApiKey =
+        safeDecrypt(userCredential?.kimiApiKey) ||
+        process.env.MOONSHOT_API_KEY ||
+        process.env.KIMI_API_KEY ||
+        null;
       if (googleApiKey) tenantEnv.GOOGLE_API_KEY = googleApiKey;
       if (deepgramApiKey) tenantEnv.DEEPGRAM_API_KEY = deepgramApiKey;
       if (openaiApiKey) tenantEnv.OPENAI_API_KEY = openaiApiKey;
       if (anthropicApiKey) tenantEnv.ANTHROPIC_API_KEY = anthropicApiKey;
+      if (fishApiKey) tenantEnv.FISH_API_KEY = fishApiKey;
+      if (deepseekApiKey) tenantEnv.DEEPSEEK_API_KEY = deepseekApiKey;
+      if (kimiApiKey) {
+        tenantEnv.MOONSHOT_API_KEY = kimiApiKey;
+        tenantEnv.KIMI_API_KEY = kimiApiKey;
+      }
+
+      const linkedProject = await prismaClient.webinar.findFirst({
+        where: { livekitAgentId: livekitAgent.id, deletedAt: null },
+        select: { id: true },
+      })
 
       const agentRow = livekitAgent as typeof livekitAgent & { voiceProvider?: string }
       const config = {
@@ -71,6 +90,8 @@ export async function GET(
         user_id: userId,
         transcript_ingest_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/transcripts/ingest`,
         transcript_api_key: process.env.N8N_API_KEY || '',
+        usage_ingest_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/usage/ingest`,
+        usage_surface: linkedProject ? 'projects' : 'messages',
       };
 
       return NextResponse.json(config);

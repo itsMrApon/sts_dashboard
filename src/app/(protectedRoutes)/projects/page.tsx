@@ -1,22 +1,26 @@
 import React from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Webcam, Users, HomeIcon } from 'lucide-react'
+import { Webcam, MessageCircle, HomeIcon } from 'lucide-react'
 import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { onAuthenticateUser } from '@/actions/auth'
 import { redirect } from 'next/navigation'
 import { getProjectByPresenterId } from '@/actions/webiner'
 import ProjectCard from './_components/ProjectCard '
-import { Webinar, WebinarStatusEnum } from '@prisma/client'
+import { WebinarStatusEnum } from '@prisma/client'
 import Link from 'next/link'
+import ProjectIntentLauncher from './_components/ProjectIntentLauncher'
 
 type Props = {
   searchParams: Promise<{
     webinarStatus?: string
-  }> 
+    tenantId?: string
+    intent?: string
+    openAdd?: string
+  }>
 }
 
 const page = async ({ searchParams }: Props) => {
-  const [{ webinarStatus }, checkUser] = await Promise.all([
+  const [{ webinarStatus, tenantId, intent, openAdd }, checkUser] = await Promise.all([
     searchParams,
     onAuthenticateUser(),
   ])
@@ -25,116 +29,131 @@ const page = async ({ searchParams }: Props) => {
     redirect('/')
   }
 
+  const shouldAutoLaunch = openAdd === '1' && (intent === 'product' || intent === 'webinar')
+
+  // Default path: projects list only (cached). Stripe/Vapi/LiveKit only when launcher opens.
   const webinars = await getProjectByPresenterId(
     checkUser.user.id,
-    webinarStatus as WebinarStatusEnum
+    webinarStatus as WebinarStatusEnum,
   )
 
-  // Note: Filtering is currently driven by `webinarStatus` query param on the server action.
+  let stripeProducts: unknown[] = []
+  let assistants: unknown[] = []
+  let livekitAgents: unknown[] = []
+
+  if (shouldAutoLaunch) {
+    const [{ getAllProductsFromStripe }, { getAllAssistants }, { getLiveKitAgents }] =
+      await Promise.all([
+        import('@/actions/stripe'),
+        import('@/actions/vapi'),
+        import('@/actions/livekitAgent'),
+      ])
+    const launcherData = await Promise.all([
+      getAllProductsFromStripe(),
+      getAllAssistants(),
+      getLiveKitAgents(),
+    ])
+    stripeProducts =
+      launcherData[0]?.success && Array.isArray(launcherData[0].products)
+        ? launcherData[0].products
+        : []
+    assistants =
+      launcherData[1]?.success && Array.isArray(launcherData[1].data)
+        ? launcherData[1].data
+        : []
+    livekitAgents =
+      launcherData[2]?.success && Array.isArray(launcherData[2].data)
+        ? launcherData[2].data
+        : []
+  }
+
+  const hostUser = {
+    id: checkUser.user.id,
+    name: checkUser.user.name,
+    profileImage: checkUser.user.profileImage,
+  }
 
   return (
-    <Tabs
-      defaultValue="all"
-      className="w-full flex flex-col gap-8"
-    >
-      <PageHeader
-        leftIcon={<HomeIcon className="w-3 h-3" />}
-        mainIcon={<Webcam className="w-12 h-12" />} 
-        rightIcon={<Users className="w-4 h-4" />} 
-        heading="The home to all your Projects" 
-        placeholder="Search option..."
-      >
-        <TabsList className="bg-transparent space-x-3">
-          <TabsTrigger
-            value="all"
-            className="bg-secondary opacity-50 data-[state=active]:opacity-100 px-6 py-4"
-          >
-            <Link href="/webinars?webinarStatus=all">All</Link>
-          </TabsTrigger>
-          <TabsTrigger 
-            value="active"
-            className="bg-secondary px-6 py-4"
-          >
-            <Link href="/webinars?webinarStatus=upcoming">OnDemand</Link>
-          </TabsTrigger>
-          <TabsTrigger 
-            value="completed"
-            className="bg-secondary px-6 py-4"
-          >
-            <Link href="/webinars?webinarStatus=ended">Ended</Link>
-          </TabsTrigger>
-        </TabsList>
-      </PageHeader>
-      
-      <TabsContent
-        value="all"
-        className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
-      >
-        {webinars?.length > 0 ? (
-          webinars.map((project: Webinar, index: number) => (
-            <ProjectCard
-              key={index}
-              project={project}
-              hostUser={{
-                id: checkUser.user.id,
-                name: checkUser.user.name,
-                profileImage: checkUser.user.profileImage,
-              }}
-            />
-          ))
-        ) : (
-          <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >
-            No projects found
-          </div>
-        )}
-      </TabsContent>
+    <>
+      {shouldAutoLaunch ? (
+        <ProjectIntentLauncher
+          intent={intent as 'product' | 'webinar'}
+          tenantId={tenantId}
+          stripeProducts={stripeProducts as never}
+          assistants={assistants as never}
+          livekitAgents={livekitAgents as never}
+        />
+      ) : null}
+      <Tabs defaultValue="all" className="flex w-full flex-col gap-8">
+        <PageHeader
+          leftIcon={<HomeIcon className="h-3 w-3" />}
+          mainIcon={<Webcam className="h-12 w-12" />}
+          rightIcon={<MessageCircle className="h-4 w-4" />}
+          heading="The home to all your Projects"
+          placeholder="Search option..."
+        >
+          <TabsList className="space-x-3 bg-transparent">
+            <TabsTrigger
+              value="all"
+              className="bg-secondary px-6 py-4 opacity-50 data-[state=active]:opacity-100"
+            >
+              <Link href="/webinars?webinarStatus=all">All</Link>
+            </TabsTrigger>
+            <TabsTrigger value="active" className="bg-secondary px-6 py-4">
+              <Link href="/webinars?webinarStatus=upcoming">OnDemand</Link>
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="bg-secondary px-6 py-4">
+              <Link href="/webinars?webinarStatus=ended">Ended</Link>
+            </TabsTrigger>
+          </TabsList>
+        </PageHeader>
 
-      <TabsContent
-        value="onDemand"
-        className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
-      >
-        {webinars?.length > 0 ? (
-          webinars.map((project: Webinar, index: number) => (
-            <ProjectCard
-              key={index}
-              project={project}
-              hostUser={{
-                id: checkUser.user.id,
-                name: checkUser.user.name,
-                profileImage: checkUser.user.profileImage,
-              }}
-            />
-          ))
-        ) : (
-          <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >
-            No onDemand projects found
-          </div>
-        )}
-      </TabsContent>
+        <TabsContent
+          value="all"
+          className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4"
+        >
+          {webinars?.length > 0 ? (
+            webinars.map((project, index: number) => (
+              <ProjectCard key={index} project={project as never} hostUser={hostUser} />
+            ))
+          ) : (
+            <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
+              No projects found
+            </div>
+          )}
+        </TabsContent>
 
-      <TabsContent
-        value="ended"
-        className="w-full grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 place-items-start place-content-start gap-x-6 gap-y-10"
-      >
-        {webinars?.length > 0 ? (
-          webinars.map((project: Webinar, index: number) => (
-            <ProjectCard
-              key={index}
-              project={project}
-              hostUser={{
-                id: checkUser.user.id,
-                name: checkUser.user.name,
-                profileImage: checkUser.user.profileImage,
-              }}
-            />
-          ))
-        ) : (
-          <div className="w-full h-[200px] flex justify-center items-center text-primary font-semibold text-2x1 col-span-12" >
-            No completed projects found
-          </div>
-        )}
-      </TabsContent>
-    </Tabs>
+        <TabsContent
+          value="onDemand"
+          className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4"
+        >
+          {webinars?.length > 0 ? (
+            webinars.map((project, index: number) => (
+              <ProjectCard key={index} project={project as never} hostUser={hostUser} />
+            ))
+          ) : (
+            <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
+              No onDemand projects found
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent
+          value="ended"
+          className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4"
+        >
+          {webinars?.length > 0 ? (
+            webinars.map((project, index: number) => (
+              <ProjectCard key={index} project={project as never} hostUser={hostUser} />
+            ))
+          ) : (
+            <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
+              No completed projects found
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </>
   )
 }
 

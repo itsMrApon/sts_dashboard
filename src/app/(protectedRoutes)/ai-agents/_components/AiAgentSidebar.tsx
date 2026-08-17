@@ -102,8 +102,8 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
   }
 
   return (
-    <div className="w-[300px] border-r border-border flex flex-col">
-      <div className="p-4">
+    <div className="flex h-full min-h-0 w-[300px] shrink-0 flex-col overflow-hidden border-r border-border">
+      <div className="shrink-0 p-4">
         <Button
           className="w-full flex items-center gap-2 mb-2 cursor-pointer"
           onClick={() => router.push('/ai-agents/config')}
@@ -126,7 +126,7 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
         </div>
       </div>
-      <ScrollArea className="mt-4 overflow-auto px-2">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden px-2 pb-4">
         {filteredLivekitAgents.map((agent) => (
           <div
             className={`group p-3 rounded-lg cursor-pointer mb-2 border transition-colors ${

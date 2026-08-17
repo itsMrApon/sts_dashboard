@@ -87,6 +87,16 @@ Role default: Senior System Architect + hands-on full-stack AI engineer
   - `uv run python -m agent.main dev`
 - Voice features depend on this worker; text chat does not.
 
+### Lead Website Scrape Agent (Python worker)
+- Worker path: `agents/python/scrape-agent`
+- Uses ScrapeGraphAI to enrich Google/business lead websites.
+- Typical run command:
+  - `cd agents/python/scrape-agent`
+  - `uv sync && uv run playwright install chromium`
+  - `uv run python -m agent.main`
+- Next.js env: `SCRAPE_AGENT_URL=http://127.0.0.1:8100`, `SCRAPE_AGENT_API_KEY=...`
+- Wired into: lead research refresh, business sync (async), `lead-intel` cron.
+
 ### Deployment Checklist
 - `npm run lint`
 - `npm run build`
@@ -103,6 +113,10 @@ Role default: Senior System Architect + hands-on full-stack AI engineer
 - `agents/python/livekit-agent/agent/main.py`
 - `agents/python/livekit-agent/agent/pipeline.py`
 - `agents/python/livekit-agent/agent/config.py`
+- `agents/python/scrape-agent/agent/main.py`
+- `src/lib/leads/scrapeAgentClient.ts`
+- `src/lib/leads/enrichLeadWebsite.ts`
+- `src/app/api/leads/enrichment/ingest/route.ts`
 
 ### API Endpoints (high-impact)
 - `src/app/api/chat/[roomName]/route.ts`

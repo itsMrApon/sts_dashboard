@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { deleteBusiness } from '@/actions/business'
+import { deletePublishProfile } from '@/actions/publishProfiles'
 import { cn } from '@/lib/utils'
 
 export type BusinessChip = { id: string; name: string }
@@ -29,8 +29,8 @@ export const BusinessSwitcher = ({
 
   const hrefFor = (id: string) =>
     defaultBusinessId && id === defaultBusinessId
-      ? '/tenants/business-profile'
-      : `/tenants/business-profile?businessId=${id}`
+      ? '/tenants/publish'
+      : `/tenants/publish?publishProfileId=${id}`
 
   const handleDelete = (e: React.MouseEvent, id: string, name: string) => {
     e.preventDefault()
@@ -43,14 +43,14 @@ export const BusinessSwitcher = ({
       return
     }
     startTransition(async () => {
-      const result = await deleteBusiness(id)
+      const result = await deletePublishProfile(id)
       if (!result.ok) {
         alert(result.error)
         return
       }
       const remaining = businesses.filter((b) => b.id !== id)
       if (remaining.length === 0) {
-        router.push('/tenants/business-profile')
+        router.push('/tenants/publish')
       } else if (activeBusinessId === id) {
         const next = remaining[0]
         router.push(hrefFor(next.id))
@@ -61,7 +61,7 @@ export const BusinessSwitcher = ({
 
   return (
     <div className="flex flex-wrap gap-2 items-center text-sm">
-      <span className="text-muted-foreground">Business:</span>
+      <span className="text-muted-foreground">Publish profile:</span>
       {businesses.map((b) => {
         const active = b.id === activeBusinessId
         return (

@@ -1,17 +1,20 @@
 import React from 'react'
-import GlobalCredentialsConfig from '../_components/GlobalCredentialsConfig'
+import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import ConfigProviderSidebar from '../_components/ConfigProviderSidebar'
+import ConfigUsageDashboard from '../_components/ConfigUsageDashboard'
 
 const ConfigAgentPage = () => {
-  const initialDefaultLlmModel =
-    process.env.NEXT_PUBLIC_DEFAULT_LLM_MODEL?.trim() ||
-    process.env.NEXT_PUBLIC_LLM_CHOICE?.trim() ||
-    process.env.LLM_CHOICE?.trim() ||
-    'gemini-2.5-flash'
-
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 py-8">
-      <GlobalCredentialsConfig initialDefaultLlmModel={initialDefaultLlmModel} />
-    </div>
+    <PageViewport>
+      <div className="flex h-full min-h-0 w-full overflow-hidden rounded-se-xl border border-border text-primary">
+        <ConfigProviderSidebar />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+            <ConfigUsageDashboard />
+          </div>
+        </div>
+      </div>
+    </PageViewport>
   )
 }
 

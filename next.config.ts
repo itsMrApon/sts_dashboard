@@ -1,6 +1,23 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          '**/node_modules/**',
+          '**/.git/**',
+          '**/.next/**',
+          '**/agents/**',
+          '**/primeone_Insurance/**',
+          '**/.cursor/**',
+          '**/packages/**/dist/**',
+        ],
+      }
+    }
+    return config
+  },
   async redirects() {
     return [
       { source: '/campaigns', destination: '/tenants', permanent: true },
@@ -9,7 +26,7 @@ const nextConfig: NextConfig = {
     ]
   },
   compiler: {
-    removeConsole: process. env.NODE_ENV === 'production',
+    removeConsole: process.env.NODE_ENV === 'production',
   },
   eslint: {
     ignoreDuringBuilds: true,

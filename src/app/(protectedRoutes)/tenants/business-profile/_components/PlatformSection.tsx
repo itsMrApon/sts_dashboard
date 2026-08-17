@@ -41,10 +41,10 @@ type Props = {
   config: PlatformConfig
   connectedAccounts: ConnectedAccount[]
   /** When set, new connections are stored under this business */
-  businessId: string
+  publishProfileId: string
 }
 
-export const PlatformSection = ({ config, connectedAccounts, businessId }: Props) => {
+export const PlatformSection = ({ config, connectedAccounts, publishProfileId }: Props) => {
   const [isPending, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState('')
@@ -71,7 +71,7 @@ export const PlatformSection = ({ config, connectedAccounts, businessId }: Props
         credentials,
         label,
         pageUrl,
-        businessId,
+        publishProfileId,
       )
       if (result.ok) {
         setShowForm(false)

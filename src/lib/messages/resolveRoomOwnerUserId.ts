@@ -8,32 +8,32 @@ export async function resolveRoomOwnerUserId(
   agentId: string,
   roomName: string,
 ): Promise<string | null> {
-  const businessLink = await prismaClient.businessAgent.findFirst({
+  const businessLink = await prismaClient.publishAgent.findFirst({
     where: { agentId },
-    select: { business: { select: { userId: true } } },
+    select: { publishProfile: { select: { userId: true } } },
   })
-  if (businessLink?.business?.userId) {
-    return businessLink.business.userId
+  if (businessLink?.publishProfile?.userId) {
+    return businessLink.publishProfile.userId
   }
 
   const channels = await prismaClient.messageChannel.findMany({
     where: { roomName },
-    select: { userId: true, businessId: true, status: true },
+    select: { userId: true, publishProfileId: true, status: true },
     orderBy: { updatedAt: 'desc' },
   })
 
   const preferred =
-    channels.find((c) => c.status === 'ACTIVE' && (c.businessId != null || c.userId != null)) ||
-    channels.find((c) => c.businessId != null || c.userId != null) ||
+    channels.find((c) => c.status === 'ACTIVE' && (c.publishProfileId != null || c.userId != null)) ||
+    channels.find((c) => c.publishProfileId != null || c.userId != null) ||
     channels[0]
 
   if (preferred?.userId) {
     return preferred.userId
   }
 
-  if (preferred?.businessId) {
-    const biz = await prismaClient.business.findFirst({
-      where: { id: preferred.businessId },
+  if (preferred?.publishProfileId) {
+    const biz = await prismaClient.publishProfile.findFirst({
+      where: { id: preferred.publishProfileId },
       select: { userId: true },
     })
     return biz?.userId ?? null

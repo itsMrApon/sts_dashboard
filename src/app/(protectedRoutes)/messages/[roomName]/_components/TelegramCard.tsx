@@ -69,8 +69,11 @@ export const TelegramCard = ({ roomName, channel }: Props) => {
   return (
     <div className="flex flex-col gap-3 text-sm">
       <p className="text-muted-foreground">
-        Connect a Telegram bot to forward messages into this LiveKit agent. Messages will appear in
-        the Conversations tab.
+        Connect a Telegram bot to forward messages into this room&apos;s AI agent.
+      </p>
+      <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+        One bot token can only serve one room. Connecting this token here overwrites any webhook
+        previously set on another room.
       </p>
 
       <form className="flex flex-col gap-2" action={handleConnect}>

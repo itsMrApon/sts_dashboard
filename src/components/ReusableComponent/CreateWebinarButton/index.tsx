@@ -8,7 +8,8 @@ import {
 import { useStsStore } from '@/store/useStsStore'
 import { DialogTrigger } from '@radix-ui/react-dialog'
 import { PlusIcon } from 'lucide-react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import MultiStepForm from './MultiStepForm'
 import TypeStep from './TypeStep'
 import BasicInfoStep from './BasicInfoStep'
@@ -24,12 +25,61 @@ type Props = {
   stripeProducts: Stripe.Product[] | []
   assistants: Assistant[] | []
   livekitAgents?: LiveKitUiAgentConfig[]
+  hideTrigger?: boolean
+  autoOpenIntent?: 'product' | 'webinar'
+  preferredTenantId?: string
 }
 
-const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }: Props) => {
-  const { isModalOpen, setModalOpen, isComplete, setComplete, resetForm, formData } = useStsStore()
+const CreateWebinarButton = ({
+  stripeProducts,
+  assistants,
+  livekitAgents = [],
+  hideTrigger = false,
+  autoOpenIntent,
+  preferredTenantId,
+}: Props) => {
+  const {
+    isModalOpen,
+    setModalOpen,
+    isComplete,
+    setComplete,
+    resetForm,
+    formData,
+    setSelectedVariants,
+  } = useStsStore()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const selectedTenantId = preferredTenantId || searchParams.get('tenantId') || undefined
 
   const [projectLinks, setProjectLinks] = useState<Array<{ label: string; url: string }>>([])
+  const [autoOpened, setAutoOpened] = useState(false)
+
+  useEffect(() => {
+    if (!autoOpenIntent || autoOpened) return
+    resetForm()
+    setComplete(false)
+    setSelectedVariants(
+      autoOpenIntent === 'product' ? ['PRODUCT_BOOK_A_CALL'] : ['PROJECT_BOOK_A_CALL'],
+    )
+    setModalOpen(true)
+    setAutoOpened(true)
+
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete('intent')
+    next.delete('openAdd')
+    router.replace(`${pathname}${next.toString() ? `?${next.toString()}` : ''}`)
+  }, [
+    autoOpenIntent,
+    autoOpened,
+    pathname,
+    resetForm,
+    router,
+    searchParams,
+    setComplete,
+    setModalOpen,
+    setSelectedVariants,
+  ])
 
   const steps = [
     {
@@ -78,15 +128,17 @@ const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }:
     open={isModalOpen} 
     onOpenChange={setModalOpen}
     > 
-    <DialogTrigger asChild>
-      <button
-        className="rounded-xl flex gap-2 items-center hover: cursor-pointer px-4 py-2 border border-border bg-primary/10 backdrop-blur-sm text-sm font-normal text-primary hover:bg-primary-20"
-        onClick={() => setModalOpen(true)}
-      >
-        <PlusIcon />
-        Create Project
-      </button>
-    </DialogTrigger>
+    {!hideTrigger ? (
+      <DialogTrigger asChild>
+        <button
+          className="rounded-xl flex gap-2 items-center hover: cursor-pointer px-4 py-2 border border-border bg-primary/10 backdrop-blur-sm text-sm font-normal text-primary hover:bg-primary-20"
+          onClick={() => setModalOpen(true)}
+        >
+          <PlusIcon />
+          Add to workspace
+        </button>
+      </DialogTrigger>
+    ) : null}
     <DialogContent className="max-w-[95vw] sm:max-w-[900px] p-0 bg-transparent border-none overflow-y-auto max-h-[95vh]">
       {isComplete ? (
         <div className="bg-muted text-primary rounded-lg overflow-hidden">
@@ -102,6 +154,7 @@ const CreateWebinarButton = ({ stripeProducts, assistants, livekitAgents = [] }:
       <MultiStepForm
       steps={steps}
       onComplete={handleComplete}
+      tenantId={selectedTenantId}
       />
 
     </>

@@ -23,32 +23,67 @@ model User {
   webinars         Webinar[]       @relation("PresenterWebinars")
   eventLogs        EventLog[]
   callTranscripts  CallTranscript[]
-  tenants          Tenant[]
+  workspaces       Workspace[]
+  partnerConnectors WorkspacePartnerConnector[]
   huntedLeads      HuntedLead[]
   huntSchedule     HuntSchedule?
   outreachChannels OutreachChannel[]
-  businesses       Business[]
+  publishProfiles  PublishProfile[]
   voiceCredential  UserVoiceCredential?
+  callIntelConnections CallIntelConnection[]
+  callIntelLeads       CallIntelLead[]
+  callIntelMeetings    CallIntelMeeting[]
+  callIntelSettings    CallIntelSettings?
+  leadSearchBatches    LeadSearchBatch[]
+  leadActivities       LeadActivity[]
+  providerUsageDaily   ProviderUsageDaily[]
 
   @@index([email])
   @@index([clerkId])
 }
 
 model UserVoiceCredential {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId             String   @unique @db.Uuid
-  googleApiKey       String?
-  deepgramApiKey     String?
-  openaiApiKey       String?
-  anthropicApiKey    String?
-  googleValidatedAt  DateTime?
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String    @unique @db.Uuid
+  googleApiKey        String?
+  deepgramApiKey      String?
+  openaiApiKey        String?
+  anthropicApiKey     String?
+  fishApiKey          String?
+  deepseekApiKey      String?
+  kimiApiKey          String?
+  googleValidatedAt   DateTime?
   deepgramValidatedAt DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  fishValidatedAt     DateTime?
+  deepseekValidatedAt DateTime?
+  kimiValidatedAt     DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model ProviderUsageDaily {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @db.Uuid
+  provider     String   @db.VarChar(32)
+  kind         String   @db.VarChar(8)
+  surface      String   @default("app") @db.VarChar(32)
+  day          DateTime @db.Date
+  requestCount Int      @default(0)
+  inputUnits   BigInt   @default(0)
+  outputUnits  BigInt   @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, kind, surface, day])
+  @@index([userId, day])
+  @@index([userId, kind, day])
+  @@index([userId, surface, day])
 }
 
 model Webinar {
@@ -80,14 +115,17 @@ model Webinar {
   livekitAgentId  String?           @db.Uuid
   kind            WebinarKind       @default(PROJECT)
   linkVariants    String[]          @default([])
+  workspaceId      String?           @db.Uuid
   attendances      Attendance[]
-  businessProducts BusinessProduct[]
+  publishProducts  PublishProduct[]
   Attendee         Attendee?         @relation(fields: [attendeeId], references: [id])
   presenter        User              @relation("PresenterWebinars", fields: [presenterId], references: [id], onDelete: Cascade)
+  workspace        Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
   @@index([presenterId])
   @@index([aiAgentId])
   @@index([startTime])
+  @@index([workspaceId])
 }
 
 model Attendee {
@@ -119,6 +157,25 @@ model Attendance {
   @@index([attendedType])
 }
 
+model RoomEmbedConfig {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomName       String   @unique @db.VarChar(255)
+  userId         String   @db.Uuid
+  workspaceId    String?  @map("tenantId") @db.Uuid
+  publishProfileId String? @map("businessId") @db.Uuid
+  allowedOrigins String[] @default([])
+  siteKeyHash    String
+  siteKeyPrefix  String   @db.VarChar(32)
+  enabled        Boolean  @default(true)
+  rotatedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([publishProfileId])
+}
+
 model LiveKitAgent {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String          @db.VarChar(255)
@@ -132,7 +189,7 @@ model LiveKitAgent {
   updatedAt      DateTime        @updatedAt
   llmModel       String          @default("gemini-2.0-flash") @db.VarChar(100)
   llmProvider    String          @default("google") @db.VarChar(50)
-  businessAgents BusinessAgent[]
+  publishAgents  PublishAgent[]
 
   @@index([roomName])
   @@index([createdAt])
@@ -155,21 +212,21 @@ model MessageChannel {
   slackTeamId         String?
   slackChannelId      String?
   webinarId           String?               @db.Uuid
-  tenantId            String?               @db.Uuid
-  businessId          String?               @db.Uuid
+  workspaceId         String?               @map("tenantId") @db.Uuid
+  publishProfileId    String?               @map("businessId") @db.Uuid
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   conversations       MessageConversation[]
-  business            Business?             @relation(fields: [businessId], references: [id], onDelete: SetNull)
-  tenant              Tenant?               @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  publishProfile      PublishProfile?       @relation(fields: [publishProfileId], references: [id], onDelete: SetNull)
+  workspace           Workspace?            @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
   @@unique([roomName, platform])
   @@index([roomName])
   @@index([roomName, updatedAt])
   @@index([userId])
-  @@index([businessId])
-  @@index([businessId, updatedAt])
-  @@index([tenantId])
+  @@index([publishProfileId])
+  @@index([publishProfileId, updatedAt])
+  @@index([workspaceId])
 }
 
 model MessageConversation {
@@ -240,7 +297,7 @@ model EventLog {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId     String    @db.Uuid
   leadId     String?   @db.Uuid
-  tenantId   String?   @db.Uuid
+  workspaceId String?  @map("tenantId") @db.Uuid
   eventType  EventType
   channel    String?   @db.VarChar(50)
   metadata   Json?
@@ -250,7 +307,7 @@ model EventLog {
 
   @@index([userId])
   @@index([leadId])
-  @@index([tenantId])
+  @@index([workspaceId])
   @@index([eventType])
   @@index([createdAt])
 }
@@ -260,7 +317,7 @@ model CallTranscript {
   userId     String   @db.Uuid
   roomName   String   @db.VarChar(255)
   leadId     String?  @db.Uuid
-  tenantId   String?  @db.Uuid
+  workspaceId String? @map("tenantId") @db.Uuid
   transcript Json
   duration   Int      @default(0)
   outcome    String?  @db.VarChar(50)
@@ -277,26 +334,65 @@ model CallTranscript {
   @@index([createdAt])
 }
 
-model Tenant {
+model Workspace {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId       String    @db.Uuid
-  businessId   String?   @db.Uuid
+  publishProfileId String?   @map("businessId") @db.Uuid
   webinarId    String?   @db.Uuid
   name         String    @db.VarChar(255)
   pitchMessage String
   videoUrl     String?   @db.VarChar(500)
   videoType    VideoType @default(LINK)
+  contextVertical      String?           @db.VarChar(100)
+  contextCoreJson      Json?
+  contextIndustryJson  Json?
+  contextSocialJson    Json?
+  fullProfileJson      Json?
+  compactProfileJson   Json?
+  /** Outbound publish modules enabled for this workspace: core, industry, social, blog */
+  publishModulesJson   Json?
+  contextVersion       String?           @db.VarChar(100)
+  compactTokenEstimate Int               @default(0)
+  contextStatus        ContextStatusEnum @default(DRAFT)
+  publishedAt          DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  business        Business?        @relation(fields: [businessId], references: [id], onDelete: SetNull)
-  messageChannels MessageChannel[]
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishProfile    PublishProfile?           @relation(fields: [publishProfileId], references: [id], onDelete: SetNull)
+  messageChannels   MessageChannel[]
+  partnerConnectors WorkspacePartnerConnector[]
+  webinars          Webinar[]
 
   @@index([userId])
   @@index([userId, createdAt])
-  @@index([businessId])
-  @@index([businessId, updatedAt])
+  @@index([publishProfileId])
+  @@index([publishProfileId, updatedAt])
+  @@map("Tenant")
+}
+
+model WorkspacePartnerConnector {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @map("tenantId") @db.Uuid
+  userId      String   @db.Uuid
+  kind        String   @db.VarChar(64)
+  label       String   @db.VarChar(255)
+  mcpUrl      String   @db.VarChar(500)
+  authType    String   @default("none") @db.VarChar(32)
+  authSecret  String?  @db.VarChar(500)
+  enabled     Boolean  @default(true)
+  configJson  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([workspaceId, enabled])
+  @@unique([workspaceId, kind])
+  @@map("TenantInboundConnector")
 }
 
 model HuntedLead {
@@ -381,6 +477,12 @@ enum VideoType {
   UPLOAD
 }
 
+enum ContextStatusEnum {
+  DRAFT
+  PUBLISHED
+  STALE
+}
+
 enum OutreachStatus {
   PENDING
   SENT
@@ -418,77 +520,82 @@ enum OutreachPlatform {
 }
 
 model OutreachChannel {
-  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String           @db.Uuid
-  businessId   String?          @db.Uuid
-  platform     OutreachPlatform
-  status       ChannelStatus    @default(INACTIVE)
-  credentials  Json?
-  accountLabel String           @db.VarChar(255)
-  pageUrl      String?          @db.VarChar(500)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String           @db.Uuid
+  publishProfileId String?          @map("businessId") @db.Uuid
+  platform         OutreachPlatform
+  status           ChannelStatus    @default(INACTIVE)
+  credentials      Json?
+  accountLabel     String           @db.VarChar(255)
+  pageUrl          String?          @db.VarChar(500)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  business     Business?        @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishProfile PublishProfile? @relation(fields: [publishProfileId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([userId, status])
   @@index([userId, platform])
-  @@index([businessId])
+  @@index([publishProfileId])
 }
 
-model Business {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String            @db.Uuid
-  name        String            @db.VarChar(255)
-  description String?
-  logo        String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+model PublishProfile {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @db.Uuid
+  name           String   @db.VarChar(255)
+  description    String?
+  logo           String?
+  isHomeFeatured Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  agents            BusinessAgent[]
-  products          BusinessProduct[]
-  channels          MessageChannel[]
-  outreachChannels  OutreachChannel[]
-  tenants           Tenant[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agents           PublishAgent[]
+  products         PublishProduct[]
+  channels         MessageChannel[]
+  outreachChannels OutreachChannel[]
+  workspaces       Workspace[]
 
   @@index([userId])
   @@index([userId, createdAt])
+  @@index([userId, isHomeFeatured])
+  @@map("Business")
 }
 
-model BusinessAgent {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String       @db.Uuid
-  agentId    String       @db.Uuid
-  isPrimary  Boolean      @default(false)
-  createdAt  DateTime     @default(now())
+model PublishAgent {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publishProfileId String   @map("businessId") @db.Uuid
+  agentId          String   @db.Uuid
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
-  business   Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  agent      LiveKitAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  publishProfile PublishProfile @relation(fields: [publishProfileId], references: [id], onDelete: Cascade)
+  agent          LiveKitAgent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
-  @@unique([businessId, agentId])
-  @@index([businessId])
-  @@index([businessId, isPrimary])
+  @@unique([publishProfileId, agentId])
+  @@index([publishProfileId])
+  @@index([publishProfileId, isPrimary])
   @@index([agentId])
-  @@index([agentId, businessId])
+  @@index([agentId, publishProfileId])
+  @@map("BusinessAgent")
 }
 
-model BusinessProduct {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String   @db.Uuid
-  webinarId  String   @db.Uuid
-  isPrimary  Boolean  @default(false)
-  createdAt  DateTime @default(now())
+model PublishProduct {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  publishProfileId String   @map("businessId") @db.Uuid
+  webinarId        String   @db.Uuid
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  webinar    Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  publishProfile PublishProfile @relation(fields: [publishProfileId], references: [id], onDelete: Cascade)
+  webinar        Webinar        @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
-  @@unique([businessId, webinarId])
-  @@index([businessId])
-  @@index([businessId, isPrimary])
+  @@unique([publishProfileId, webinarId])
+  @@index([publishProfileId])
+  @@index([publishProfileId, isPrimary])
   @@index([webinarId])
+  @@map("BusinessProduct")
 }
 
 enum StreamCallStatus {
@@ -513,4 +620,215 @@ model StreamCallSession {
 
   @@index([roomName])
   @@index([webinarId])
+}
+
+enum CallIntelProvider {
+  FATHOM
+  GOOGLE_CALENDAR
+}
+
+enum CallIntelConnectionStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum CallIntelBriefStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+model CallIntelConnection {
+  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String                     @db.Uuid
+  provider    CallIntelProvider
+  credentials Json?
+  status      CallIntelConnectionStatus  @default(ACTIVE)
+  metadata    Json?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider])
+}
+
+model CallIntelLead {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String               @db.Uuid
+  email             String               @db.VarChar(255)
+  name              String               @db.VarChar(255)
+  company           String?              @db.VarChar(255)
+  notes             String?
+  selectedAgentId   String?              @db.Uuid
+  lastAppointmentAt DateTime?
+  webResearchJson   Json?
+  /** MEETING = Fathom/Calendar; BUSINESS = Serper Maps cold outreach */
+  source            String               @default("MEETING") @db.VarChar(20)
+  phone             String?              @db.VarChar(50)
+  website           String?              @db.VarChar(500)
+  address           String?              @db.VarChar(500)
+  placeId           String?              @db.VarChar(100)
+  /** Manual outbound pipeline: NEW | ON_PROCESS | DONE */
+  outboundStatus    LeadOutboundStatus   @default(NEW)
+  searchBatchId     String?              @db.Uuid
+  nextFollowUpAt    DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  searchBatch LeadSearchBatch?  @relation(fields: [searchBatchId], references: [id], onDelete: SetNull)
+  meetings    CallIntelMeeting[]
+  briefs      CallIntelBrief[]
+  activities  LeadActivity[]
+
+  @@unique([userId, email])
+  @@index([userId])
+  @@index([userId, lastAppointmentAt])
+  @@index([userId, source])
+  @@index([userId, placeId])
+  @@index([userId, outboundStatus])
+  @@index([searchBatchId])
+  @@index([userId, nextFollowUpAt])
+  @@index([selectedAgentId])
+}
+
+model LeadSearchBatch {
+  id        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String                  @db.Uuid
+  location  String                  @db.VarChar(255)
+  niche     String                  @db.VarChar(255)
+  source    LeadSearchBatchSource   @default(MANUAL)
+  createdAt DateTime                @default(now())
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads CallIntelLead[]
+
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model LeadActivity {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String           @db.Uuid
+  leadId        String           @db.Uuid
+  type          LeadActivityType
+  note          String?
+  scheduledAt   DateTime?
+  googleEventId String?          @db.VarChar(255)
+  meetLink      String?          @db.VarChar(500)
+  createdAt     DateTime         @default(now())
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead CallIntelLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([userId, scheduledAt])
+  @@index([leadId, createdAt])
+}
+
+enum LeadOutboundStatus {
+  NEW
+  ON_PROCESS
+  DONE
+}
+
+enum LeadSearchBatchSource {
+  CRON
+  MANUAL
+}
+
+enum LeadActivityType {
+  NOTE
+  APPROACH
+  FOLLOW_UP
+  MEET_SCHEDULED
+}
+
+model CallIntelMeeting {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @db.Uuid
+  leadId            String?  @db.Uuid
+  fathomRecordingId String   @unique @db.VarChar(100)
+  summary           String?
+  actionItems       Json?
+  participants      Json?
+  recordedAt        DateTime
+  duration          Int?
+  fathomUrl         String?  @db.VarChar(500)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead   CallIntelLead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  scores CallIntelScriptScore[]
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([recordedAt])
+}
+
+model CallIntelScriptScore {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meetingId String   @db.Uuid
+  agentId   String   @db.Uuid
+  covered   String[] @default([])
+  missed    String[] @default([])
+  issues    String[] @default([])
+  nextSteps String[] @default([])
+  rawJson   Json?
+  scoredAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meeting CallIntelMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([agentId])
+  @@index([scoredAt])
+}
+
+model CallIntelBrief {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leadId           String               @db.Uuid
+  forDate          DateTime             @db.Date
+  calendarEventId  String?              @db.VarChar(255)
+  formSnapshot     Json?
+  researchSnapshot Json?
+  status           CallIntelBriefStatus @default(PENDING)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  lead CallIntelLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, forDate, calendarEventId])
+  @@index([leadId])
+  @@index([forDate])
+}
+
+/** Per-user Call Intelligence setup (agent + projects + calendar). */
+model CallIntelSettings {
+  userId             String    @id @db.Uuid
+  defaultAgentId     String?   @db.Uuid
+  selectedWebinarIds String[]  @default([])
+  /** ALL = every event today; KEYWORD = match calendarKeyword in title/description */
+  calendarFilterMode String    @default("ALL") @db.VarChar(20)
+  calendarKeyword    String?   @db.VarChar(100)
+  /** Optional per-user Google OAuth app credentials (encrypted). Env used as fallback. */
+  googleClientIdEnc  String?
+  googleClientSecretEnc String?
+  /** Optional per-user Serper API key (encrypted). Env SERPER_API_KEY used as fallback. */
+  serperApiKeyEnc    String?
+  /** Business lead discovery: city/area + niche for Serper Maps sync */
+  businessLocation   String?   @db.VarChar(255)
+  businessNiche      String?   @db.VarChar(255)
+  setupCompletedAt   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

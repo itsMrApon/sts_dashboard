@@ -2,11 +2,12 @@ import { prismaClient } from '@/lib/prismaClient'
 import { timeAsync } from '@/lib/dev/perf'
 import { unstable_cache } from 'next/cache'
 import { CreateBusinessModal } from './CreateBusinessModal'
-import type { BusinessProfilePitchOption } from '../[roomName]/_components/RoomTenantPicker'
+import type { BusinessProfilePitchOption } from '../_lib/businessProfileOptions'
 
 type Props = {
   userId: string
   businessProfiles: BusinessProfilePitchOption[]
+  preferredTenantId?: string
 }
 
 const getCreateBusinessModalDataCached = unstable_cache(
@@ -15,10 +16,10 @@ const getCreateBusinessModalDataCached = unstable_cache(
       prismaClient.liveKitAgent.findMany({
         where: {
           OR: [
-            { businessAgents: { none: {} } },
+            { publishAgents: { none: {} } },
             {
-              businessAgents: {
-                some: { business: { userId } },
+              publishAgents: {
+                some: { publishProfile: { userId } },
               },
             },
           ],
@@ -39,7 +40,7 @@ const getCreateBusinessModalDataCached = unstable_cache(
   { revalidate: 15 },
 )
 
-export async function CreateBusinessModalLoader({ userId, businessProfiles }: Props) {
+export async function CreateBusinessModalLoader({ userId, businessProfiles, preferredTenantId }: Props) {
   const { agents, products } = await timeAsync(
     'route.messages.modal.cached',
     () => getCreateBusinessModalDataCached(userId),
@@ -50,6 +51,10 @@ export async function CreateBusinessModalLoader({ userId, businessProfiles }: Pr
       agents={agents}
       products={products}
       businessProfiles={businessProfiles}
+      preferredBusinessProfileId={
+        preferredTenantId
+          ? businessProfiles.find((p) => p.pitchTenantId === preferredTenantId)?.publishProfileId: undefined
+      }
     />
   )
 }

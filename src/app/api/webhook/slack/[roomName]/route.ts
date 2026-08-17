@@ -3,6 +3,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import { generateReply } from '@/lib/messages/geminiText'
 import { decryptToken } from '@/lib/messages/encrypt'
 import { buildAgentContext } from '@/lib/messages/buildAgentContext'
+import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId'
 import { Platform } from '@prisma/client'
 
 type StoredMessage = {
@@ -60,12 +61,15 @@ export async function POST(
       : []
 
     const context = await buildAgentContext(roomName)
+    const ownerUserId = await resolveRoomOwnerUserId(agent.id, roomName)
 
     const result = await generateReply({
       userMessage: text,
       history: history.slice(-50),
       systemPrompt: context.systemInstruction,
       llmModel: agent.llmModel || undefined,
+      accountUserId: ownerUserId,
+      usageSurface: 'messages',
     })
 
     const replyText = result.ok ? result.text : 'Sorry, I ran into a problem. Please try again.'

@@ -1,0 +1,222 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@config "../tailwind.config.js";
+
+@source "./**/*.{ts,tsx}";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+.sts-ai-root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  color: var(--foreground);
+  background: var(--background);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  isolation: isolate;
+}
+
+/*
+ * Host-site isolation — Bootstrap / PrimeOne use the same utility class names
+ * (bg-primary, text-primary, button { border-radius: 0 }) with !important.
+ */
+.sts-ai-root button {
+  text-transform: none;
+  letter-spacing: normal;
+  gap: unset;
+  font-weight: inherit;
+  vertical-align: unset;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sts-ai-root .rounded-full {
+  border-radius: 9999px !important;
+}
+
+.sts-ai-root .rounded-md {
+  border-radius: calc(var(--radius) - 2px) !important;
+}
+
+.sts-ai-root .rounded-lg {
+  border-radius: var(--radius) !important;
+}
+
+.sts-ai-root .rounded-xl {
+  border-radius: calc(var(--radius) + 4px) !important;
+}
+
+.sts-ai-root .rounded-\[28px\] {
+  border-radius: 28px !important;
+}
+
+.sts-ai-root .rounded-\[24px\] {
+  border-radius: 24px !important;
+}
+
+.sts-ai-root .bg-primary {
+  background-color: var(--primary) !important;
+}
+
+.sts-ai-root .bg-secondary {
+  background-color: var(--secondary) !important;
+}
+
+.sts-ai-root .bg-muted {
+  background-color: var(--muted) !important;
+}
+
+.sts-ai-root .bg-card {
+  background-color: var(--card) !important;
+}
+
+.sts-ai-root .bg-background {
+  background-color: var(--background) !important;
+}
+
+.sts-ai-root .bg-destructive {
+  background-color: var(--destructive) !important;
+}
+
+.sts-ai-root .text-primary {
+  color: var(--primary) !important;
+}
+
+.sts-ai-root .text-primary-foreground {
+  color: var(--primary-foreground) !important;
+}
+
+.sts-ai-root .text-foreground {
+  color: var(--foreground) !important;
+}
+
+.sts-ai-root .text-muted-foreground {
+  color: var(--muted-foreground) !important;
+}
+
+.sts-ai-root .text-secondary-foreground {
+  color: var(--secondary-foreground) !important;
+}
+
+.sts-ai-root .text-destructive {
+  color: var(--destructive) !important;
+}
+
+.sts-ai-root .border-border {
+  border-color: var(--border) !important;
+}
+
+.sts-ai-root .hover\:bg-primary\/90:hover {
+  background-color: color-mix(in oklab, var(--primary) 90%, transparent) !important;
+}
+
+.sts-ai-root .hover\:bg-muted:hover {
+  background-color: var(--muted) !important;
+}
+
+.sts-ai-root .hover\:bg-muted\/50:hover {
+  background-color: color-mix(in oklab, var(--muted) 50%, transparent) !important;
+}
+
+.sts-ai-root .hover\:text-foreground:hover {
+  color: var(--foreground) !important;
+}
+
+.sts-ai-root .hover\:text-primary:hover {
+  color: var(--primary) !important;
+}
+
+.sts-ai-root .bg-primary\/10 {
+  background-color: color-mix(in oklab, var(--primary) 10%, transparent) !important;
+}
+
+.sts-ai-root .hover\:bg-primary\/15:hover {
+  background-color: color-mix(in oklab, var(--primary) 15%, transparent) !important;
+}
+
+.sts-ai-root .border-primary\/30 {
+  border-color: color-mix(in oklab, var(--primary) 30%, transparent) !important;
+}
+
+.sts-ai-root .group-\[\.is-user\]\:bg-primary:is(.group.is-user *) {
+  background-color: var(--primary) !important;
+}
+
+.sts-ai-root .group-\[\.is-user\]\:text-primary-foreground:is(.group.is-user *) {
+  color: var(--primary-foreground) !important;
+}
+
+.sts-ai-root .group-\[\.is-assistant\]\:bg-muted:is(.group.is-assistant *) {
+  background-color: var(--muted) !important;
+}
+
+.sts-ai-root .group-\[\.is-assistant\]\:text-foreground:is(.group.is-assistant *) {
+  color: var(--foreground) !important;
+}
+
+.sts-ai-root .bg-muted\/60 {
+  background-color: color-mix(in oklab, var(--muted) 60%, transparent) !important;
+}
+
+.sts-ai-root .bg-muted\/40 {
+  background-color: color-mix(in oklab, var(--muted) 40%, transparent) !important;
+}
+
+.sts-ai-root input,
+.sts-ai-root textarea {
+  background-color: var(--background);
+  color: var(--foreground);
+  border-color: var(--border);
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.sts-ai-root input[type="checkbox"] {
+  border-radius: 0.25rem;
+  accent-color: var(--primary);
+}
+

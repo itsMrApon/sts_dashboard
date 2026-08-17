@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useTransition, useCallback } from 'react'
+import { useState, useTransition, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBusiness, updateBusiness } from '@/actions/business'
+import { createPublishProfile, updatePublishProfile } from '@/actions/publishProfiles'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Check, Loader2 } from 'lucide-react'
-import type { BusinessProfilePitchOption } from '../[roomName]/_components/RoomTenantPicker'
+import type { BusinessProfilePitchOption } from '../_lib/businessProfileOptions'
 
 type Agent = { id: string; name: string; roomName: string }
 type Product = { id: string; title: string; kind: string }
@@ -16,9 +16,15 @@ type Props = {
   agents: Agent[]
   products: Product[]
   businessProfiles: BusinessProfilePitchOption[]
+  preferredBusinessProfileId?: string
 }
 
-export const CreateBusinessModal = ({ agents, products, businessProfiles }: Props) => {
+export const CreateBusinessModal = ({
+  agents,
+  products,
+  businessProfiles,
+  preferredBusinessProfileId,
+}: Props) => {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -29,7 +35,7 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
   const [description, setDescription] = useState('')
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([])
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
-  /** Selected Business.id — pitch comes from that profile's linked tenant */
+  /** Selected publish profile id — pitch comes from that profile's linked workspace */
   const [selectedBusinessProfileId, setSelectedBusinessProfileId] = useState('')
 
   const resetForm = useCallback(() => {
@@ -39,8 +45,15 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
     setDescription('')
     setSelectedAgentIds([])
     setSelectedProductIds([])
-    setSelectedBusinessProfileId('')
-  }, [])
+    setSelectedBusinessProfileId(preferredBusinessProfileId || '')
+  }, [preferredBusinessProfileId])
+
+  useEffect(() => {
+    if (!open) return
+    if (preferredBusinessProfileId) {
+      setSelectedBusinessProfileId(preferredBusinessProfileId)
+    }
+  }, [open, preferredBusinessProfileId])
 
   const toggleAgent = (id: string) => {
     setSelectedAgentIds((prev) =>
@@ -62,19 +75,19 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
   const handleSubmit = () => {
     setError('')
     startTransition(async () => {
-      const chosen = businessProfiles.find((p) => p.businessId === selectedBusinessProfileId)
+      const chosen = businessProfiles.find((p) => p.publishProfileId === selectedBusinessProfileId)
       const pitchTenantId = chosen?.pitchTenantId
       if (selectedBusinessProfileId && !pitchTenantId) {
-        setError('That business profile has no pitch yet. Add one under Tenants.')
+        setError('That publish profile has no pitch yet. Add one under Workspaces.')
         return
       }
 
       if (businessProfiles.length > 0) {
         if (!chosen) {
-          setError('Select a Business Profile. Rooms no longer auto-create new profiles.')
+          setError('Select a Publish Profile. Rooms no longer auto-create new profiles.')
           return
         }
-        const updateResult = await updateBusiness(chosen.businessId, {
+        const updateResult = await updatePublishProfile(chosen.publishProfileId, {
           agentIds: selectedAgentIds,
           productIds: selectedProductIds,
           primaryAgentId: selectedAgentIds[0],
@@ -86,7 +99,7 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
           return
         }
       } else {
-        const result = await createBusiness({
+        const result = await createPublishProfile({
           name,
           description: description || undefined,
           agentIds: selectedAgentIds,
@@ -115,7 +128,7 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1">
+        <Button size="sm" className="h-10 gap-1">
           <Plus className="h-4 w-4" />
           New Room
         </Button>
@@ -287,7 +300,7 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
                 Back
               </Button>
               <Button onClick={() => setStep(4)} className="flex-1">
-                Next — Business profile (optional)
+                Next — Publish profile (optional)
               </Button>
             </div>
           </div>
@@ -296,32 +309,32 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
         {step === 4 && (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted-foreground">
-              Choose the Business Profile this room should use. This prevents global channel/link
+              Choose the Publish Profile this room should use. This prevents global channel/link
               bleed and keeps data scoped per profile.
             </p>
 
             {businessProfiles.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                No business profiles yet. Skip this step and add one under{' '}
-                <span className="text-primary font-medium">Tenants → Business profile</span>, then
-                add a pitch from <span className="text-primary font-medium">Tenants</span>.
+                No publish profiles yet. Skip this step and add one under{' '}
+                <span className="text-primary font-medium">Workspaces → Publish</span>, then
+                add a pitch from <span className="text-primary font-medium">Workspaces</span>.
               </p>
             ) : (
               <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
                 {businessProfiles.map((p) => {
-                  const selected = selectedBusinessProfileId === p.businessId
+                  const selected = selectedBusinessProfileId === p.publishProfileId
                   const canSelect = Boolean(p.pitchTenantId)
                   if (!canSelect) {
                     return (
                       <div
-                        key={p.businessId}
+                        key={p.publishProfileId}
                         className="flex items-center gap-3 rounded-xl border border-dashed border-muted-foreground/25 p-3 text-left opacity-70"
                       >
                         <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{p.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            No pitch yet — add under Tenants
+                            No pitch yet — add under Workspaces
                           </p>
                         </div>
                       </div>
@@ -329,9 +342,9 @@ export const CreateBusinessModal = ({ agents, products, businessProfiles }: Prop
                   }
                   return (
                     <button
-                      key={p.businessId}
+                      key={p.publishProfileId}
                       type="button"
-                      onClick={() => setSelectedBusinessProfileId(p.businessId)}
+                      onClick={() => setSelectedBusinessProfileId(p.publishProfileId)}
                       className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
                         selected
                           ? 'border-primary bg-primary/5'

@@ -10,6 +10,10 @@ type Props = {
   rightIcon: React.ReactNode 
   children?: React.ReactNode 
   placeholder?: string
+  /** Replaces the default search input (e.g. room MultiSelect on Messages). */
+  searchControl?: React.ReactNode
+  /** Hide the search row entirely (e.g. lead profile). */
+  hideSearch?: boolean
 }
 
 const PageHeader = ({ 
@@ -18,10 +22,14 @@ const PageHeader = ({
   leftIcon, 
   rightIcon, 
   children, 
-  placeholder 
+  placeholder,
+  searchControl,
+  hideSearch = false,
 }: Props) => {
+  const showSearchRow = !hideSearch || Boolean(children)
+
   return (
-    <div className="w-full flex flex-col gap-8">
+    <div className="flex w-full shrink-0 flex-col gap-8">
       <div className="w-full flex justify-center sm:justify-between items-center gap-8 flex-wrap">
         <p className="text-primary text-4xl font-semibold">{heading}</p>
         <div className="relative md:mr-28">
@@ -33,19 +41,29 @@ const PageHeader = ({
           </PurpleIcon>
         </div>
       </div>
-      <div className="w-full flex flex-wrap gap-6 items-center justify-between">
-        <div className="w-full md:max-w-3/4 relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-          <Input
-            type="text"
-            placeholder={placeholder || 'Search...'}
-            className="pl-10 rounded-md"
-          /> 
+      {showSearchRow ? (
+        <div className="flex w-full flex-col gap-3 md:flex-row md:items-center md:gap-3">
+          {!hideSearch ? (
+            <div className="relative min-w-0 flex-1">
+              {searchControl ?? (
+                <>
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                  <Input
+                    type="text"
+                    placeholder={placeholder || 'Search...'}
+                    className="h-10 rounded-md pl-10"
+                  />
+                </>
+              )}
+            </div>
+          ) : null}
+          {children ? (
+            <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 md:w-auto">
+              {children}
+            </div>
+          ) : null}
         </div>
-        <div className="md:max-w-1/4 w-full overflow-x-auto">{children}
-        
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }

@@ -4,23 +4,21 @@ import { prismaClient } from "@/lib/prismaClient"
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { startPerf, timeAsync } from "@/lib/dev/perf"
 import { cache } from "react"
-import { unstable_cache } from "next/cache"
 import type { User } from "@prisma/client"
+import {
+  isDatabaseConnectivityError,
+  logDatabaseConnectivityFailure,
+} from "@/lib/prismaErrors"
 
 type AuthUserResult =
   | { status: 200 | 201; user: User; error?: undefined }
   | { status: 403; user?: undefined; error?: undefined }
   | { status: 500; user?: undefined; error: string }
 
-const getUserByClerkIdCached = unstable_cache(
-  async (clerkId: string) =>
-    prismaClient.user.findUnique({
-      where: { clerkId },
-    }),
-  ['auth-user-by-clerk-id'],
-  { revalidate: 20 },
-)
-
+/**
+ * Request-scoped only (React cache). Avoid unstable_cache here — its background
+ * revalidation logs raw Prisma pool/network errors into the Next.js overlay when offline.
+ */
 const resolveAuthenticatedUser = cache(async (): Promise<AuthUserResult> => {
   const routeTimer = startPerf('auth.onAuthenticateUser')
   try {
@@ -32,7 +30,9 @@ const resolveAuthenticatedUser = cache(async (): Promise<AuthUserResult> => {
     }
 
     const userExists = await timeAsync('auth.user.findUnique', () =>
-      getUserByClerkIdCached(clerkId),
+      prismaClient.user.findUnique({
+        where: { clerkId },
+      }),
     )
 
     if (userExists) {
@@ -68,14 +68,22 @@ const resolveAuthenticatedUser = cache(async (): Promise<AuthUserResult> => {
       status: 201,
       user: newUser
     }
-  }
-  catch (error) {
-    console.error("Error 🦺", error)
+  } catch (error) {
+    if (isDatabaseConnectivityError(error)) {
+      logDatabaseConnectivityFailure('auth.onAuthenticateUser', error)
+      return {
+        status: 500,
+        error: 'DATABASE_UNAVAILABLE',
+      }
+    }
+    console.warn(
+      '[auth.onAuthenticateUser]',
+      error instanceof Error ? error.message : String(error),
+    )
     return {
       status: 500,
       error: "Internal server error"
     }
-    
   } finally {
     routeTimer.end()
   }

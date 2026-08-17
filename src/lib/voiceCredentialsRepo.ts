@@ -1,6 +1,15 @@
 import { randomUUID } from 'crypto'
 import { prismaClient } from '@/lib/prismaClient'
 
+export type VoiceCredentialProvider =
+  | 'google'
+  | 'deepgram'
+  | 'openai'
+  | 'anthropic'
+  | 'fish'
+  | 'deepseek'
+  | 'kimi'
+
 export type UserVoiceCredentialRow = {
   id: string
   userId: string
@@ -8,8 +17,14 @@ export type UserVoiceCredentialRow = {
   deepgramApiKey: string | null
   openaiApiKey: string | null
   anthropicApiKey: string | null
+  fishApiKey: string | null
+  deepseekApiKey: string | null
+  kimiApiKey: string | null
   googleValidatedAt: Date | null
   deepgramValidatedAt: Date | null
+  fishValidatedAt: Date | null
+  deepseekValidatedAt: Date | null
+  kimiValidatedAt: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -34,8 +49,14 @@ export async function getUserVoiceCredentialByUserId(
       "deepgramApiKey",
       "openaiApiKey",
       "anthropicApiKey",
+      "fishApiKey",
+      "deepseekApiKey",
+      "kimiApiKey",
       "googleValidatedAt",
       "deepgramValidatedAt",
+      "fishValidatedAt",
+      "deepseekValidatedAt",
+      "kimiValidatedAt",
       "createdAt",
       "updatedAt"
     FROM "UserVoiceCredential"
@@ -52,6 +73,9 @@ export async function upsertUserVoiceCredential(
     openaiApiKey?: string | null
     anthropicApiKey?: string | null
     deepgramApiKey?: string | null
+    fishApiKey?: string | null
+    deepseekApiKey?: string | null
+    kimiApiKey?: string | null
   },
 ): Promise<void> {
   const current = await getUserVoiceCredentialByUserId(userId)
@@ -67,6 +91,14 @@ export async function upsertUserVoiceCredential(
     typeof data.deepgramApiKey === 'undefined'
       ? current?.deepgramApiKey ?? null
       : data.deepgramApiKey
+  const nextFish =
+    typeof data.fishApiKey === 'undefined' ? current?.fishApiKey ?? null : data.fishApiKey
+  const nextDeepseek =
+    typeof data.deepseekApiKey === 'undefined'
+      ? current?.deepseekApiKey ?? null
+      : data.deepseekApiKey
+  const nextKimi =
+    typeof data.kimiApiKey === 'undefined' ? current?.kimiApiKey ?? null : data.kimiApiKey
 
   const d = delegate()
   if (d?.upsert) {
@@ -77,6 +109,9 @@ export async function upsertUserVoiceCredential(
         openaiApiKey: nextOpenAi,
         anthropicApiKey: nextAnthropic,
         deepgramApiKey: nextDeepgram,
+        fishApiKey: nextFish,
+        deepseekApiKey: nextDeepseek,
+        kimiApiKey: nextKimi,
       },
       create: {
         userId,
@@ -84,6 +119,9 @@ export async function upsertUserVoiceCredential(
         openaiApiKey: nextOpenAi,
         anthropicApiKey: nextAnthropic,
         deepgramApiKey: nextDeepgram,
+        fishApiKey: nextFish,
+        deepseekApiKey: nextDeepseek,
+        kimiApiKey: nextKimi,
       },
     })
     return
@@ -91,24 +129,44 @@ export async function upsertUserVoiceCredential(
 
   const id = current?.id ?? randomUUID()
   await prismaClient.$executeRaw`
-    INSERT INTO "UserVoiceCredential" ("id", "userId", "googleApiKey", "openaiApiKey", "anthropicApiKey", "deepgramApiKey", "createdAt", "updatedAt")
-    VALUES (${id}::uuid, ${userId}::uuid, ${nextGoogle}, ${nextOpenAi}, ${nextAnthropic}, ${nextDeepgram}, NOW(), NOW())
+    INSERT INTO "UserVoiceCredential" (
+      "id", "userId", "googleApiKey", "openaiApiKey", "anthropicApiKey", "deepgramApiKey",
+      "fishApiKey", "deepseekApiKey", "kimiApiKey", "createdAt", "updatedAt"
+    )
+    VALUES (
+      ${id}::uuid, ${userId}::uuid, ${nextGoogle}, ${nextOpenAi}, ${nextAnthropic}, ${nextDeepgram},
+      ${nextFish}, ${nextDeepseek}, ${nextKimi}, NOW(), NOW()
+    )
     ON CONFLICT ("userId")
     DO UPDATE SET
       "googleApiKey" = EXCLUDED."googleApiKey",
       "openaiApiKey" = EXCLUDED."openaiApiKey",
       "anthropicApiKey" = EXCLUDED."anthropicApiKey",
       "deepgramApiKey" = EXCLUDED."deepgramApiKey",
+      "fishApiKey" = EXCLUDED."fishApiKey",
+      "deepseekApiKey" = EXCLUDED."deepseekApiKey",
+      "kimiApiKey" = EXCLUDED."kimiApiKey",
       "updatedAt" = NOW()
   `
 }
 
+const VALIDATED_AT_FIELD: Record<
+  'google' | 'deepgram' | 'fish' | 'deepseek' | 'kimi',
+  keyof UserVoiceCredentialRow
+> = {
+  google: 'googleValidatedAt',
+  deepgram: 'deepgramValidatedAt',
+  fish: 'fishValidatedAt',
+  deepseek: 'deepseekValidatedAt',
+  kimi: 'kimiValidatedAt',
+}
+
 export async function markVoiceCredentialValidated(
   userId: string,
-  provider: 'google' | 'deepgram',
+  provider: 'google' | 'deepgram' | 'fish' | 'deepseek' | 'kimi',
 ): Promise<void> {
   const d = delegate()
-  const field = provider === 'google' ? 'googleValidatedAt' : 'deepgramValidatedAt'
+  const field = VALIDATED_AT_FIELD[provider]
 
   if (d?.update) {
     await d.update({
@@ -126,11 +184,34 @@ export async function markVoiceCredentialValidated(
     `
     return
   }
+  if (provider === 'deepgram') {
+    await prismaClient.$executeRaw`
+      UPDATE "UserVoiceCredential"
+      SET "deepgramValidatedAt" = NOW(), "updatedAt" = NOW()
+      WHERE "userId" = ${userId}::uuid
+    `
+    return
+  }
+  if (provider === 'fish') {
+    await prismaClient.$executeRaw`
+      UPDATE "UserVoiceCredential"
+      SET "fishValidatedAt" = NOW(), "updatedAt" = NOW()
+      WHERE "userId" = ${userId}::uuid
+    `
+    return
+  }
+  if (provider === 'deepseek') {
+    await prismaClient.$executeRaw`
+      UPDATE "UserVoiceCredential"
+      SET "deepseekValidatedAt" = NOW(), "updatedAt" = NOW()
+      WHERE "userId" = ${userId}::uuid
+    `
+    return
+  }
 
   await prismaClient.$executeRaw`
     UPDATE "UserVoiceCredential"
-    SET "deepgramValidatedAt" = NOW(), "updatedAt" = NOW()
+    SET "kimiValidatedAt" = NOW(), "updatedAt" = NOW()
     WHERE "userId" = ${userId}::uuid
   `
 }
-

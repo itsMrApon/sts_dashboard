@@ -5,6 +5,13 @@ import { buildAgentContext } from '@/lib/messages/buildAgentContext'
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
 import { decryptToken } from '@/lib/messages/encrypt'
 import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId'
+import { EMBED_RATE_LIMITS, checkRateLimit } from '@/lib/embed/rateLimit'
+import {
+  clientIp,
+  embedOptions,
+  guardEmbedRequest,
+  jsonWithCors,
+} from '@/lib/embed/embedRouteGuard'
 
 type StoredMessage = {
   role: 'user' | 'assistant'
@@ -20,12 +27,16 @@ function safeDecrypt(value: string | null | undefined): string | null {
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ roomName: string }> },
-) {
+type RouteContext = { params: Promise<{ roomName: string }> }
+
+export async function OPTIONS(req: Request, routeContext: RouteContext) {
+  const { roomName } = await routeContext.params
+  return embedOptions(req, roomName)
+}
+
+export async function POST(req: Request, routeContext: RouteContext) {
   try {
-    const { roomName } = await params
+    const { roomName } = await routeContext.params
     const body = await req.json()
     const message = typeof body?.message === 'string' ? body.message : ''
     const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : ''
@@ -37,11 +48,22 @@ export async function POST(
       )
     }
 
+    const ip = clientIp(req)
+    const guard = await guardEmbedRequest(req, roomName, {
+      key: `embed:chat:${roomName}:${sessionId}`,
+      limit: EMBED_RATE_LIMITS.chat.limit,
+      windowMs: EMBED_RATE_LIMITS.chat.windowMs,
+    })
+    if (!guard.ok) return guard.response
+
+    const ipGuard = checkRateLimitIp(roomName, ip, guard.corsHeaders)
+    if (ipGuard) return ipGuard
+
     const agent = await prismaClient.liveKitAgent.findUnique({
       where: { roomName },
     })
     if (!agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+      return jsonWithCors({ error: 'Agent not found' }, guard.corsHeaders, { status: 404 })
     }
 
     const channels = await prismaClient.messageChannel.findMany({
@@ -59,7 +81,7 @@ export async function POST(
     const googleApiKey =
       safeDecrypt(ownerVoiceCred?.googleApiKey) || process.env.GOOGLE_API_KEY || null
 
-    const context = await buildAgentContext(roomName)
+    const agentContext = await buildAgentContext(roomName)
 
     const conversation = channel
       ? await prismaClient.messageConversation.findFirst({
@@ -74,14 +96,17 @@ export async function POST(
     const result = await generateReply({
       userMessage: message,
       history: history.slice(-50),
-      systemPrompt: context.systemInstruction,
+      systemPrompt: agentContext.systemInstruction,
       llmModel: agent.llmModel || undefined,
       apiKey: googleApiKey,
+      accountUserId: ownerUserId,
+      usageSurface: 'messages',
     })
 
     if (!result.ok) {
-      return NextResponse.json(
+      return jsonWithCors(
         { error: result.error, code: result.code },
+        guard.corsHeaders,
         { status: 502 },
       )
     }
@@ -109,14 +134,17 @@ export async function POST(
       })
     }
 
-    return NextResponse.json({
-      reply: replyText,
-      roomJoinLink: context.roomJoinLink,
-      buyNowLink: context.buyNowLink,
-      voiceAgentLinks: context.voiceAgentLinks,
-      productLinks: context.productLinks,
-      socialAccounts: context.socialAccounts,
-    })
+    return jsonWithCors(
+      {
+        reply: replyText,
+        roomJoinLink: agentContext.roomJoinLink,
+        buyNowLink: agentContext.buyNowLink,
+        voiceAgentLinks: agentContext.voiceAgentLinks,
+        productLinks: agentContext.productLinks,
+        socialAccounts: agentContext.socialAccounts,
+      },
+      guard.corsHeaders,
+    )
   } catch (error) {
     console.error('[web-chat]', error)
     return NextResponse.json(
@@ -124,4 +152,27 @@ export async function POST(
       { status: 500 },
     )
   }
+}
+
+function checkRateLimitIp(
+  roomName: string,
+  ip: string,
+  corsHeaders: HeadersInit,
+) {
+  const rate = checkRateLimit(
+    `embed:chat-ip:${roomName}:${ip}`,
+    EMBED_RATE_LIMITS.chatIp.limit,
+    EMBED_RATE_LIMITS.chatIp.windowMs,
+  )
+  if (!rate.ok) {
+    return jsonWithCors(
+      { error: 'Too many requests', code: 'RATE_LIMITED' },
+      corsHeaders,
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rate.retryAfterSec) },
+      },
+    )
+  }
+  return null
 }

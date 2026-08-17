@@ -23,6 +23,12 @@ const SUPPORTED_PLATFORMS: Platform[] = [
   'TIKTOK',
 ]
 
+function revalidateMessagingSurfaces(roomName: string) {
+  revalidatePath('/messages')
+  revalidatePath('/messages/connections')
+  revalidatePath(`/messages/${roomName}`)
+}
+
 export async function connectPlatform(
   roomName: string,
   platform: Platform,
@@ -70,7 +76,7 @@ export async function connectPlatform(
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error(`connect${platform} error`, error)
@@ -94,7 +100,7 @@ export async function disconnectPlatform(
       data: { status: ChannelStatus.INACTIVE, credentials: Prisma.DbNull },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error(`disconnect${platform} error`, error)
@@ -170,7 +176,7 @@ export async function connectTelegram(roomName: string, botToken: string): Promi
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
 
     return { ok: true }
   } catch (error) {
@@ -220,7 +226,7 @@ export async function disconnectTelegram(roomName: string): Promise<ActionResult
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
 
     return { ok: true }
   } catch (error) {
@@ -264,7 +270,7 @@ export async function connectDiscord(
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error('connectDiscord error', error)
@@ -290,7 +296,7 @@ export async function disconnectDiscord(roomName: string): Promise<ActionResult>
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error('disconnectDiscord error', error)
@@ -336,7 +342,7 @@ export async function connectSlack(
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error('connectSlack error', error)
@@ -361,7 +367,7 @@ export async function disconnectSlack(roomName: string): Promise<ActionResult> {
       },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error('disconnectSlack error', error)
@@ -369,13 +375,24 @@ export async function disconnectSlack(roomName: string): Promise<ActionResult> {
   }
 }
 
-/** Update only tenant pitch link; does not clear webinarId on channels. */
-export async function updateChannelTenant(
+/**
+ * Attach or move a messaging room to a workspace.
+ * Option A: workspace is required — null/empty is rejected (no orphan rooms).
+ */
+export async function updateChannelWorkspace(
   roomName: string,
-  tenantId: string | null,
+  workspaceId: string,
 ): Promise<ActionResult> {
   const { userId: clerkId } = await auth()
   if (!clerkId) return { ok: false, error: 'UNAUTHENTICATED' }
+
+  const trimmed = workspaceId?.trim()
+  if (!trimmed) {
+    return {
+      ok: false,
+      error: 'A workspace is required. Change workspace or delete the room instead.',
+    }
+  }
 
   const ownership = await verifyRoomOwnership(roomName)
   if (!ownership.ok) return { ok: false, error: ownership.reason }
@@ -386,26 +403,72 @@ export async function updateChannelTenant(
   })
   if (!user) return { ok: false, error: 'User not found' }
 
-  if (tenantId) {
-    const tenant = await prismaClient.tenant.findFirst({
-      where: { id: tenantId, userId: user.id },
-      select: { id: true },
-    })
-    if (!tenant) return { ok: false, error: 'Business not found' }
-  }
+  const workspace = await prismaClient.workspace.findFirst({
+    where: { id: trimmed, userId: user.id },
+    select: { id: true, publishProfileId: true },
+  })
+  if (!workspace) return { ok: false, error: 'Workspace not found' }
 
   try {
-    await prismaClient.messageChannel.updateMany({
+    const updated = await prismaClient.messageChannel.updateMany({
       where: { roomName },
-      data: { tenantId: tenantId || null },
+      data: {
+        workspaceId: workspace.id,
+        userId: user.id,
+        ...(workspace.publishProfileId? { publishProfileId: workspace.publishProfileId } : {}),
+      },
     })
 
-    revalidatePath(`/messages/${roomName}`)
+    if (updated.count === 0) {
+      await prismaClient.messageChannel.create({
+        data: {
+          roomName,
+          platform: 'WHATSAPP',
+          status: 'INACTIVE',
+          userId: user.id,
+          workspaceId: workspace.id,
+          publishProfileId: workspace.publishProfileId,
+          accountLabel: 'Workspace link',
+        },
+      })
+    }
+
+    // Keep publish hub ↔ workspace in sync when attaching
+    if (workspace.publishProfileId) {
+      // no-op: workspace already owns publishProfileId
+    } else {
+      const channelBiz = await prismaClient.messageChannel.findFirst({
+        where: { roomName, publishProfileId: { not: null } },
+        select: { publishProfileId: true },
+      })
+      if (channelBiz?.publishProfileId) {
+        await prismaClient.workspace.update({
+          where: { id: workspace.id },
+          data: { publishProfileId: channelBiz.publishProfileId },
+        })
+      }
+    }
+
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
-    console.error('updateChannelTenant error', error)
-    return { ok: false, error: 'Failed to update business link' }
+    console.error('updateChannelWorkspace error', error)
+    return { ok: false, error: 'Failed to update workspace link' }
   }
+}
+
+/** @deprecated Use updateChannelWorkspace — null unlink is no longer allowed (Option A). */
+export async function updateChannelTenant(
+  roomName: string,
+  tenantId: string | null,
+): Promise<ActionResult> {
+  if (!tenantId) {
+    return {
+      ok: false,
+      error: 'A workspace is required. Change workspace or delete the room instead.',
+    }
+  }
+  return updateChannelWorkspace(roomName, tenantId)
 }
 
 /**
@@ -430,19 +493,18 @@ export async function removeMessagingRoom(roomName: string): Promise<ActionResul
       prismaClient.messageChannel.deleteMany({
         where: {
           roomName,
-          OR: [{ userId: user.id }, { business: { userId: user.id } }],
+          OR: [{ userId: user.id }, { publishProfile: { userId: user.id } }],
         },
       }),
-      prismaClient.businessAgent.deleteMany({
+      prismaClient.publishAgent.deleteMany({
         where: {
           agent: { roomName },
-          business: { userId: user.id },
+          publishProfile: { userId: user.id },
         },
       }),
     ])
 
-    revalidatePath('/messages')
-    revalidatePath(`/messages/${roomName}`)
+    revalidateMessagingSurfaces(roomName)
     return { ok: true }
   } catch (error) {
     console.error('removeMessagingRoom error', error)

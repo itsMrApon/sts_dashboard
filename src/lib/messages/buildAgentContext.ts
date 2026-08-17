@@ -14,9 +14,35 @@ export type AgentContext = {
   socialAccounts: { platform: string; label: string; url?: string }[]
 }
 
+type TenantCompactProfile = {
+  vertical?: string
+  businessName?: string
+  core?: {
+    audience?: string
+    valueProposition?: string
+    tone?: string[]
+    complianceRules?: string[]
+    cta?: { bookCall?: string; orderNow?: string }
+  }
+  industry?: {
+    summary?: string
+    deliverables?: string[]
+    coverageTypes?: string[]
+    filingTypes?: string[]
+    jurisdiction?: string
+    shippingPolicy?: string
+    returnPolicy?: string
+    sla?: string
+  }
+  social?: {
+    websiteUrl?: string
+    channels?: Array<{ platform?: string; label?: string; url?: string }>
+  }
+}
+
 export async function buildAgentContext(
   roomName: string,
-  options?: { preloadedAgent?: LiveKitAgent | null; mode?: 'full' | 'homePreview' },
+  options?: { preloadedAgent?: LiveKitAgent | null; mode?: 'full' | 'homePreview' | 'embedBootstrap' },
 ): Promise<AgentContext> {
   const mode = options?.mode ?? 'full'
   const timer = startPerf('messages.buildAgentContext', { roomName, mode })
@@ -24,18 +50,13 @@ export async function buildAgentContext(
     options?.preloadedAgent !== undefined
       ? options.preloadedAgent
       : await timeAsync('messages.buildAgentContext.liveKitAgent.findUnique', () =>
-          prismaClient.liveKitAgent.findUnique({
-            where: { roomName },
-            ...(mode === 'homePreview'
-              ? { select: { id: true, name: true, firstMessage: true, roomName: true } }
-              : {}),
-          }),
+          prismaClient.liveKitAgent.findUnique({ where: { roomName } }),
         )
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
 
   const businessLinkInclude = {
-    business: {
+    publishProfile: {
       include: {
         agents: {
           include: {
@@ -64,28 +85,16 @@ export async function buildAgentContext(
     },
   } as const
 
-  const businessLinkSelectForPreview = {
-    business: {
-      select: {
-        id: true,
-        name: true,
-        user: { select: { id: true } },
-      },
-    },
-  } as const
-
   const [businessLink, channel] = await Promise.all([
     agent
       ? timeAsync('messages.buildAgentContext.businessAgent.findFirst', () =>
-          prismaClient.businessAgent.findFirst({
+          prismaClient.publishAgent.findFirst({
             where: { agentId: agent.id },
-            ...(mode === 'homePreview'
-              ? { select: businessLinkSelectForPreview }
-              : { include: businessLinkInclude }),
+            include: businessLinkInclude,
           }),
         )
       : Promise.resolve(null),
-    mode === 'homePreview'
+    mode === 'homePreview' || mode === 'embedBootstrap'
       ? Promise.resolve(null)
       : timeAsync('messages.buildAgentContext.messageChannel.findFirst', () =>
           prismaClient.messageChannel.findFirst({
@@ -94,16 +103,18 @@ export async function buildAgentContext(
         ),
   ])
 
-  const business = businessLink?.business || null
+  const business = businessLink?.publishProfile || null
+  const workspaceId = channel?.workspaceId ?? null
+  const webinarId = channel?.webinarId ?? null
 
-  const [outreach, tenant] = await Promise.all([
+  const [outreach, tenant, tenantCompactRow] = await Promise.all([
     business?.user?.id
       ? timeAsync('messages.buildAgentContext.outreachChannel.findMany', () =>
           prismaClient.outreachChannel.findMany({
             where: {
               userId: business.user.id,
               status: 'ACTIVE',
-              businessId: business.id,
+              publishProfileId: business.id,
             },
             select: { platform: true, accountLabel: true, pageUrl: true },
           }),
@@ -115,19 +126,31 @@ export async function buildAgentContext(
             pageUrl: string | null
           }[],
         ),
-    channel?.tenantId
-      ? timeAsync('messages.buildAgentContext.tenant.findUnique', () =>
-          prismaClient.tenant.findUnique({
-            where: { id: channel.tenantId },
+    workspaceId
+      ? timeAsync('messages.buildAgentContext.workspace.findUnique', () =>
+          prismaClient.workspace.findUnique({
+            where: { id: workspaceId },
             select: { name: true, pitchMessage: true, videoUrl: true },
           }),
         )
+      : Promise.resolve(null),
+    workspaceId
+      ? timeAsync('messages.buildAgentContext.workspace.compact.raw', async () => {
+          const rows = await prismaClient.$queryRaw<
+            Array<{
+              contextStatus: string | null
+              compactProfileJson: unknown
+              compactTokenEstimate: number | null
+            }>
+          >`SELECT "contextStatus", "compactProfileJson", "compactTokenEstimate" FROM "Tenant" WHERE "id" = ${workspaceId} LIMIT 1`
+          return rows[0] || null
+        })
       : Promise.resolve(null),
   ])
 
   const socialAccounts = outreach.map((o) => ({
     platform: o.platform,
-    label: o.accountLabel,
+    label: o.accountLabel || 'Account',
     url: o.pageUrl || undefined,
   }))
 
@@ -136,7 +159,7 @@ export async function buildAgentContext(
   const voiceAgentLinks: { name: string; url: string }[] = []
   const productLinks: { name: string; url: string; buyUrl?: string }[] = []
 
-  if (business && mode === 'full') {
+  if (business && (mode === 'full' || mode === 'embedBootstrap')) {
     for (const ba of business.agents) {
       if (ba.agent.roomName !== roomName) {
         voiceAgentLinks.push({
@@ -168,10 +191,10 @@ export async function buildAgentContext(
     }
   }
 
-  if (mode === 'full' && !roomJoinLink && channel?.webinarId) {
+  if (mode === 'full' && !roomJoinLink && webinarId) {
     const webinar = await timeAsync('messages.buildAgentContext.webinar.findUnique', () =>
       prismaClient.webinar.findUnique({
-        where: { id: channel.webinarId },
+        where: { id: webinarId },
         select: { id: true, kind: true, ctaType: true, ctaUrl: true },
       }),
     )
@@ -244,16 +267,91 @@ export async function buildAgentContext(
     )
   }
 
-  if (mode === 'full' && tenant?.pitchMessage) {
-    parts.push(
-      [
-        '## Tenant context',
-        tenant.pitchMessage,
-        tenant.videoUrl ? `Pitch video: ${tenant.videoUrl}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    )
+  if (mode === 'full' && tenant) {
+    const compact = (tenantCompactRow?.compactProfileJson as TenantCompactProfile | null) || null
+    const hasPublishedCompact = tenantCompactRow?.contextStatus === 'PUBLISHED' && compact
+
+    if (hasPublishedCompact) {
+      const compactSections: string[] = []
+      const core = compact.core
+      const industry = compact.industry
+      const social = compact.social
+
+      if (compact.businessName || compact.vertical) {
+        compactSections.push(
+          [
+            '## Tenant MCP Compact Context',
+            compact.businessName ? `Business: ${compact.businessName}` : '',
+            compact.vertical ? `Vertical: ${compact.vertical}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        )
+      }
+
+      if (core) {
+        compactSections.push(
+          [
+            '### Core',
+            core.audience ? `Audience: ${core.audience}` : '',
+            core.valueProposition ? `Value proposition: ${core.valueProposition}` : '',
+            core.tone?.length ? `Tone: ${core.tone.join(', ')}` : '',
+            core.complianceRules?.length ? `Compliance: ${core.complianceRules.join(' | ')}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        )
+      }
+
+      if (industry) {
+        const highlights = [
+          ...(industry.deliverables || []),
+          ...(industry.coverageTypes || []),
+          ...(industry.filingTypes || []),
+        ].slice(0, 8)
+        compactSections.push(
+          [
+            '### Industry',
+            industry.summary ? industry.summary : '',
+            industry.jurisdiction ? `Jurisdiction: ${industry.jurisdiction}` : '',
+            industry.shippingPolicy ? `Shipping: ${industry.shippingPolicy}` : '',
+            industry.returnPolicy ? `Returns: ${industry.returnPolicy}` : '',
+            industry.sla ? `SLA: ${industry.sla}` : '',
+            highlights.length ? `Highlights: ${highlights.join(' | ')}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        )
+      }
+
+      if (social?.channels?.length) {
+        const channelLines = social.channels
+          .slice(0, 6)
+          .map((entry) => {
+            const platform = (entry.platform || 'Channel').replace(/_/g, ' ')
+            const label = entry.label ? ` ${entry.label}` : ''
+            return entry.url ? `- ${platform}:${label} — ${entry.url}` : `- ${platform}:${label}`.trim()
+          })
+        compactSections.push(['### Channels', ...channelLines].join('\n'))
+      }
+
+      if (compactSections.length > 0) {
+        compactSections.push(
+          `Compact token estimate: ${tenantCompactRow?.compactTokenEstimate || 0}. Prefer this compact context over long freeform text.`,
+        )
+        parts.push(compactSections.join('\n\n'))
+      }
+    } else if (tenant.pitchMessage) {
+      parts.push(
+        [
+          '## Tenant context',
+          tenant.pitchMessage,
+          tenant.videoUrl ? `Pitch video: ${tenant.videoUrl}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+    }
   }
 
   if (mode === 'full') {

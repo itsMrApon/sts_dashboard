@@ -1,4 +1,4 @@
-export type LlmModelProvider = 'google' | 'openai' | 'anthropic'
+export type LlmModelProvider = 'google' | 'openai' | 'anthropic' | 'deepseek' | 'kimi'
 
 export type LlmModelOption = { id: string; label: string; provider: LlmModelProvider }
 
@@ -31,6 +31,20 @@ export const LLM_MODEL_GROUPS: LlmModelGroup[] = [
       { id: 'claude-3-opus-20240229', label: 'Claude 3 Opus', provider: 'anthropic' },
     ],
   },
+  {
+    group: 'DeepSeek',
+    items: [
+      { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'deepseek' },
+      { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'deepseek' },
+    ],
+  },
+  {
+    group: 'Kimi',
+    items: [
+      { id: 'kimi-k2.6', label: 'Kimi K2.6', provider: 'kimi' },
+      { id: 'kimi-k3', label: 'Kimi K3', provider: 'kimi' },
+    ],
+  },
 ]
 
 export function providerForLlmModelId(id: string): LlmModelProvider | null {
@@ -49,4 +63,22 @@ export function labelForLlmModelId(id: string): string {
     if (found) return found.label
   }
   return trimmed
+}
+
+/** Default model ID for a LiveKit llmProvider value. */
+export function defaultModelForLlmProvider(provider: string): string {
+  switch (provider) {
+    case 'deepseek':
+      return 'deepseek-v4-flash'
+    case 'kimi':
+      return 'kimi-k2.6'
+    case 'openai':
+      return 'gpt-4o'
+    case 'anthropic':
+      return 'claude-3-5-sonnet-20241022'
+    case 'google':
+    case 'gemini':
+    default:
+      return 'gemini-2.5-flash'
+  }
 }

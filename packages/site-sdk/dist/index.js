@@ -1,0 +1,1 @@
+export { createStsSiteClient } from './client';

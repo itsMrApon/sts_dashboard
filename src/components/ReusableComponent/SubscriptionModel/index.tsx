@@ -61,7 +61,7 @@ const SubscriptionModel = ({user}: Props) => {
       <DialogTrigger asChild>
         <button className="rounded-xl flex gap-2 items-center hover: cursor-pointer px-4 py-2 border border-border bg-primary/10 backdrop-blur-sm text-sm font-normal text-primary hover: bg-primary-20">
           <PlusIcon />
-            Create Project
+            Add to workspace
         </button>
       </DialogTrigger>
       <DialogContent>

@@ -2,17 +2,13 @@
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { User } from '.prisma/client'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import PurpleIcon from '../PurpleIcon'
 import STS2 from '@/icons/sts-2'
-import type Stripe from 'stripe'
-import type { Assistant } from '@vapi-ai/server-sdk/api'
-import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
-
-const CreateWebinarButton = dynamic(
-  () => import('../CreateWebinarButton').then((m) => m.default),
+const AddToWorkspaceButton = dynamic(
+  () => import('../AddToWorkspaceButton').then((m) => m.default),
   { ssr: false, loading: () => <div className="h-9 w-20 rounded-md bg-muted animate-pulse" /> }
 )
 
@@ -28,41 +24,6 @@ type Props = {
 const Header = ({ user }: Props) => {
   const pathname = usePathname()
   const router = useRouter()
-  const [stripeProducts, setStripeProducts] = useState<Stripe.Product[]>([])
-  const [assistants, setAssistants] = useState<Assistant[]>([])
-  const [livekitAgents, setLivekitAgents] = useState<LiveKitUiAgentConfig[]>([])
-
-  useEffect(() => {
-    if (!user.subscription) return
-    let mounted = true
-    const load = async () => {
-      const [
-        { getAllProductsFromStripe },
-        { getAllAssistants },
-        { getLiveKitAgents },
-      ] = await Promise.all([
-        import('@/actions/stripe'),
-        import('@/actions/vapi'),
-        import('@/actions/livekitAgent'),
-      ])
-      if (!mounted) return
-      const [stripeRes, vapiRes, livekitRes] = await Promise.allSettled([
-        getAllProductsFromStripe(),
-        getAllAssistants(),
-        getLiveKitAgents(),
-      ])
-      if (!mounted) return
-      if (stripeRes.status === 'fulfilled' && stripeRes.value?.products) setStripeProducts(stripeRes.value.products)
-      if (vapiRes.status === 'fulfilled' && Array.isArray(vapiRes.value?.data)) setAssistants(vapiRes.value.data)
-      if (livekitRes.status === 'fulfilled' && livekitRes.value?.success && Array.isArray(livekitRes.value?.data)) {
-        setLivekitAgents(livekitRes.value.data)
-      }
-    }
-    load()
-    return () => { mounted = false }
-  }, [user.subscription])
-
-
   return (
     <div className="w-full px-4 pt-10 pb-4 sticky top-0 z-10 flex justify-between items-center flex-wrap gap-4 bg-background">
         {pathname.includes('pipeline') ? (
@@ -82,13 +43,9 @@ const Header = ({ user }: Props) => {
           <PurpleIcon>
             <STS2 className="w-8 h-8" />
           </PurpleIcon>
-          {/* TODO: Add stripe subscription and create webinar button */}
+          {/* Unified add-to-workspace entrypoint */}
           {user.subscription? (
-            <CreateWebinarButton 
-              stripeProducts={stripeProducts} 
-              assistants={assistants}
-              livekitAgents={livekitAgents}
-            />
+            <AddToWorkspaceButton />
           ) : (
             <HeaderSubscription user={user} />
           )}

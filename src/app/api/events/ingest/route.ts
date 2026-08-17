@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       metadata?: Record<string, unknown>
     }
 
-    const resolvedTenantId = tenantId ?? body.campaignId
+    const resolvedWorkspaceId = tenantId ?? body.campaignId
 
     if (!userId || !eventType) {
       return NextResponse.json({ error: 'userId and eventType required' }, { status: 400 })
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         userId,
         eventType: eventType as EventType,
         leadId: leadId || null,
-        tenantId: resolvedTenantId || null,
+        workspaceId: resolvedWorkspaceId || null,
         channel: channel || null,
         metadata: metadata == null ? Prisma.JsonNull : (metadata as Prisma.InputJsonValue),
       },
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
             userId,
             roomName: (metadata?.roomName as string) || 'unknown',
             leadId: leadId || null,
-            tenantId: resolvedTenantId || null,
+            workspaceId: resolvedWorkspaceId || null,
             transcript,
             duration: (metadata?.duration as number) || 0,
             outcome: (metadata?.outcome as string) || analysis.outcome,

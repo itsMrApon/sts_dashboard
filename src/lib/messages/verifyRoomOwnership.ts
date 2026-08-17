@@ -59,7 +59,7 @@ export async function verifyRoomOwnership(
       prismaClient.messageChannel.findFirst({
         where: {
           roomName,
-          OR: [{ userId: user.id }, { business: { userId: user.id } }],
+          OR: [{ userId: user.id }, { publishProfile: { userId: user.id } }],
         },
         select: { id: true },
       }),

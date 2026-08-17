@@ -16,20 +16,20 @@ type Props = {
  */
 const Layout = async ({ children }: Props) => {
   const timer = startPerf('route.layout.protected')
-  const userExists = await timeAsync('route.layout.protected.auth', () => onAuthenticateUser())
+  const userExists = await timeAsync('route.layout.protected.auth', () =>
+    onAuthenticateUser(),
+  )
 
   if (!userExists.user) {
     redirect('/sign-in')
   }
 
   const rendered = (
-    <div className='flex w-full min-h-screen'>
+    <div className="flex w-full min-h-screen">
       <Sidebar />
-      <div className="flex flex-col w-full min-h-screen overflow-x-hidden px-4 scrollbar-hide container mx-auto">
+      <div className="container mx-auto flex w-full min-h-screen flex-col overflow-x-hidden px-4 scrollbar-hide">
         <Header user={userExists.user} />
-        <div className="flex-1 py-10">
-          {children}
-        </div>
+        <div className="flex-1 py-10">{children}</div>
       </div>
     </div>
   )

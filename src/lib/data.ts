@@ -26,7 +26,7 @@ export const sidebarData = [
   },
   {
     id: 5,
-    title: 'Tenants',
+    title: 'Partners',
     icon: Megaphone,
     link: '/tenants',
   },

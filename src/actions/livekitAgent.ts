@@ -1,9 +1,14 @@
 'use server';
 
+import { revalidateTag, unstable_cache } from 'next/cache';
 import { prismaClient } from '@/lib/prismaClient';
 import { aiAgentPrompt } from '@/lib/data';
 import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes';
 import { DEFAULT_LLM_MODEL } from '@/lib/llm/defaultModel';
+import {
+  isDatabaseConnectivityError,
+  logDatabaseConnectivityFailure,
+} from '@/lib/prismaErrors';
 
 function generateUniqueRoomName(name: string): string {
   const slug = name
@@ -40,18 +45,56 @@ function mapToUiConfig(agent: {
   };
 }
 
+const LIVEKIT_AGENT_SELECT = {
+  id: true,
+  name: true,
+  roomName: true,
+  firstMessage: true,
+  systemPrompt: true,
+  language: true,
+  voiceProvider: true,
+  voiceModel: true,
+  llmModel: true,
+  llmProvider: true,
+} as const;
+
+const getLiveKitAgentsCached = unstable_cache(
+  async () => {
+    try {
+      const agents = await prismaClient.liveKitAgent.findMany({
+        orderBy: { createdAt: 'asc' },
+        select: LIVEKIT_AGENT_SELECT,
+      });
+      return agents.map((a) => mapToUiConfig(a));
+    } catch (error) {
+      if (isDatabaseConnectivityError(error)) {
+        // Soft error so Next cache revalidation does not dump Prisma stacks.
+        throw new Error('DATABASE_UNAVAILABLE');
+      }
+      throw error;
+    }
+  },
+  ['livekit-agents-list-v1'],
+  { revalidate: 30, tags: ['livekit-agents'] },
+);
+
 export const getLiveKitAgents = async () => {
   try {
-    const agents = await (prismaClient as any).liveKitAgent.findMany({
-      orderBy: { createdAt: 'asc' },
-    });
+    const data = await getLiveKitAgentsCached();
     return {
       success: true,
       status: 200,
-      data: agents.map((a: Parameters<typeof mapToUiConfig>[0]) => mapToUiConfig(a)),
+      data,
     };
   } catch (error) {
-    console.error('Error getting LiveKit agents', error);
+    if (isDatabaseConnectivityError(error) || (error instanceof Error && error.message === 'DATABASE_UNAVAILABLE')) {
+      logDatabaseConnectivityFailure('getLiveKitAgents', error);
+    } else {
+      console.warn(
+        '[getLiveKitAgents]',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
     return {
       success: false,
       status: 500,
@@ -63,8 +106,9 @@ export const getLiveKitAgents = async () => {
 
 export const getLiveKitAgentById = async (id: string) => {
   try {
-    const agent = await (prismaClient as any).liveKitAgent.findUnique({
+    const agent = await prismaClient.liveKitAgent.findUnique({
       where: { id },
+      select: LIVEKIT_AGENT_SELECT,
     });
     if (!agent) return { success: false, status: 404, error: 'Agent not found' };
     return { success: true, status: 200, data: mapToUiConfig(agent) };
@@ -85,7 +129,7 @@ export const getLiveKitAgent = async () => {
 
 export const createLiveKitAgent = async (name: string) => {
   try {
-    const created = await (prismaClient as any).liveKitAgent.create({
+    const created = await prismaClient.liveKitAgent.create({
       data: {
         name,
         roomName: generateUniqueRoomName(name),
@@ -98,8 +142,10 @@ export const createLiveKitAgent = async (name: string) => {
         llmModel: DEFAULT_LLM_MODEL,
         llmProvider: 'google',
       },
+      select: LIVEKIT_AGENT_SELECT,
     });
 
+    revalidateTag('livekit-agents');
     return {
       success: true,
       status: 200,
@@ -131,7 +177,7 @@ export const updateLiveKitAgent = async (
   >
 ) => {
   try {
-    const updated = await (prismaClient as any).liveKitAgent.update({
+    const updated = await prismaClient.liveKitAgent.update({
       where: { id },
       data: {
         firstMessage: data.firstMessage,
@@ -142,8 +188,10 @@ export const updateLiveKitAgent = async (
         llmModel: data.llmModel,
         llmProvider: data.llmProvider,
       },
+      select: LIVEKIT_AGENT_SELECT,
     });
 
+    revalidateTag('livekit-agents');
     return {
       success: true,
       status: 200,
@@ -161,9 +209,10 @@ export const updateLiveKitAgent = async (
 
 export const deleteLiveKitAgent = async (id: string) => {
   try {
-    await (prismaClient as any).liveKitAgent.delete({
+    await prismaClient.liveKitAgent.delete({
       where: { id },
     });
+    revalidateTag('livekit-agents');
     return { success: true, status: 200 };
   } catch (error) {
     console.error('Error deleting LiveKit agent config', error);

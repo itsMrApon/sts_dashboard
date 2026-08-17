@@ -1,0 +1,42 @@
+# Dependencies & build
+node_modules
+npm-debug.log*
+yarn-error.log*
+.pnpm-store
+
+# Next.js
+.next
+out
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Git / IDE
+.git
+.gitignore
+.cursor
+.vscode
+.idea
+
+# Tests / docs noise
+coverage
+*.md
+!README.md
+
+# Local / OS
+.DS_Store
+*.pem
+*.log
+tmp
+temp
+
+# Agents / local tooling
+agents/python/**/__pycache__
+agents/python/**/.venv
+n8n
+
+# Misc
+*.tsbuildinfo
+next-env.d.ts

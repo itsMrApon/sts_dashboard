@@ -11,7 +11,7 @@ import {
 import Image from 'next/image'
 import UserInfoCard from '@/components/ReusableComponent/UserInfoCard'
 import { potentialCustomer } from '@/lib/data'
-import { getHomePreviewData } from '@/actions/business'
+import { getHomePreviewData } from '@/actions/publishProfiles'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
 
 const Pages = async () => {

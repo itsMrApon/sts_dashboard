@@ -60,14 +60,13 @@ const CHAT_CARD_FRAME =
 /** One toast line for mic / getUserMedia / LiveKit track permission issues (avoid raw DOMException text). */
 const MIC_ACCESS_TOAST =
   'Microphone access was blocked or unavailable. Allow access in your browser and try again.'
-const GEMINI_QUOTA_TOAST =
-  'AI voice is temporarily unavailable due to Gemini quota/billing. Please try again shortly.'
 const VOICE_AGENT_UNAVAILABLE_TOAST =
   'Voice agent is temporarily unavailable. Please try again in a moment.'
 
 /** Cap wait for previous `session.end()` so a stuck promise cannot block the next call forever. */
 const VOICE_TEARDOWN_MAX_MS = 12_000
-const VOICE_AGENT_WATCHDOG_MS = 18_000
+/** Agent join + first reply can exceed 18s when VAD/config are cold. */
+const VOICE_AGENT_WATCHDOG_MS = 45_000
 
 function isLikelyMediaPermissionFailure(error: unknown): boolean {
   if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
@@ -380,7 +379,11 @@ function VoiceSession({
     [liveKitRoomName, participantName],
   )
 
-  const session = useSession(tokenSource, { roomName: liveKitRoomName })
+  const session = useSession(tokenSource, {
+    roomName: liveKitRoomName,
+    // Cold job process + SaaS agent-config can exceed the library default (20s).
+    agentConnectTimeoutMilliseconds: 45_000,
+  })
   const agent = useAgent(session)
   const sessionRef = useRef(session)
   sessionRef.current = session
@@ -660,7 +663,7 @@ export const ChatClient = ({
       if (!voiceActive) return
       if (voicePhaseRef.current === 'listening' || voicePhaseRef.current === 'talking') return
       voiceQuotaToastShownForKeyRef.current = voiceStartKey
-      toast.error(GEMINI_QUOTA_TOAST)
+      toast.error(VOICE_AGENT_UNAVAILABLE_TOAST)
     }, VOICE_AGENT_WATCHDOG_MS)
 
     return () => {
@@ -923,7 +926,7 @@ export const ChatClient = ({
                         Call {businessName}
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        Numbers and apps from business profile
+                        Numbers and apps from publish profile
                       </p>
                     </div>
                   </div>

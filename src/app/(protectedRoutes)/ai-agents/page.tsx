@@ -1,29 +1,45 @@
-import React from 'react'
+import React, { Suspense } from 'react'
 import { getAllAssistants } from '@/actions/vapi'
 import { getLiveKitAgents } from '@/actions/livekitAgent'
+import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import AiAgentSidebar from './_components/AiAgentSidebar'
 import ModelSelection from './_components/ModelSelection'
+import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
 
-type Props = {}
+async function AiAgentSidebarLoader({
+  livekitAgents,
+}: {
+  livekitAgents: LiveKitUiAgentConfig[]
+}) {
+  const allAgents = await getAllAssistants()
+  return (
+    <AiAgentSidebar
+      aiAgents={allAgents?.data || []}
+      livekitAgents={livekitAgents}
+    />
+  )
+}
 
-const page = async (props: Props) => {
-  const [allAgents, livekitResult] = await Promise.all([
-    getAllAssistants(),
-    getLiveKitAgents(),
-  ])
-
-  const livekitAgents = livekitResult?.success ? (livekitResult.data || []) : []
+const page = async () => {
+  // LiveKit is DB-backed (cached). Stream shell with LiveKit first; Vapi fills via Suspense.
+  const livekitResult = await getLiveKitAgents()
+  const livekitAgents = livekitResult?.success ? livekitResult.data || [] : []
 
   return (
-    <div className="w-full flex h-[calc(100dvh-8rem)] min-h-[520px] text-primary border border-border rounded-se-xl">
-      <AiAgentSidebar
-        aiAgents={allAgents?.data || []}
-        livekitAgents={livekitAgents}
-      />
-      <div className="flex-1 flex flex-col min-w-0">
-        <ModelSelection />
+    <PageViewport>
+      <div className="flex h-full min-h-0 w-full overflow-hidden rounded-se-xl border border-border text-primary">
+        <Suspense
+          fallback={
+            <AiAgentSidebar aiAgents={[]} livekitAgents={livekitAgents} />
+          }
+        >
+          <AiAgentSidebarLoader livekitAgents={livekitAgents} />
+        </Suspense>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ModelSelection />
+        </div>
       </div>
-    </div>
+    </PageViewport>
   )
 }
 

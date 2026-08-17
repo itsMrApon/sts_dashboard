@@ -7,15 +7,15 @@ type Props = {}
 
 const ModelSelection = (props: Props) => {
   return (
-    <div className="p-4 sm:p-8 flex-1 min-h-0 flex flex-col">
-      <div className="flex items-center gap-2 mb-4 shrink-0">
-        <span className="h-5 w-5 rounded-full flex items-center justify-center text-xs">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-8">
+      <div className="mb-4 flex shrink-0 items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full text-xs">
           <Settings />
         </span>
-        <span className="uppercase text-sm font-medium">MODEL</span>
+        <span className="text-sm font-medium uppercase">MODEL</span>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
         <ModelConfiguration />
       </ScrollArea>
     </div>

@@ -1,69 +1,36 @@
 import { NextResponse } from 'next/server'
-import { Platform } from '@prisma/client'
 import nodemailer from 'nodemailer'
 import { prismaClient } from '@/lib/prismaClient'
+import { EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
+import {
+  clientIp,
+  embedOptions,
+  guardEmbedRequest,
+  jsonWithCors,
+} from '@/lib/embed/embedRouteGuard'
+import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId'
 
-type StoredMessage = {
-  role: 'user' | 'assistant' | 'error'
-  content: string
-  timestamp?: string
-}
-
-const MOBILE_SMTP_LABEL = 'MOBILE_SMTP_CALLBACK'
-
-const CANDIDATE_PLATFORMS: Platform[] = [
-  Platform.SLACK,
-  Platform.FACEBOOK_MESSENGER,
-  Platform.INSTAGRAM,
-  Platform.TIKTOK,
-  Platform.WHATSAPP,
-  Platform.DISCORD,
-  Platform.TELEGRAM,
-  Platform.YOUTUBE,
-]
-
-function getSmtpConfig() {
+function getSmtpTransport() {
   const host = process.env.SMTP_HOST
   const port = Number(process.env.SMTP_PORT || 587)
   const user = process.env.SMTP_USER
   const pass = process.env.SMTP_PASS
   const from = process.env.SMTP_FROM || user
-  const to = process.env.SMTP_TO
   const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true'
 
-  if (!host || !user || !pass || !from || !to || Number.isNaN(port)) {
+  if (!host || !user || !pass || !from || Number.isNaN(port)) {
     return null
   }
 
-  return { host, port, user, pass, from, to, secure }
+  return { host, port, user, pass, from, secure }
 }
 
-async function getOrCreateMobileChannel(roomName: string) {
-  const existing = await prismaClient.messageChannel.findFirst({
-    where: {
-      roomName,
-      accountLabel: MOBILE_SMTP_LABEL,
-    },
-  })
-  if (existing) return existing
-
-  const channels = await prismaClient.messageChannel.findMany({
-    where: { roomName },
-    select: { platform: true },
-  })
-  const used = new Set(channels.map((c) => c.platform))
-  const free = CANDIDATE_PLATFORMS.find((p) => !used.has(p))
-
-  if (!free) return null
-
-  return prismaClient.messageChannel.create({
-    data: {
-      roomName,
-      platform: free,
-      status: 'ACTIVE',
-      accountLabel: MOBILE_SMTP_LABEL,
-    },
-  })
+export async function OPTIONS(
+  req: Request,
+  { params }: { params: Promise<{ roomName: string }> },
+) {
+  const { roomName } = await params
+  return embedOptions(req, roomName)
 }
 
 export async function POST(
@@ -72,6 +39,14 @@ export async function POST(
 ) {
   try {
     const { roomName } = await params
+
+    const guard = await guardEmbedRequest(req, roomName, {
+      key: `embed:mobile:${roomName}:${clientIp(req)}`,
+      limit: EMBED_RATE_LIMITS.mobile.limit,
+      windowMs: EMBED_RATE_LIMITS.mobile.windowMs,
+    })
+    if (!guard.ok) return guard.response
+
     const body = (await req.json()) as {
       name?: string
       countryCode?: string
@@ -87,87 +62,56 @@ export async function POST(
     const consent = Boolean(body.consent)
 
     if (!phone || !consent) {
-      return NextResponse.json(
+      return jsonWithCors(
         { ok: false, error: 'Phone and consent are required.' },
+        guard.corsHeaders,
         { status: 400 },
       )
     }
 
     const agent = await prismaClient.liveKitAgent.findUnique({
       where: { roomName },
-      select: { name: true },
+      select: { id: true, name: true },
     })
 
     if (!agent) {
-      return NextResponse.json(
+      return jsonWithCors(
         { ok: false, error: 'Room not found.' },
+        guard.corsHeaders,
         { status: 404 },
       )
     }
 
-    const channel = await getOrCreateMobileChannel(roomName)
-    if (!channel) {
-      return NextResponse.json(
-        { ok: false, error: 'No available channel slot for mobile callback.' },
+    const smtp = getSmtpTransport()
+    if (!smtp) {
+      return jsonWithCors(
+        {
+          ok: false,
+          error: 'Email delivery is not configured. Set SMTP_HOST/PORT/USER/PASS/FROM.',
+        },
+        guard.corsHeaders,
+        { status: 503 },
+      )
+    }
+
+    const ownerUserId = await resolveRoomOwnerUserId(agent.id, roomName)
+    const owner = ownerUserId
+      ? await prismaClient.user.findUnique({
+          where: { id: ownerUserId },
+          select: { email: true },
+        })
+      : null
+
+    const to = owner?.email?.trim()
+    if (!to) {
+      return jsonWithCors(
+        { ok: false, error: 'This room has no creator email to notify.' },
+        guard.corsHeaders,
         { status: 500 },
       )
     }
 
-    const externalId = `mobile:${countryCode}${phone}`
-    const existing = await prismaClient.messageConversation.findUnique({
-      where: {
-        channelId_externalId: {
-          channelId: channel.id,
-          externalId,
-        },
-      },
-      select: { messages: true },
-    })
-
-    const history: StoredMessage[] = Array.isArray(existing?.messages)
-      ? (existing.messages as StoredMessage[])
-      : []
-
     const now = new Date().toISOString()
-    const userLine = `Callback request from ${name || 'Anonymous'} (${countryCode} ${phone})${
-      note ? `\nNote: ${note}` : ''
-    }`
-
-    const updated: StoredMessage[] = [
-      ...history,
-      { role: 'user', content: userLine, timestamp: now },
-      {
-        role: 'assistant',
-        content: 'Callback request captured and forwarded to team.',
-        timestamp: now,
-      },
-    ].slice(-100)
-
-    await prismaClient.messageConversation.upsert({
-      where: {
-        channelId_externalId: {
-          channelId: channel.id,
-          externalId,
-        },
-      },
-      create: {
-        channelId: channel.id,
-        externalId,
-        platform: channel.platform,
-        messages: updated,
-      },
-      update: { messages: updated },
-    })
-
-    const smtp = getSmtpConfig()
-    if (!smtp) {
-      return NextResponse.json({
-        ok: true,
-        warning:
-          'Callback saved to conversations, but SMTP is not configured. Set SMTP_HOST/PORT/USER/PASS/FROM/TO.',
-      })
-    }
-
     const transporter = nodemailer.createTransport({
       host: smtp.host,
       port: smtp.port,
@@ -180,8 +124,8 @@ export async function POST(
 
     await transporter.sendMail({
       from: smtp.from,
-      to: smtp.to,
-      subject: `Mobile callback request · ${agent.name} (${roomName})`,
+      to,
+      subject: `Callback request · ${agent.name} (${roomName})`,
       text: [
         `Room: ${roomName}`,
         `Agent: ${agent.name}`,
@@ -193,7 +137,7 @@ export async function POST(
       ].join('\n'),
     })
 
-    return NextResponse.json({ ok: true })
+    return jsonWithCors({ ok: true }, guard.corsHeaders)
   } catch (error) {
     console.error('[mobile-callback]', error)
     return NextResponse.json(
@@ -202,4 +146,3 @@ export async function POST(
     )
   }
 }
-

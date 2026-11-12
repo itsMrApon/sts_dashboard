@@ -200,8 +200,9 @@ const LiveProjectView = ({
           </button>
         </div>
       </div>
-      <div className="flex flex-1 p-2 gap-2 overflow-hidden">
-        <div className="flex-1 rounded-lg overflow-hidden border border-border flex flex-col bg-card">
+      {/* Phones: video on top, chat below. md+: side by side. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 md:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
           <div className="flex-1 relative overflow-hidden">
             {hostParticipant ? (
               <div className={`w-full h-full`}>
@@ -228,7 +229,7 @@ const LiveProjectView = ({
               </div>
             )}
           </div>
-          <div className="p-2 border-t border-border flex items-center justify-between py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-2">
             <div className="flex items-center space-x-2">
               <div className="text-sm font-medium capitalize">
                 {project?.title}
@@ -237,7 +238,7 @@ const LiveProjectView = ({
 
             {isHost 
               && (
-              <div className="flex items-center space-x-1">
+              <div className="flex flex-wrap items-center gap-1">
                 <Button 
                   onClick={() => setObsDialogBox (true)}
                   variant="outline"
@@ -278,7 +279,7 @@ const LiveProjectView = ({
         {showChat && (
           <Chat client={chatClient}>
             <Channel channel={channel}>
-              <div className="w-72 bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+              <div className="flex h-[42%] w-full shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card md:h-auto md:w-72">
                 <div className="py-2 text-primary px-3 border-b border-border font-medium flex items-center justify-between">
                   <span>Chat</span>
                   <span className="text-xs bg-muted px-2 py-0.5 rounded-full">

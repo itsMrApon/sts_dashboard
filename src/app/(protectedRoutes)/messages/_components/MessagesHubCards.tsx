@@ -17,7 +17,8 @@ type Props = {
 export function MessagesHubCards({ status }: Props) {
   return (
     <div
-      className="-mx-4 flex h-[calc(100dvh-14rem)] min-h-[22rem] snap-x snap-mandatory gap-9 overflow-x-auto scroll-smooth px-7 pb-5 pt-4 [scrollbar-width:thin]"
+      // Phones: a vertical list of compact cards. sm+: the full-height sideways carousel.
+      className="grid grid-cols-1 gap-8 px-3 pb-5 pt-4 sm:-mx-4 sm:flex sm:h-[calc(100dvh-14rem)] sm:min-h-[22rem] sm:snap-x sm:snap-mandatory sm:gap-9 sm:overflow-x-auto sm:scroll-smooth sm:px-7 [scrollbar-width:thin]"
       aria-label="Services"
     >
       <HubCard href="/messages/chat" title="Chat AI" description="Text chat in your own chat box." status={status.chat} icon={<MessageSquare className="h-10 w-10" aria-hidden />}>
@@ -73,7 +74,7 @@ function HubCard({
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
       aria-label={`${title}: ${description} (${status.label})`}
-      className="group/canvas-card relative flex h-full w-[78%] shrink-0 snap-start items-center justify-center border border-black/[0.2] p-4 dark:border-white/[0.2] sm:w-[16rem] xl:w-auto xl:min-w-[13rem] xl:flex-1"
+      className="group/canvas-card relative flex h-40 w-full shrink-0 snap-start items-center justify-center border border-black/[0.2] p-4 dark:border-white/[0.2] sm:h-full sm:w-[16rem] xl:w-auto xl:min-w-[13rem] xl:flex-1"
     >
       <CornerIcon className="absolute -left-3 -top-3 h-6 w-6 text-black dark:text-white" />
       <CornerIcon className="absolute -bottom-3 -left-3 h-6 w-6 text-black dark:text-white" />

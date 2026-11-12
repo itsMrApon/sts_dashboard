@@ -31,7 +31,8 @@ const page = async () => {
 
   return (
     <PageViewport>
-      <div className="flex h-full min-h-0 w-full overflow-hidden rounded-se-xl border border-border text-primary">
+      {/* Phones: agent list on top (capped height), editor below. md+: side by side. */}
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-se-xl border border-border text-primary md:flex-row">
         <Suspense
           fallback={
             <AiAgentSidebar aiAgents={[]} livekitAgents={livekitAgents} />

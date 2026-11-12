@@ -29,10 +29,11 @@ const PageHeader = ({
   const showSearchRow = !hideSearch || Boolean(children)
 
   return (
-    <div className="flex w-full shrink-0 flex-col gap-8">
-      <div className="w-full flex justify-center sm:justify-between items-center gap-8 flex-wrap">
-        <p className="text-primary text-4xl font-semibold">{heading}</p>
-        <div className="relative md:mr-28">
+    <div className="flex w-full shrink-0 flex-col gap-5 sm:gap-8">
+      <div className="w-full flex justify-start sm:justify-between items-center gap-8 flex-wrap">
+        <p className="text-primary text-2xl sm:text-4xl font-semibold break-words">{heading}</p>
+        {/* Decorative icon cluster: hidden on phones, where vertical space matters more. */}
+        <div className="relative hidden sm:block md:mr-28">
           <PurpleIcon className="absolute -left-4 -top-3 -z-10 -rotate-45 py-3">{leftIcon}
           </PurpleIcon>
           <PurpleIcon className="z-10 backdrop-blue">{mainIcon}

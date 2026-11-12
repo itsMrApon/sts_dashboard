@@ -917,7 +917,7 @@ export const ChatClient = ({
                 </div>
               </div>
 
-              {/* Call Humen: overlay only — does not resize or move the orb stack */}
+              {/* Call Human: overlay only — does not resize or move the orb stack */}
               {!voiceActive && callHumenOpen && (
                 <div
                   className="absolute inset-0 z-10 flex flex-col gap-3 rounded-[24px] border-0 bg-background p-4 shadow-none"
@@ -1154,14 +1154,14 @@ export const ChatClient = ({
                       title={
                         callHumenOpen
                           ? 'Hide numbers & social apps'
-                          : 'Call Humen — show numbers, dial, and social apps'
+                          : 'Call Human — show numbers, dial, and social apps'
                       }
                       aria-pressed={callHumenOpen}
                       onClick={() => setCallHumenOpen((o) => !o)}
                     >
                       <Users className="h-5 w-5" />
                     </Button>
-                    <span className="text-sm text-muted-foreground">Call Humen</span>
+                    <span className="text-sm text-muted-foreground">Call Human</span>
                   </div>
                 </>
               )}

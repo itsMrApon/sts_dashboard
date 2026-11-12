@@ -131,7 +131,7 @@ export default function ProductExperience({
       <div className="flex-1 flex flex-col p-4 min-h-0 overflow-hidden">
         <div
           className={`flex-1 grid gap-4 min-h-[280px] overflow-hidden ${
-            showChat ? 'grid-cols-[minmax(0,1fr)_18rem]' : 'grid-cols-[minmax(0,1fr)]'
+            showChat ? 'grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_18rem] md:grid-rows-1' : 'grid-cols-[minmax(0,1fr)]'
           }`}
         >
           {/* Left: AI / voice experience */}

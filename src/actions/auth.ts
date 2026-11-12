@@ -53,7 +53,12 @@ const resolveAuthenticatedUser = cache(async (): Promise<AuthUserResult> => {
         data: {
           clerkId,
           email: clerkUser.emailAddresses[0].emailAddress,
-          name: clerkUser.firstName + " " + clerkUser.lastName,
+          // Skip missing parts so a user without a last name isn't saved as "Name null".
+          name:
+            [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') ||
+            clerkUser.username ||
+            clerkUser.emailAddresses[0]?.emailAddress.split('@')[0] ||
+            'Creator',
           profileImage: clerkUser.imageUrl,
         },
       }),

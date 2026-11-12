@@ -129,15 +129,15 @@ type Props = {
       {/* Main layout: attendees + transcript grouped, optional chat on right */}
       <div
         className={`flex-1 min-h-0 grid gap-4 p-4 overflow-hidden ${
-          showChat ? 'grid-cols-[minmax(0,2fr)_18rem]' : 'grid-cols-[minmax(0,2fr)]'
+          showChat ? 'grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] md:grid-cols-[minmax(0,2fr)_18rem] md:grid-rows-1' : 'grid-cols-[minmax(0,2fr)]'
         }`}
       >
-        {/* Grouped card: attendees (left) + transcript (right) with no gap between */}
-        <div className="flex min-h-[260px] border border-border bg-card rounded-xl overflow-hidden">
+        {/* Grouped card: attendees + transcript. Phones: stacked; md+: side by side. */}
+        <div className="flex min-h-[260px] flex-col border border-border bg-card rounded-xl overflow-hidden md:flex-row">
           {/* Left: attendees list */}
           <div
-            className={`flex flex-col border-r border-border ${
-              showChat ? 'w-[80px]' : 'w-[260px]'
+            className={`flex max-h-[45%] w-full shrink-0 flex-col border-b border-border md:max-h-none md:border-b-0 md:border-r ${
+              showChat ? 'md:w-[80px]' : 'md:w-[260px]'
             }`}
           >
             <div className="p-3 border-b border-border flex items-center justify-between gap-2">
@@ -214,7 +214,7 @@ type Props = {
           </div>
 
           {/* Right: Customer AI + user transcript, seamlessly attached */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="p-3 border-b border-border flex items-center justify-between gap-2 bg-muted/60">
               <div>
                 <p className="text-sm font-semibold">Customer AI + user transcript</p>

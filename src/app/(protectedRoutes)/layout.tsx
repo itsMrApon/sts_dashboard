@@ -1,6 +1,7 @@
 import React from 'react'
 import { onAuthenticateUser } from '../../actions/auth'
 import Sidebar from '@/components/ReusableComponent/LayoutComponent/Sidebar'
+import MobileNav from '@/components/ReusableComponent/LayoutComponent/MobileNav'
 import { redirect } from 'next/navigation'
 import Header from '@/components/ReusableComponent/LayoutComponent/Header'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
@@ -36,10 +37,13 @@ const Layout = async ({ children }: Props) => {
   const rendered = (
     <div className="flex w-full min-h-screen">
       <Sidebar />
-      <div className="container mx-auto flex w-full min-h-screen flex-col overflow-x-hidden px-4 scrollbar-hide">
-        <Header user={userExists.user} businessName={business.name} />
-        <div className="flex-1 py-10">{children}</div>
+      {/* min-w-0: lets wide children shrink instead of pushing the page sideways on phones. */}
+      <div className="container mx-auto flex w-full min-w-0 min-h-screen flex-col overflow-x-hidden px-4 scrollbar-hide">
+        <Header user={userExists.user} />
+        {/* pb-24 on phones keeps the last content above the bottom tab bar. */}
+        <div className="flex-1 pt-6 pb-24 md:py-10">{children}</div>
       </div>
+      <MobileNav />
     </div>
   )
   timer.end()

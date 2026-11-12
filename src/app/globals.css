@@ -122,20 +122,28 @@
   body {
     @apply bg-background text-foreground;
   }
+  /*
+   * A grid with no column template gets one *shrinkable* column. The browser default (one `auto`
+   * track) grows to its widest content, which pushed cards past the screen edge on phones.
+   * Any grid-cols-* utility (sm:/md:/lg: included) is in a later layer and still wins.
+   */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @layer utilities {
-  • text-balance {
+  .text-balance {
     text-wrap: balance;
   }
   
     /* Hide scrollbar for Chrome, Safari and Opera */
-    • scrollbar-hide::-webkit-scrollbar {
+    .scrollbar-hide::-webkit-scrollbar {
       display: none;
     }
 
     /* Hide scrollbar for IE, Edge and Firefox */
-    • scrollbar-hide {
+    .scrollbar-hide {
       -ms-overflow-style: none;
       /* IE and Edge */
       scrollbar-width: none;

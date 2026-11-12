@@ -30,9 +30,12 @@ export function PageViewport({
     const el = ref.current
     if (!el) return
 
+    // Phones (< md) also reserve the bottom tab bar (MobileNav, 56px) plus a little air.
+    const phone = window.matchMedia('(max-width: 767px)')
     const syncHeight = () => {
       const top = el.getBoundingClientRect().top
-      el.style.height = `${Math.max(0, window.innerHeight - top - bottomPad)}px`
+      const pad = phone.matches ? bottomPad + 64 : bottomPad
+      el.style.height = `${Math.max(0, window.innerHeight - top - pad)}px`
     }
 
     syncHeight()

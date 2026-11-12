@@ -202,7 +202,7 @@ const ModelConfiguration = ({ engineView }: { engineView: AgentEngineView | null
       <div className="flex h-[500px] w-full items-center justify-center">
         <div className="w-full rounded-xl bg-neutral-900 p-6">
           <p className="text-center text-primary/80">
-            Select an agent on the left to edit its first message, prompt and language.
+            Select an agent to edit its first message, prompt and language.
           </p>
         </div>
       </div>

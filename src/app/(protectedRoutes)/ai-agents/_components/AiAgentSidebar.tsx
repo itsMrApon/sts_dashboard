@@ -112,7 +112,7 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-[300px] shrink-0 flex-col overflow-hidden border-r border-border">
+    <div className="flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-border md:h-full md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
       <div className="shrink-0 p-4">
         <Button
           className="w-full flex items-center gap-2 mb-2 cursor-pointer"

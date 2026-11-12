@@ -12,13 +12,7 @@ export const PUBLIC_RATE_LIMITS = {
   services: { limit: 120, windowMs: 60_000 },
 } as const
 
-export function clientIp(request: Request): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown'
-  )
-}
+export { clientIp } from '@/lib/embed/clientIp'
 
 export async function guardPublicRequest(
   request: Request,
@@ -39,7 +33,7 @@ export async function guardPublicRequest(
   }
 
   if (rateLimit) {
-    const rate = checkRateLimit(rateLimit.key, rateLimit.limit, rateLimit.windowMs)
+    const rate = await checkRateLimit(rateLimit.key, rateLimit.limit, rateLimit.windowMs)
     if (!rate.ok) {
       return {
         ok: false as const,

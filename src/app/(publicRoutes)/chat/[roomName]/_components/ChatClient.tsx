@@ -34,6 +34,10 @@ import {
   useVoiceAssistant,
 } from '@livekit/components-react'
 import { fetchLiveKitConnectionDetails } from '@/lib/livekit/livekitClient'
+import {
+  fetchWithFirstPartySession,
+  getFirstPartySessionToken,
+} from '@/lib/embed/firstPartySessionClient'
 import { SORTED_ISO2, countryLabel, dialForIso2 } from '@/lib/phoneCountryCodes'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -373,10 +377,11 @@ function VoiceSession({
           roomName: liveKitRoomName,
           participantName,
           assistantId: 'saas-agent',
+          sessionToken: await getFirstPartySessionToken(roomName),
         })
         return details
       }),
-    [liveKitRoomName, participantName],
+    [liveKitRoomName, participantName, roomName],
   )
 
   const session = useSession(tokenSource, {
@@ -583,7 +588,7 @@ export const ChatClient = ({
       setStatus('thinking')
 
       try {
-        const res = await fetch(`/api/chat/${encodeURIComponent(roomName)}`, {
+        const res = await fetchWithFirstPartySession(roomName, `/api/chat/${encodeURIComponent(roomName)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, sessionId }),
@@ -739,7 +744,7 @@ export const ChatClient = ({
     setMobileSaved(false)
 
     try {
-      const res = await fetch(`/api/chat/${encodeURIComponent(roomName)}/mobile-callback`, {
+      const res = await fetchWithFirstPartySession(roomName, `/api/chat/${encodeURIComponent(roomName)}/mobile-callback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

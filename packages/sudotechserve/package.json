@@ -1,6 +1,6 @@
 {
   "name": "@sts-ai/sudotechserve",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Embed STS-AI business room (chat, voice, callback) on creator Next.js sites",
   "license": "MIT",
   "type": "module",

@@ -1,5 +1,8 @@
 # @sts-ai/sudotechserve
 
+> **Deprecated** — use [`@sts-ai/sdk`](../sdk/README.md): one headless SDK for Chat AI, Speak AI, Form, Wizard and business details.
+
+
 Embed your STS-AI business room on a creator Next.js website.
 
 ## Install

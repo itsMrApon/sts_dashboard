@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react'
 
+export type EmbedSession = {
+  token: string
+  /** Epoch ms. */
+  expiresAt: number
+}
+
 export type EmbedBootstrap = {
+  session?: EmbedSession
   roomName: string
   agentName: string
   businessName: string

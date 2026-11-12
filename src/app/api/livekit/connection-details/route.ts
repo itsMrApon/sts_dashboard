@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getLiveKitConnectionDetails } from '@/lib/livekit/livekitVoiceAgent';
-import { EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit';
-import { embedCorsHeadersForRoom, embedOptionsForRoom } from '@/lib/embed/cors';
-import {
-  clientIp,
-  guardEmbedRequest,
-  jsonWithCors,
-} from '@/lib/embed/embedRouteGuard';
+import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit';
+import { embedOptionsForRoom } from '@/lib/embed/cors';
+import { guardEmbedRequest, jsonWithCors } from '@/lib/embed/embedRouteGuard';
 
 export const revalidate = 0;
 
+const MAX_ROOM_NAME_LENGTH = 255;
+
+/** LiveKit rooms are `<agentRoom>` or `<agentRoom>-v<n>` (fresh room per call). */
 function resolveEmbedRoomName(liveKitRoomName: string): string {
   const match = liveKitRoomName.match(/^(.+)-v\d+$/);
   return match ? match[1] : liveKitRoomName;
+}
+
+function optionalString(value: unknown, maxLength: number): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, maxLength) : undefined;
 }
 
 export async function OPTIONS(req: Request) {
@@ -27,45 +30,32 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const liveKitRoomName = typeof body.roomName === 'string' ? body.roomName : '';
-    const embedRoomName = liveKitRoomName ? resolveEmbedRoomName(liveKitRoomName) : '';
+    const liveKitRoomName = optionalString(body.roomName, MAX_ROOM_NAME_LENGTH);
+    if (!liveKitRoomName) {
+      // Never mint LiveKit tokens for arbitrary/random rooms.
+      return NextResponse.json({ error: 'roomName is required', code: 'ROOM_REQUIRED' }, { status: 400 });
+    }
 
-    const guard = embedRoomName
-      ? await guardEmbedRequest(req, embedRoomName, {
-          key: `embed:voice:${embedRoomName}:${clientIp(req)}`,
-          limit: EMBED_RATE_LIMITS.voice.limit,
-          windowMs: EMBED_RATE_LIMITS.voice.windowMs,
-        })
-      : null;
-
-    if (guard && !guard.ok) return guard.response;
+    const guard = await guardEmbedRequest(req, resolveEmbedRoomName(liveKitRoomName), {
+      scope: 'voice',
+      perSession: EMBED_RATE_LIMITS.voice,
+      perIp: EMBED_RATE_LIMITS.voiceIp,
+      dailyQuota: EMBED_DAILY_QUOTAS.voice,
+    });
+    if (!guard.ok) return guard.response;
 
     const data = await getLiveKitConnectionDetails({
-      roomName: body.roomName,
-      participantName: body.participantName,
-      participantIdentity: body.participantIdentity,
-      assistantId: body.assistantId,
+      roomName: liveKitRoomName,
+      participantName: optionalString(body.participantName, 100),
+      participantIdentity: optionalString(body.participantIdentity, 100),
+      assistantId: optionalString(body.assistantId, 64),
     });
 
-    if (guard?.ok) {
-      return jsonWithCors(data, guard.corsHeaders, {
-        headers: { 'Cache-Control': 'no-store' },
-      });
-    }
-
-    if (embedRoomName) {
-      const corsHeaders = await embedCorsHeadersForRoom(req, embedRoomName);
-      return jsonWithCors(data, corsHeaders, {
-        headers: { 'Cache-Control': 'no-store' },
-      });
-    }
-
-    return NextResponse.json(data, {
+    return jsonWithCors(data, guard.corsHeaders, {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
     console.error('[LiveKit connection-details]', error);
-    const message = error instanceof Error ? error.message : 'Failed to get connection details';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to get connection details' }, { status: 500 });
   }
 }

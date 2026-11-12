@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react'
 import { getAllAssistants } from '@/actions/vapi'
 import { getLiveKitAgents } from '@/actions/livekitAgent'
+import { getAgentEngineSettings } from '@/actions/agentEngine'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import AiAgentSidebar from './_components/AiAgentSidebar'
 import ModelSelection from './_components/ModelSelection'
@@ -22,8 +23,11 @@ async function AiAgentSidebarLoader({
 
 const page = async () => {
   // LiveKit is DB-backed (cached). Stream shell with LiveKit first; Vapi fills via Suspense.
-  const livekitResult = await getLiveKitAgents()
+  const [livekitResult, engineResult] = await Promise.all([getLiveKitAgents(), getAgentEngineSettings()])
   const livekitAgents = livekitResult?.success ? livekitResult.data || [] : []
+  const engineView = engineResult.ok
+    ? { engine: engineResult.engine, source: engineResult.source, voiceLabel: engineResult.voiceLabel }
+    : null
 
   return (
     <PageViewport>
@@ -36,7 +40,7 @@ const page = async () => {
           <AiAgentSidebarLoader livekitAgents={livekitAgents} />
         </Suspense>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <ModelSelection />
+          <ModelSelection engineView={engineView} />
         </div>
       </div>
     </PageViewport>

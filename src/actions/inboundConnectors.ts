@@ -102,8 +102,8 @@ export async function createPartnerConnector(input: InboundConnectorInput) {
       },
     })
 
-    revalidatePath('/tenants/partners')
-    revalidatePath('/tenants')
+    revalidatePath('/integrations/partners')
+    revalidatePath('/integrations')
     revalidateTag('partner-connectors')
     return { success: true as const, connector }
   } catch (error) {
@@ -124,8 +124,8 @@ export async function deletePartnerConnector(connectorId: string) {
   })
   if (deleted.count === 0) return { success: false as const, error: 'Connector not found' }
 
-  revalidatePath('/tenants/partners')
-  revalidatePath('/tenants')
+  revalidatePath('/integrations/partners')
+  revalidatePath('/integrations')
   revalidateTag('partner-connectors')
   return { success: true as const }
 }
@@ -143,8 +143,8 @@ export async function togglePartnerConnector(connectorId: string, enabled: boole
   })
   if (updated.count === 0) return { success: false as const, error: 'Connector not found' }
 
-  revalidatePath('/tenants/partners')
-  revalidatePath('/tenants')
+  revalidatePath('/integrations/partners')
+  revalidatePath('/integrations')
   revalidateTag('partner-connectors')
   return { success: true as const }
 }

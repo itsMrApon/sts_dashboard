@@ -1,5 +1,8 @@
 # @sts-ai/site-sdk
 
+> **Deprecated** — use [`@sts-ai/sdk`](../sdk/README.md): one headless SDK for Chat AI, Speak AI, Form, Wizard and business details.
+
+
 Fetch published STS-AI workspace profile and services for creator websites.
 
 ```ts

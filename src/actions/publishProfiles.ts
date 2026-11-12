@@ -133,9 +133,9 @@ export async function createPublishProfileQuick(data: {
     })
 
     revalidatePath('/messages')
-    revalidatePath('/tenants')
-    revalidatePath('/tenants/publish')
-    revalidatePath('/tenants/publish')
+    revalidatePath('/integrations')
+    revalidatePath('/messages/publish')
+    revalidatePath('/messages/publish')
     return { ok: true, data: { id: business.id } }
   } catch (error) {
     console.error('createPublishProfileQuick error', error)
@@ -679,9 +679,9 @@ export async function deletePublishProfile(publishProfileId: string): Promise<Ac
     })
 
     revalidatePath('/messages')
-    revalidatePath('/tenants')
-    revalidatePath('/tenants/publish')
-    revalidatePath('/tenants/publish')
+    revalidatePath('/integrations')
+    revalidatePath('/messages/publish')
+    revalidatePath('/messages/publish')
     return { ok: true }
   } catch (error) {
     console.error('deletePublishProfile error', error)

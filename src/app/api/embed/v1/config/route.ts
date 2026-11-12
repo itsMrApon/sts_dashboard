@@ -118,8 +118,14 @@ export async function PUT(request: NextRequest) {
   const gate = await requireRoomOwner(roomName)
   if ('error' in gate) return gate.error
 
-  const allowedOrigins = normalizeOrigins(body.allowedOrigins ?? [])
+  const allowedOrigins = normalizeOrigins(Array.isArray(body.allowedOrigins) ? body.allowedOrigins : [])
   const enabled = body.enabled !== false
+  if (enabled && allowedOrigins.length === 0) {
+    return NextResponse.json(
+      { error: 'Add at least one allowed website URL (e.g. https://your-site.com).' },
+      { status: 400 },
+    )
+  }
 
   const existing = await prismaClient.roomEmbedConfig.findUnique({
     where: { roomName },

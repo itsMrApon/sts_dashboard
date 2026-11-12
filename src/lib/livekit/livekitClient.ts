@@ -9,6 +9,8 @@ export type LiveKitConnectionOptions = {
   assistantId?: string;
   roomName?: string;
   participantName?: string;
+  /** Embed/first-party session token (`X-Sts-Session`). Required by the endpoint. */
+  sessionToken?: string;
 };
 
 export async function fetchLiveKitConnectionDetails(
@@ -19,7 +21,10 @@ export async function fetchLiveKitConnectionDetails(
 
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.sessionToken ? { 'X-Sts-Session': options.sessionToken } : {}),
+    },
     body: JSON.stringify({
       roomName: options.roomName,
       participantName: options.participantName,

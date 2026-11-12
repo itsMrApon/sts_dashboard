@@ -3,7 +3,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { revalidatePath, unstable_cache } from 'next/cache'
 import { prismaClient } from '@/lib/prismaClient'
-import { ContextStatusEnum, VideoType } from '@prisma/client'
+import { ContextStatusEnum, VideoType, type Prisma } from '@prisma/client'
 import { onAuthenticateUser } from './auth'
 import {
   buildCompactProfile,
@@ -66,8 +66,8 @@ export async function createWorkspace(data: {
     },
   })
 
-  revalidatePath('/tenants')
-  revalidatePath('/tenants/publish')
+  revalidatePath('/integrations')
+  revalidatePath('/messages/publish')
   return { success: true, workspace, tenant: workspace }
 }
 
@@ -124,8 +124,8 @@ export async function updateWorkspace(
     },
   })
 
-  revalidatePath('/tenants')
-  revalidatePath(`/tenants/${workspaceId}`)
+  revalidatePath('/integrations')
+  revalidatePath(`/integrations`)
   return { success: true, workspace, tenant: workspace }
 }
 
@@ -236,7 +236,7 @@ export async function deleteTenant(tenantId: string) {
       where: { id: tenantId, userId: user.id },
     })
 
-    revalidatePath('/tenants')
+    revalidatePath('/integrations')
     return { success: true }
   } catch (error) {
     console.error('deleteTenant error', error)
@@ -417,10 +417,10 @@ export async function saveTenantContextDraft(tenantId: string, draft: TenantCont
     where: { id: tenantId },
     data: {
       contextVertical: vertical,
-      contextCoreJson: draft.core,
+      contextCoreJson: draft.core as Prisma.InputJsonObject,
       contextIndustryJson: normalizedIndustry,
       contextSocialJson: draft.social,
-      fullProfileJson: fullProfile,
+      fullProfileJson: fullProfile as unknown as Prisma.InputJsonObject,
       contextStatus:
         result.tenant.contextStatus === ContextStatusEnum.PUBLISHED
           ? ContextStatusEnum.PUBLISHED
@@ -428,9 +428,9 @@ export async function saveTenantContextDraft(tenantId: string, draft: TenantCont
     },
   })
 
-  revalidatePath('/tenants')
-  revalidatePath(`/tenants/${tenantId}`)
-  revalidatePath('/tenants/publish')
+  revalidatePath('/integrations')
+  revalidatePath(`/integrations`)
+  revalidatePath('/messages/publish')
   revalidatePath('/messages/publish')
   revalidatePath('/messages')
   return { success: true }
@@ -477,9 +477,9 @@ export async function importServicesCatalogToTenant(
       },
     })
 
-    revalidatePath('/tenants')
-    revalidatePath(`/tenants/${tenantId}`)
-    revalidatePath('/tenants/publish')
+    revalidatePath('/integrations')
+    revalidatePath(`/integrations`)
+    revalidatePath('/messages/publish')
     revalidatePath('/messages/publish')
     revalidatePath('/messages')
 
@@ -544,9 +544,9 @@ export async function publishTenantContext(tenantId: string) {
     },
   })
 
-  revalidatePath('/tenants')
-  revalidatePath(`/tenants/${tenantId}`)
-  revalidatePath('/tenants/publish')
+  revalidatePath('/integrations')
+  revalidatePath(`/integrations`)
+  revalidatePath('/messages/publish')
   revalidatePath('/messages/publish')
   revalidatePath('/messages')
   return { success: true, contextVersion: version, compactTokenEstimate }
@@ -671,9 +671,9 @@ export async function updatePublishModules(
     await publishTenantContext(workspaceId)
   }
 
-  revalidatePath('/tenants')
-  revalidatePath(`/tenants/${workspaceId}`)
-  revalidatePath('/tenants/publish')
+  revalidatePath('/integrations')
+  revalidatePath(`/integrations`)
+  revalidatePath('/messages/publish')
   revalidatePath('/messages/publish')
   revalidatePath('/messages')
   return { success: true, modules: normalized }

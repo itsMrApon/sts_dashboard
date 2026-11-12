@@ -1,8 +1,18 @@
-import type { ChatReply, EmbedBootstrap, LiveKitConnectionDetails, StsAiClientOptions } from './types'
+import type {
+  ChatReply,
+  EmbedBootstrap,
+  EmbedSession,
+  LiveKitConnectionDetails,
+  StsAiClientOptions,
+} from './types'
 
 const SITE_KEY_HEADER = 'X-Sts-Site-Key'
 
 const bootstrapInflight = new Map<string, Promise<EmbedBootstrap>>()
+const sessionCache = new Map<string, EmbedSession>()
+const sessionInflight = new Map<string, Promise<string>>()
+const SESSION_REFRESH_MARGIN_MS = 60_000
+const SESSION_ERROR_CODES = new Set(['SESSION_REQUIRED', 'SESSION_INVALID', 'SESSION_EXPIRED'])
 
 function trimBase(url: string) {
   return url.replace(/\/$/, '')
@@ -42,7 +52,44 @@ async function fetchBootstrap(options: StsAiClientOptions): Promise<EmbedBootstr
   if (!res.ok) {
     throw new Error(data?.error || `Bootstrap failed (${res.status})`)
   }
+  if (data.session?.token) {
+    sessionCache.set(bootstrapCacheKey(options), data.session)
+  }
   return data as EmbedBootstrap
+}
+
+async function requestSession(options: StsAiClientOptions): Promise<string> {
+  const apiBase = trimBase(options.apiBase)
+  const res = await fetch(
+    `${apiBase}/api/embed/v1/rooms/${encodeURIComponent(options.roomName)}/session`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', [SITE_KEY_HEADER]: options.siteKey },
+    },
+  )
+  const data = (await res.json().catch(() => ({}))) as Partial<EmbedSession> & { error?: string }
+  if (!res.ok || !data.token || !data.expiresAt) {
+    throw new Error(data?.error || `Session request failed (${res.status})`)
+  }
+  sessionCache.set(bootstrapCacheKey(options), { token: data.token, expiresAt: data.expiresAt })
+  return data.token
+}
+
+/** Short-lived session token; reuses the bootstrap session and refreshes before expiry. */
+async function getSessionToken(options: StsAiClientOptions, forceRefresh = false): Promise<string> {
+  const key = bootstrapCacheKey(options)
+  if (!forceRefresh) {
+    await getOrCreateBootstrapPromise(options).catch(() => undefined)
+    const cached = sessionCache.get(key)
+    if (cached && cached.expiresAt - SESSION_REFRESH_MARGIN_MS > Date.now()) return cached.token
+  }
+
+  let pending = sessionInflight.get(key)
+  if (!pending) {
+    pending = requestSession(options).finally(() => sessionInflight.delete(key))
+    sessionInflight.set(key, pending)
+  }
+  return pending
 }
 
 function getOrCreateBootstrapPromise(options: StsAiClientOptions): Promise<EmbedBootstrap> {
@@ -65,19 +112,27 @@ export function createStsAiClient(options: StsAiClientOptions) {
   const apiBase = trimBase(options.apiBase)
   const roomEncoded = encodeURIComponent(options.roomName)
 
-  const headers = (): HeadersInit => ({
-    'Content-Type': 'application/json',
-    [SITE_KEY_HEADER]: options.siteKey,
-  })
+  async function authedFetch(url: string, init: RequestInit): Promise<Response> {
+    const send = async (forceRefresh: boolean) => {
+      const token = await getSessionToken(options, forceRefresh)
+      return fetch(url, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', 'X-Sts-Session': token },
+      })
+    }
+    const res = await send(false)
+    if (res.status !== 401) return res
+    const body = (await res.clone().json().catch(() => null)) as { code?: string } | null
+    return body?.code && SESSION_ERROR_CODES.has(body.code) ? send(true) : res
+  }
 
   async function bootstrap(): Promise<EmbedBootstrap> {
     return getOrCreateBootstrapPromise(options)
   }
 
   async function sendChat(message: string, sessionId: string): Promise<ChatReply> {
-    const res = await fetch(`${apiBase}/api/chat/${roomEncoded}`, {
+    const res = await authedFetch(`${apiBase}/api/chat/${roomEncoded}`, {
       method: 'POST',
-      headers: headers(),
       body: JSON.stringify({ message, sessionId }),
     })
     return res.json() as Promise<ChatReply>
@@ -90,9 +145,8 @@ export function createStsAiClient(options: StsAiClientOptions) {
     note: string
     consent: boolean
   }): Promise<{ ok?: boolean; error?: string; warning?: string }> {
-    const res = await fetch(`${apiBase}/api/chat/${roomEncoded}/mobile-callback`, {
+    const res = await authedFetch(`${apiBase}/api/chat/${roomEncoded}/mobile-callback`, {
       method: 'POST',
-      headers: headers(),
       body: JSON.stringify(payload),
     })
     return res.json()
@@ -103,9 +157,8 @@ export function createStsAiClient(options: StsAiClientOptions) {
     participantName: string
     assistantId?: string
   }): Promise<LiveKitConnectionDetails> {
-    const res = await fetch(`${apiBase}/api/livekit/connection-details?roomName=${encodeURIComponent(options.roomName)}`, {
+    const res = await authedFetch(`${apiBase}/api/livekit/connection-details?roomName=${encodeURIComponent(options.roomName)}`, {
       method: 'POST',
-      headers: headers(),
       body: JSON.stringify({
         roomName: body.roomName,
         participantName: body.participantName,

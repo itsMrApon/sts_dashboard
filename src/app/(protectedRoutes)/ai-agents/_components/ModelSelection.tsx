@@ -1,11 +1,12 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Settings } from 'lucide-react'
 import React from 'react'
+import type { AgentEngineView } from '@/actions/agentEngine'
 import ModelConfiguration from './ModelConfiguration'
 
-type Props = {}
+type Props = { engineView: AgentEngineView | null }
 
-const ModelSelection = (props: Props) => {
+const ModelSelection = ({ engineView }: Props) => {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-8">
       <div className="mb-4 flex shrink-0 items-center gap-2">
@@ -16,7 +17,7 @@ const ModelSelection = (props: Props) => {
       </div>
 
       <ScrollArea className="min-h-0 flex-1 overflow-hidden">
-        <ModelConfiguration />
+        <ModelConfiguration engineView={engineView} />
       </ScrollArea>
     </div>
   )

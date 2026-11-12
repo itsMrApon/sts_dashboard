@@ -67,6 +67,8 @@ export function normalizeUsageProvider(raw: string): string {
   if (provider === 'claude') return 'anthropic'
   if (provider === 'fishaudio' || provider === 'fish_audio') return 'fish'
   if (provider === 'moonshot') return 'kimi'
+  if (provider === 'open_router') return 'openrouter'
+  if (provider === 'grok' || provider === 'x-ai') return 'xai'
   return provider.slice(0, 32) || 'google'
 }
 

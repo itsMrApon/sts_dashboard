@@ -1,144 +1,251 @@
+"""Builds the voice components for one room from its engine config.
+
+Two engine modes:
+  * pipeline: STT (hears) -> LLM (thinks) -> TTS (speaks), each provider chosen independently.
+  * realtime: one speech-to-speech model (OpenAI Realtime, Gemini Live, Grok Voice).
+
+Every provider key is read per room from tenant_env (then the worker's own .env), and passed
+explicitly to each plugin, so concurrent rooms never share or leak each other's keys.
+"""
+
+from __future__ import annotations
+
 import logging
 import os
 
 from livekit.agents import Agent
-from livekit.plugins import deepgram, google, openai, silero
+from livekit.plugins import deepgram, fishaudio, google, openai, silero, xai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from .config import RoomConfig
 
 logger = logging.getLogger(__name__)
 
-try:
-    from livekit.plugins import fishaudio
-except ImportError:  # pragma: no cover - optional until dependency installed
-    fishaudio = None  # type: ignore[assignment]
+# Process env captured at import, before anything can mutate os.environ.
+_BASE_ENV = dict(os.environ)
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+KEY_NAMES: dict[str, tuple[str, ...]] = {
+    "google": ("GOOGLE_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "openrouter": ("OPENROUTER_API_KEY",),
+    "deepseek": ("DEEPSEEK_API_KEY",),
+    "kimi": ("MOONSHOT_API_KEY", "KIMI_API_KEY"),
+    "xai": ("XAI_API_KEY",),
+    "deepgram": ("DEEPGRAM_API_KEY",),
+    "fish": ("FISH_API_KEY",),
+}
+
+PROVIDER_LABELS = {
+    "google": "Google Gemini",
+    "openai": "OpenAI",
+    "anthropic": "Claude",
+    "openrouter": "OpenRouter",
+    "deepseek": "DeepSeek",
+    "kimi": "Kimi",
+    "xai": "xAI Grok",
+    "deepgram": "Deepgram",
+    "fish": "Fish Audio",
+}
+
+_ALIASES = {"gemini": "google", "claude": "anthropic", "moonshot": "kimi", "grok": "xai",
+            "fishaudio": "fish", "fish_audio": "fish"}
 
 
-def _apply_tenant_env(config: RoomConfig) -> None:
+def _norm(provider: str | None, default: str) -> str:
+    value = (provider or default).strip().lower()
+    return _ALIASES.get(value, value)
+
+
+def _key(config: RoomConfig, provider: str) -> str:
+    names = KEY_NAMES[provider]
     tenant_env = getattr(config, "tenant_env", {}) or {}
-    for key, value in tenant_env.items():
-        if isinstance(value, str) and value:
-            os.environ[key] = value
+    for name in names:
+        value = tenant_env.get(name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    for name in names:
+        value = _BASE_ENV.get(name)
+        if value and value.strip():
+            return value.strip()
+    raise ValueError(
+        f"{PROVIDER_LABELS[provider]} selected but {names[0]} is missing. "
+        "Save it on AI Agents -> Config, or set it in the worker .env."
+    )
+
+
+def _is_bangla(config: RoomConfig) -> bool:
+    return (config.language or "en").lower().startswith("bn")
 
 
 class SaasAssistant(Agent):
-    def __init__(self, config: RoomConfig, pipeline_components: dict):
-        super().__init__(
-            instructions=config.instructions,
-            vad=pipeline_components["vad"],
-            stt=pipeline_components["stt"],
-            llm=pipeline_components["llm"],
-            tts=pipeline_components["tts"],
-            turn_detection=pipeline_components["turn_detection"],
-        )
-        self.name = config.room_name
+    """Instructions only; STT/LLM/TTS (or the realtime model) live on the AgentSession."""
+
+    def __init__(self, config: RoomConfig, pipeline_components: dict):  # noqa: ARG002
+        super().__init__(instructions=_instructions_for(config))
         self.config = config
 
-    async def get_tools(self, context) -> list:  # noqa: ARG002
-        """Return tools available to the LLM.
 
-        Static tools can be added here; dynamic MCP tools are handled via AgentSession.mcp_servers.
-        """
+def _instructions_for(config: RoomConfig) -> str:
+    instructions = config.instructions
+    style = (config.voice_style or "").strip()
+    # Realtime models have no separate TTS, so the speaking style rides on the instructions.
+    if style and _norm(config.engine_mode, "pipeline") == "realtime":
+        instructions = f"{instructions}\n\nSpeaking style: {style}"
+    return instructions
 
-        return []
+
+# --- Hears -----------------------------------------------------------------
 
 
-def _create_tts(config: RoomConfig):
-    voice_provider = (getattr(config, "voice_provider", None) or "deepgram").lower()
-    if voice_provider in ("fish", "fishaudio", "fish_audio"):
-        if fishaudio is None:
-            raise ValueError(
-                "Fish Audio TTS selected but livekit-plugins-fishaudio is not installed."
-            )
-        reference_id = (config.voice_model or "").strip()
-        tts_kwargs: dict = {
-            # s2.1-pro-free = $0 fair-use API tier; s1/s2.1-pro require prepaid balance (402 otherwise)
-            "model": os.getenv("FISH_TTS_MODEL", "s2.1-pro-free"),
-            "latency_mode": os.getenv("FISH_LATENCY_MODE", "balanced"),
-        }
-        if reference_id:
-            tts_kwargs["reference_id"] = reference_id
-        return fishaudio.TTS(**tts_kwargs)
-    return deepgram.TTS(model=config.voice_model)
+def _create_stt(config: RoomConfig):
+    provider = _norm(config.stt_provider, "deepgram")
+    bangla = _is_bangla(config)
+
+    if provider == "xai" and bangla:
+        logger.warning("Grok STT has no Bangla; falling back to Deepgram for this room.")
+        provider = "deepgram"
+
+    if provider == "openai":
+        return openai.STT(
+            model=config.stt_model or "gpt-4o-transcribe",
+            language="bn" if bangla else "en",
+            api_key=_key(config, "openai"),
+        )
+    if provider == "google":
+        kwargs: dict = {"language": "bn-BD" if bangla else "en-US", "api_key": _key(config, "google")}
+        if config.stt_model:
+            kwargs["model"] = config.stt_model
+        return google.beta.GeminiSTT(**kwargs)
+    if provider == "xai":
+        return xai.STT(language="en", api_key=_key(config, "xai"))
+
+    # Deepgram (default). Its model list has no Bangla; kept as-is for existing Bangla agents.
+    return deepgram.STT(
+        model=config.stt_model or ("nova-2-general" if bangla else "nova-2"),
+        language="bn" if bangla else "en",
+        api_key=_key(config, "deepgram"),
+    )
+
+
+# --- Thinks ----------------------------------------------------------------
 
 
 def _create_llm(config: RoomConfig):
-    llm_model = getattr(config, "llm_model", os.getenv("LLM_CHOICE", "gemini-2.5-flash"))
-    llm_provider = (getattr(config, "llm_provider", "google") or "google").lower()
+    model = config.llm_model or os.getenv("LLM_CHOICE", "gemini-2.5-flash")
+    provider = _norm(config.llm_provider, "google")
 
-    if llm_provider in ("google", "gemini"):
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "Google Gemini selected but GOOGLE_API_KEY is missing. "
-                "Save it in Config Agent, or ensure SAAS_API_URL is reachable so tenant keys load."
-            )
-        return google.LLM(
-            model=llm_model,
-            api_key=api_key,
-            temperature=0.7,
-        )
+    if provider == "google":
+        return google.LLM(model=model, api_key=_key(config, "google"), temperature=0.7)
+    if provider == "openai":
+        return openai.LLM(model=model, api_key=_key(config, "openai"))
+    if provider == "openrouter":
+        return openai.LLM(model=model, api_key=_key(config, "openrouter"), base_url=OPENROUTER_BASE_URL)
+    if provider == "deepseek":
+        return openai.LLM(model=model, api_key=_key(config, "deepseek"), base_url="https://api.deepseek.com")
+    if provider == "kimi":
+        return openai.LLM(model=model, api_key=_key(config, "kimi"), base_url="https://api.moonshot.ai/v1")
+    if provider == "xai":
+        return xai.responses.LLM(model=model, api_key=_key(config, "xai"))
+    if provider == "anthropic":
+        from livekit.plugins import anthropic
 
-    if llm_provider == "deepseek":
-        api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "DeepSeek selected but DEEPSEEK_API_KEY is missing in tenant credentials."
-            )
-        return openai.LLM(
-            model=llm_model,
-            api_key=api_key,
-            base_url="https://api.deepseek.com",
-        )
+        # No temperature: current Claude models reject sampling parameters.
+        return anthropic.LLM(model=model, api_key=_key(config, "anthropic"))
 
-    if llm_provider in ("kimi", "moonshot"):
-        api_key = os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "Kimi selected but MOONSHOT_API_KEY is missing in tenant credentials."
-            )
-        return openai.LLM(
-            model=llm_model,
-            api_key=api_key,
-            base_url="https://api.moonshot.ai/v1",
-        )
+    raise ValueError(f"Unsupported llm_provider: {provider}")
 
-    if llm_provider == "openai":
-        raise ValueError("OpenAI provider is not enabled yet. Select Google Gemini, DeepSeek, or Kimi.")
-    if llm_provider in ("anthropic", "claude"):
-        raise ValueError("Claude provider is not enabled yet. Select Google Gemini, DeepSeek, or Kimi.")
 
-    raise ValueError(f"Unsupported llm_provider: {llm_provider}")
+# --- Speaks ----------------------------------------------------------------
+
+
+def _create_tts(config: RoomConfig):
+    provider = _norm(config.voice_provider, "deepgram")
+    voice = (config.voice_model or "").strip()
+    style = (config.voice_style or "").strip()
+    bangla = _is_bangla(config)
+
+    if provider == "fish":
+        kwargs: dict = {
+            # s2.1-pro-free = $0 fair-use API tier; s1/s2.1-pro require prepaid balance (402 otherwise)
+            "model": os.getenv("FISH_TTS_MODEL", "s2.1-pro-free"),
+            "latency_mode": os.getenv("FISH_LATENCY_MODE", "balanced"),
+            "api_key": _key(config, "fish"),
+        }
+        if voice:
+            kwargs["voice_id"] = voice
+        return fishaudio.TTS(**kwargs)
+    if provider == "openai":
+        kwargs = {"model": "gpt-4o-mini-tts", "voice": voice or "coral", "api_key": _key(config, "openai")}
+        if style:
+            kwargs["instructions"] = style
+        return openai.TTS(**kwargs)
+    if provider == "google":
+        kwargs = {"model": "gemini-2.5-flash-tts", "voice_name": voice or "Kore", "api_key": _key(config, "google")}
+        if style:
+            kwargs["instructions"] = style
+        return google.beta.GeminiTTS(**kwargs)
+    if provider == "xai":
+        return xai.TTS(voice=voice or "ara", language="bn" if bangla else "en", api_key=_key(config, "xai"))
+
+    return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"))
+
+
+# --- Realtime ----------------------------------------------------------------
+
+
+def _create_realtime(config: RoomConfig):
+    provider = _norm(config.realtime_provider, "openai")
+    model = (config.realtime_model or "").strip()
+    voice = (config.realtime_voice or "").strip()
+
+    if provider == "openai":
+        kwargs: dict = {"api_key": _key(config, "openai")}
+        if model:
+            kwargs["model"] = model
+        if voice:
+            kwargs["voice"] = voice
+        return openai.realtime.RealtimeModel(**kwargs)
+    if provider == "google":
+        kwargs = {"api_key": _key(config, "google")}
+        if model:
+            kwargs["model"] = model
+        if voice:
+            kwargs["voice"] = voice
+        return google.realtime.RealtimeModel(**kwargs)
+    if provider == "xai":
+        kwargs = {"api_key": _key(config, "xai")}
+        if model:
+            kwargs["model"] = model
+        if voice:
+            kwargs["voice"] = voice
+        return xai.realtime.RealtimeModel(**kwargs)
+
+    raise ValueError(f"Unsupported realtime_provider: {provider}")
 
 
 def create_voice_pipeline(config: RoomConfig) -> dict:
-    """Create STT, LLM, TTS, VAD, and turn detection components based on config."""
-    _apply_tenant_env(config)
-
-    tts = _create_tts(config)
-
-    # Speech-to-Text stays Deepgram regardless of TTS provider.
-    stt_lang = "en" if config.language == "en" else "bn"
-    if config.language == "bn":
-        stt_model = "nova-2-general"  # Placeholder for Bangla model
-    else:
-        stt_model = "nova-2"
-
-    stt = deepgram.STT(
-        model=stt_model,
-        language=stt_lang,
-    )
-
-    llm = _create_llm(config)
-
+    """Build components for the room's engine mode. Realtime has no separate STT/TTS."""
     vad = silero.VAD.load()
-    turn_detection = MultilingualModel()
+
+    if _norm(config.engine_mode, "pipeline") == "realtime":
+        return {
+            "mode": "realtime",
+            "stt": None,
+            "llm": _create_realtime(config),
+            "tts": None,
+            "vad": vad,
+            # Realtime models do their own server-side turn detection.
+            "turn_detection": None,
+        }
 
     return {
-        "stt": stt,
-        "llm": llm,
-        "tts": tts,
+        "mode": "pipeline",
+        "stt": _create_stt(config),
+        "llm": _create_llm(config),
+        "tts": _create_tts(config),
         "vad": vad,
-        "turn_detection": turn_detection,
+        "turn_detection": MultilingualModel(),
     }

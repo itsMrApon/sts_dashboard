@@ -6,6 +6,7 @@ export type UsageSurface =
   | 'projects'
   | 'tenants'
   | 'voice'
+  | 'wizard'
   | 'app'
 
 export type RecordProviderUsageInput = {

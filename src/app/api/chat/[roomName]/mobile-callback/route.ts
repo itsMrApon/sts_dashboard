@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { prismaClient } from '@/lib/prismaClient'
-import { EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
+import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import {
-  clientIp,
   embedOptions,
   guardEmbedRequest,
   jsonWithCors,
@@ -41,9 +40,10 @@ export async function POST(
     const { roomName } = await params
 
     const guard = await guardEmbedRequest(req, roomName, {
-      key: `embed:mobile:${roomName}:${clientIp(req)}`,
-      limit: EMBED_RATE_LIMITS.mobile.limit,
-      windowMs: EMBED_RATE_LIMITS.mobile.windowMs,
+      scope: 'mobile',
+      perSession: EMBED_RATE_LIMITS.mobile,
+      perIp: EMBED_RATE_LIMITS.mobile,
+      dailyQuota: EMBED_DAILY_QUOTAS.mobile,
     })
     if (!guard.ok) return guard.response
 

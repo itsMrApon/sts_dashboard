@@ -4,6 +4,7 @@ import Sidebar from '@/components/ReusableComponent/LayoutComponent/Sidebar'
 import { redirect } from 'next/navigation'
 import Header from '@/components/ReusableComponent/LayoutComponent/Header'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
 
 type Props = {
   children: React.ReactNode
@@ -24,11 +25,19 @@ const Layout = async ({ children }: Props) => {
     redirect('/sign-in')
   }
 
+  // Single-business model: every creator names their business once before using the app.
+  const business = await timeAsync('route.layout.protected.business', () =>
+    getCreatorBusiness(userExists.user!.id),
+  )
+  if (!business) {
+    redirect('/onboarding')
+  }
+
   const rendered = (
     <div className="flex w-full min-h-screen">
       <Sidebar />
       <div className="container mx-auto flex w-full min-h-screen flex-col overflow-x-hidden px-4 scrollbar-hide">
-        <Header user={userExists.user} />
+        <Header user={userExists.user} businessName={business.name} />
         <div className="flex-1 py-10">{children}</div>
       </div>
     </div>

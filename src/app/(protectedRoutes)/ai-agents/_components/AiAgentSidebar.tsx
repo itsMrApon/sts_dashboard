@@ -49,8 +49,18 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
     livekitAgent,
     source,
     clearAiAssistant,
+    hasUnsavedChanges,
+    setHasUnsavedChanges,
   } = useAiAgentStore()
   const router = useRouter()
+
+  /** Switching agents resets the Model form; confirm before dropping unsaved edits. */
+  const confirmDiscardChanges = () => {
+    if (!hasUnsavedChanges) return true
+    const discard = window.confirm('You have unsaved changes in this agent. Discard them?')
+    if (discard) setHasUnsavedChanges(false)
+    return discard
+  }
 
   const filteredLivekitAgents = livekitAgents.filter((agent) =>
     agent.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
@@ -136,6 +146,8 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
             }`}
             key={`livekit-${agent.id}`}
             onClick={() => {
+              if (source === 'livekit' && livekitAgent?.id === agent.id) return
+              if (!confirmDiscardChanges()) return
               setSource('livekit')
               setLivekitAgent(agent)
             }}
@@ -170,6 +182,8 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
             }`}
             key={`vapi-${aiAssistant.id}`}
             onClick={() => {
+              if (source === 'vapi' && (assistant as VapiAssistant)?.id === aiAssistant.id) return
+              if (!confirmDiscardChanges()) return
               setSource('vapi')
               setAssistant(aiAssistant as Assistant)
             }}

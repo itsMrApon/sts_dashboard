@@ -1,497 +1,369 @@
 'use client'
 import { updateAssistant } from '@/actions/vapi'
 import { updateLiveKitAgent } from '@/actions/livekitAgent'
-import {
-  listFishVoices,
-  type FishVoiceLanguageFilter,
-  type FishVoiceOption,
-} from '@/actions/fishVoices'
+import type { AgentEngineView } from '@/actions/agentEngine'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAiAgentStore } from '@/store/useAiAgentstore'
 import type { Assistant } from '@vapi-ai/server-sdk/api'
-import { Check, ChevronsUpDown, Info, Loader2 } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  AudioLines,
+  Cpu,
+  Info,
+  Languages,
+  Loader2,
+  RotateCcw,
+} from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { DEFAULT_LLM_MODEL } from '@/lib/llm/defaultModel'
-import {
-  defaultModelForLlmProvider,
-  LLM_MODEL_GROUPS,
-  type LlmModelProvider,
-} from '@/lib/llm/modelOptions'
+import { AGENT_LANGUAGES, describeEngine, isAgentLanguage, type AgentLanguage } from '@/lib/agents/engineOptions'
+import { estimateTokens, lintAgentText, outlinePrompt } from '@/lib/agents/promptLint'
+import { AgentAiEditor } from './AgentAiEditor'
 
-const LIVEKIT_LLM_PROVIDERS: { value: LlmModelProvider; label: string }[] = [
-  { value: 'google', label: 'Google Gemini' },
-  { value: 'deepseek', label: 'DeepSeek' },
-  { value: 'kimi', label: 'Kimi' },
-  { value: 'openai', label: 'OpenAI (Phase 2)' },
-  { value: 'anthropic', label: 'Claude (Phase 2)' },
-]
+type BehaviorForm = { firstMessage: string; systemPrompt: string; language: AgentLanguage }
 
-const DEEPGRAM_VOICES = [
-  { id: 'aura-asteria-en', label: 'Aura Asteria (EN)' },
-  { id: 'aura-luna-en', label: 'Aura Luna (EN)' },
-  { id: 'aura-stella-en', label: 'Aura Stella (EN)' },
-  { id: 'aura-athena-en', label: 'Aura Athena (EN)' },
-  { id: 'aura-hera-en', label: 'Aura Hera (EN)' },
-  { id: 'aura-orion-en', label: 'Aura Orion (EN)' },
-  { id: 'aura-arcas-en', label: 'Aura Arcas (EN)' },
-  { id: 'aura-perseus-en', label: 'Aura Perseus (EN)' },
-  { id: 'aura-angus-en', label: 'Aura Angus (EN)' },
-  { id: 'aura-orpheus-en', label: 'Aura Orpheus (EN)' },
-  { id: 'aura-helios-en', label: 'Aura Helios (EN)' },
-  { id: 'aura-zeus-en', label: 'Aura Zeus (EN)' },
-]
+const EMPTY_FORM: BehaviorForm = { firstMessage: '', systemPrompt: '', language: 'en' }
 
-const ModelConfiguration = () => {
-  const { assistant: selectedAssistant, livekitAgent, source } = useAiAgentStore()
-  const assistant = selectedAssistant as Assistant | null
-  const [firstMessage, setFirstMessage] = useState('')
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [llmProvider, setLlmProvider] = useState<LlmModelProvider>('google')
-  const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
-  const [voiceProvider, setVoiceProvider] = useState('deepgram')
-  const [voiceModel, setVoiceModel] = useState('aura-asteria-en')
-  const [loading, setLoading] = useState(false)
+/** Scrolls a textarea so the given character offset sits near the top (wrap-aware via a mirror element). */
+function scrollTextareaTo(textarea: HTMLTextAreaElement, offset: number) {
+  const style = window.getComputedStyle(textarea)
+  const mirror = document.createElement('div')
+  for (const property of ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth', 'boxSizing'] as const) {
+    mirror.style[property] = style[property]
+  }
+  mirror.style.width = `${textarea.clientWidth}px`
+  mirror.style.position = 'absolute'
+  mirror.style.visibility = 'hidden'
+  mirror.style.whiteSpace = 'pre-wrap'
+  mirror.style.overflowWrap = 'break-word'
+  mirror.textContent = textarea.value.slice(0, offset)
+  document.body.appendChild(mirror)
+  const top = mirror.scrollHeight
+  mirror.remove()
+  textarea.focus({ preventScroll: true })
+  textarea.setSelectionRange(offset, offset)
+  textarea.scrollTop = Math.max(0, top - parseFloat(style.paddingTop || '0') - 4)
+}
 
-  const [fishVoices, setFishVoices] = useState<FishVoiceOption[]>([])
-  const [fishLoading, setFishLoading] = useState(false)
-  const [fishSearch, setFishSearch] = useState('')
-  const [fishLanguage, setFishLanguage] = useState<FishVoiceLanguageFilter>('bn')
-  const [fishPopoverOpen, setFishPopoverOpen] = useState(false)
+function FieldLabel({ children, hint, htmlFor }: { children: React.ReactNode; hint: string; htmlFor?: string }) {
+  return (
+    <div className="mb-2 flex items-center gap-1.5">
+      <label htmlFor={htmlFor} className="font-medium">
+        {children}
+      </label>
+      <span title={hint} aria-label={hint}>
+        <Info className="h-3.5 w-3.5 text-neutral-500" />
+      </span>
+    </div>
+  )
+}
 
-  const livekitModels = useMemo(() => {
-    const group = LLM_MODEL_GROUPS.find((g) =>
-      g.items.some((i) => i.provider === llmProvider),
+function EngineStrip({ engineView, source, assistant }: { engineView: AgentEngineView | null; source: 'vapi' | 'livekit'; assistant: Assistant | null }) {
+  if (source === 'vapi') {
+    return (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-white/10 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-400">
+        <span className="flex items-center gap-1.5">
+          <Cpu className="h-3.5 w-3.5" />
+          {assistant?.model?.provider || 'Vapi'} · {assistant?.model?.model || 'default model'}
+        </span>
+        <span>Engine is managed in Vapi for this assistant.</span>
+      </div>
     )
-    return group?.items.filter((i) => i.provider === llmProvider) ?? []
-  }, [llmProvider])
-
-  const selectedFishVoice = useMemo(
-    () => fishVoices.find((v) => v.id === voiceModel) || null,
-    [fishVoices, voiceModel],
+  }
+  if (!engineView) return null
+  const summary = describeEngine(engineView.engine, engineView.voiceLabel)
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-white/10 bg-neutral-950/40 px-3 py-2 text-xs">
+      <span className="flex min-w-0 items-center gap-1.5 text-neutral-200">
+        <Cpu className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
+        <span className="truncate">{summary.llm}</span>
+        <span className="text-neutral-500">· {summary.llmProvider}</span>
+      </span>
+      <span className="flex min-w-0 items-center gap-1.5 text-neutral-200">
+        <AudioLines className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
+        <span className="truncate">{summary.voice}</span>
+        <span className="text-neutral-500">· {summary.voiceProvider}</span>
+      </span>
+      <Link
+        href="/ai-agents/config#ai-engine"
+        className="ml-auto flex items-center gap-1 text-neutral-400 underline-offset-4 hover:text-white hover:underline"
+      >
+        Shared by all agents · Change engine
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </Link>
+    </div>
   )
+}
 
-  const loadFishVoices = useCallback(
-    async (search?: string, language?: FishVoiceLanguageFilter) => {
-      setFishLoading(true)
-      try {
-        const res = await listFishVoices({
-          search: search?.trim() || undefined,
-          language: language || fishLanguage,
-        })
-        if (!res.success || !res.data) {
-          toast.error(res.error || 'Failed to load Fish voices.')
-          setFishVoices([])
-          return
-        }
-        setFishVoices(res.data)
-        setVoiceModel((current) => {
-          if (current.trim()) return current
-          return res.data?.[0]?.id || current
-        })
-      } catch {
-        toast.error('Failed to load Fish voices.')
-        setFishVoices([])
-      } finally {
-        setFishLoading(false)
+const ModelConfiguration = ({ engineView }: { engineView: AgentEngineView | null }) => {
+  const {
+    assistant: selectedAssistant,
+    livekitAgent,
+    source,
+    setLivekitAgent,
+    setHasUnsavedChanges,
+  } = useAiAgentStore()
+  const assistant = selectedAssistant as Assistant | null
+  const router = useRouter()
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const [saving, setSaving] = useState(false)
+
+  const baseline = useMemo<BehaviorForm>(() => {
+    if (source === 'livekit' && livekitAgent) {
+      return {
+        firstMessage: livekitAgent.firstMessage || '',
+        systemPrompt: livekitAgent.systemPrompt || '',
+        language: isAgentLanguage(livekitAgent.language) ? livekitAgent.language : 'en',
       }
-    },
-    [fishLanguage],
-  )
+    }
+    if (source === 'vapi' && assistant) {
+      return {
+        firstMessage: assistant.firstMessage || '',
+        systemPrompt: assistant.model?.messages?.[0]?.content || '',
+        language: 'en',
+      }
+    }
+    return EMPTY_FORM
+  }, [source, livekitAgent, assistant])
+
+  const [form, setForm] = useState<BehaviorForm>(baseline)
+  useEffect(() => setForm(baseline), [baseline])
+
+  const dirty =
+    form.firstMessage !== baseline.firstMessage ||
+    form.systemPrompt !== baseline.systemPrompt ||
+    form.language !== baseline.language
 
   useEffect(() => {
-    if (source !== 'livekit' || voiceProvider !== 'fish') return
-    void loadFishVoices(undefined, fishLanguage)
-  }, [source, voiceProvider, fishLanguage, loadFishVoices])
+    setHasUnsavedChanges(dirty)
+  }, [dirty, setHasUnsavedChanges])
+  useEffect(() => () => setHasUnsavedChanges(false), [setHasUnsavedChanges])
 
   useEffect(() => {
-    if (source !== 'livekit' || voiceProvider !== 'fish') return
-    const handle = window.setTimeout(() => {
-      void loadFishVoices(fishSearch, fishLanguage)
-    }, 350)
-    return () => window.clearTimeout(handle)
-  }, [fishSearch, fishLanguage, source, voiceProvider, loadFishVoices])
+    if (!dirty) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
-  const handleSave = async () => {
-    setLoading(true)
+  const issues = useMemo(() => (source === 'livekit' ? lintAgentText(form) : []), [form, source])
+  const outline = useMemo(() => outlinePrompt(form.systemPrompt), [form.systemPrompt])
+  const promptTokens = useMemo(() => estimateTokens(form.systemPrompt), [form.systemPrompt])
+
+  const handleSave = useCallback(async () => {
+    if (!dirty || saving) return
+    setSaving(true)
     try {
       if (source === 'vapi' && assistant) {
-        const res = await updateAssistant(assistant.id as string, firstMessage, systemPrompt)
-        if (!res.success) {
-          throw new Error(res.message)
-        }
-        toast.success('Assistant updated successfully.')
+        const res = await updateAssistant(assistant.id as string, form.firstMessage, form.systemPrompt)
+        if (!res.success) throw new Error(res.message)
+        toast.success('Assistant updated.')
+        router.refresh()
       } else if (source === 'livekit' && livekitAgent) {
-        if (voiceProvider === 'fish' && !voiceModel.trim()) {
-          toast.error('Pick a Fish voice before saving.')
+        const res = await updateLiveKitAgent(livekitAgent.id, form)
+        if (!res.success || !res.data) {
+          toast.error(res.error || 'Failed to update the agent.')
           return
         }
-        const res = await updateLiveKitAgent(livekitAgent.id, {
-          firstMessage,
-          systemPrompt,
-          llmProvider,
-          llmModel,
-          voiceProvider,
-          voiceModel,
-        })
-        if (!res.success) {
-          throw new Error(res.error || 'Failed to update LiveKit agent.')
-        }
-        toast.success('LiveKit agent updated successfully.')
+        // New baseline = what the server stored (Bangla text is kept byte-for-byte).
+        setLivekitAgent(res.data)
+        toast.success('Agent saved — new calls use these changes.')
+        router.refresh()
       }
     } catch (error) {
       console.error('Error updating model configuration:', error)
-      toast.error('Failed to update configuration. Please try again.')
+      toast.error('Failed to save. Please try again.')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
-  }
+  }, [dirty, saving, source, assistant, livekitAgent, form, router, setLivekitAgent])
 
   useEffect(() => {
-    if (source === 'vapi' && assistant) {
-      setFirstMessage(assistant.firstMessage || '')
-      setSystemPrompt(assistant.model?.messages?.[0]?.content || '')
-    } else if (source === 'livekit' && livekitAgent) {
-      setFirstMessage(livekitAgent.firstMessage || '')
-      setSystemPrompt(livekitAgent.systemPrompt || '')
-      const provider = (livekitAgent.llmProvider || 'google') as LlmModelProvider
-      setLlmProvider(provider)
-      setLlmModel(livekitAgent.llmModel || DEFAULT_LLM_MODEL)
-      setVoiceProvider(livekitAgent.voiceProvider || 'deepgram')
-      setVoiceModel(livekitAgent.voiceModel || 'aura-asteria-en')
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void handleSave()
+      }
     }
-  }, [assistant, livekitAgent, source])
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleSave])
 
-  if (source === 'vapi' && !assistant) {
+  if ((source === 'vapi' && !assistant) || (source === 'livekit' && !livekitAgent)) {
     return (
-      <div className="flex justify-center items-center h-[500px] w-full">
-        <div className=" bg-neutral-900 rounded-xl p-6 w-full">
-          <p className="text-primary/80 text-center">
-            No assistant selected. Please select an assistant to configure the model settings.
+      <div className="flex h-[500px] w-full items-center justify-center">
+        <div className="w-full rounded-xl bg-neutral-900 p-6">
+          <p className="text-center text-primary/80">
+            Select an agent on the left to edit its first message, prompt and language.
           </p>
         </div>
       </div>
     )
   }
 
-  if (source === 'livekit' && !livekitAgent) {
-    return (
-      <div className="flex justify-center items-center h-[500px] w-full">
-        <div className=" bg-neutral-900 rounded-xl p-6 w-full">
-          <p className="text-primary/80 text-center">
-            LiveKit agent configuration is not available.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const ownedFish = fishVoices.filter((v) => v.owned)
-  const publicFish = fishVoices.filter((v) => !v.owned)
+  const isLivekit = source === 'livekit' && livekitAgent
+  const agentName = isLivekit ? livekitAgent.name : assistant?.name || 'Assistant'
+  const setField = <K extends keyof BehaviorForm>(key: K, value: BehaviorForm[K]) =>
+    setForm((current) => ({ ...current, [key]: value }))
 
   return (
-    <div className="bg-neutral-900 rounded-xl p-6 mb-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Model</h2>
-        <Button
-          onClick={handleSave}
-          disabled={loading}
-        >
-          {loading? (
-            <>
-              <Loader2 className="animate-spin mr-2" />
-              Saving...
-            </>
-          ) : (
-            'Save Changes'
-          )}
-        </Button>
-      </div>
-      <p className="text-neutral-400 mb-6" >
-        Configure the behavior of the assistant.
-      </p>
-      <div className="mb-6" >
-        <div className="flex items-center mb-2">
-          <label className="font-medium">First Message</label>
-          <Info className="h-4 w-4 text-neutral-500 ml-2" />
+    <div className="mb-6 rounded-xl bg-neutral-900">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-xl border-b border-white/5 bg-neutral-900/95 px-6 py-4 backdrop-blur">
+        <div className="min-w-0">
+          <h2 className="truncate text-xl font-semibold">{agentName}</h2>
+          <p className="flex items-center gap-1.5 text-xs text-neutral-400">
+            <span
+              className={cn('h-1.5 w-1.5 rounded-full', dirty ? 'bg-amber-400' : 'bg-emerald-400')}
+              aria-hidden
+            />
+            {dirty ? 'Unsaved changes' : 'All changes saved'}
+          </p>
         </div>
-        <Input
-          value={firstMessage}
-          onChange={(e) => setFirstMessage(e.target.value)}
-          className="bg-primary/10 border-input"
-        />
+        <div className="flex items-center gap-2">
+          {dirty ? (
+            <Button variant="ghost" size="sm" onClick={() => setForm(baseline)} disabled={saving}>
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+              Discard
+            </Button>
+          ) : null}
+          <Button onClick={() => void handleSave()} disabled={!dirty || saving} title="Save (⌘S)">
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {saving ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
       </div>
 
-      <div className="mb-6" >
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center">
-            <label className="font-medium">System Prompt</label>
-            <Info className="h-4 w-4 text-neutral-500 ml-2" />
-          </div>
-        </div>
-        <Textarea
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          className="bg-primary/10 border-input h-[220px] md:h-[260px] lg:h-[300px] resize-y"
-        />
-      </div>
+      <div className="space-y-6 p-6">
+        <EngineStrip engineView={engineView} source={source} assistant={assistant} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="text-sm text-neutral-300 mb-2 block">LLM Provider</label>
-          <Select
-            value={source === 'livekit' ? llmProvider : assistant?.model?.provider || ''}
-            onValueChange={(v) => {
-              const next = v as LlmModelProvider
-              setLlmProvider(next)
-              setLlmModel(defaultModelForLlmProvider(next))
-            }}
-            disabled={source !== 'livekit'}
-          >
-            <SelectTrigger className="bg-primary/10 border-input">
-              <SelectValue placeholder="Select provider" />
-            </SelectTrigger>
-            <SelectContent>
-              {LIVEKIT_LLM_PROVIDERS.map((p) => (
-                <SelectItem
-                  key={p.value}
-                  value={p.value}
-                  disabled={p.value === 'openai' || p.value === 'anthropic'}
+        {isLivekit ? (
+          <div>
+            <FieldLabel hint="Sets speech recognition and the language the agent replies in.">
+              <span className="flex items-center gap-1.5">
+                <Languages className="h-4 w-4 text-neutral-400" />
+                Language
+              </span>
+            </FieldLabel>
+            <div role="radiogroup" aria-label="Agent language" className="inline-flex rounded-lg bg-neutral-950/50 p-1">
+              {AGENT_LANGUAGES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.language === option.value}
+                  onClick={() => setField('language', option.value)}
+                  className={cn(
+                    'rounded-md px-4 py-1.5 text-sm transition-colors',
+                    form.language === option.value
+                      ? 'bg-neutral-700 text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-200',
+                  )}
                 >
-                  {p.label}
-                </SelectItem>
+                  {option.native}
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-sm text-neutral-300 mb-2 block">LLM Model</label>
-          {source === 'livekit' && livekitModels.length > 0 ? (
-            <Select value={llmModel} onValueChange={setLlmModel}>
-              <SelectTrigger className="bg-primary/10 border-input">
-                <SelectValue placeholder="Select model" />
-              </SelectTrigger>
-              <SelectContent>
-                {livekitModels.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              value={source === 'livekit' ? llmModel : assistant?.model?.model || ''}
-              onChange={(e) => setLlmModel(e.target.value)}
-              className="bg-primary/10 border-input"
-              disabled={source !== 'livekit'}
-            />
-          )}
-        </div>
-        <div>
-          <label className="text-sm text-neutral-300 mb-2 block">Voice Provider</label>
-          <Select
-            value={voiceProvider}
-            onValueChange={(v) => {
-              setVoiceProvider(v)
-              if (v === 'fish') {
-                if (voiceModel.startsWith('aura-')) setVoiceModel('')
-              } else if (v === 'deepgram') {
-                setVoiceModel('aura-asteria-en')
-              }
-            }}
-            disabled={source !== 'livekit'}
-          >
-            <SelectTrigger className="bg-primary/10 border-input">
-              <SelectValue placeholder="Select voice provider" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="deepgram">Deepgram</SelectItem>
-              <SelectItem value="fish">Fish Audio</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <label className="text-sm text-neutral-300 mb-2 block">
-            {voiceProvider === 'fish' ? 'Fish Voice' : 'Voice Model'}
-          </label>
-
-          {source === 'livekit' && voiceProvider === 'fish' ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Select
-                  value={fishLanguage}
-                  onValueChange={(v) => setFishLanguage(v as FishVoiceLanguageFilter)}
-                >
-                  <SelectTrigger className="h-10 w-[4.5rem] shrink-0 bg-primary/10 border-input px-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bn">bn</SelectItem>
-                    <SelectItem value="en">en</SelectItem>
-                    <SelectItem value="all">all</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Popover open={fishPopoverOpen} onOpenChange={setFishPopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={fishPopoverOpen}
-                      className="min-w-0 flex-1 justify-between bg-primary/10 border-input font-normal"
-                      disabled={fishLoading && fishVoices.length === 0}
-                    >
-                      <span className="truncate text-left">
-                        {selectedFishVoice
-                          ? `${selectedFishVoice.title}${selectedFishVoice.owned ? ' (yours)' : ''}`
-                          : voiceModel.trim()
-                            ? voiceModel
-                            : fishLoading
-                              ? 'Loading Fish voices…'
-                              : 'Select a Fish voice'}
-                      </span>
-                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="p-0 w-[min(28rem,calc(100vw-2rem))]"
-                    align="start"
-                  >
-                    <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder={
-                          fishLanguage === 'bn'
-                            ? 'Search Bangla voices…'
-                            : 'Search Fish voices…'
-                        }
-                        value={fishSearch}
-                        onValueChange={setFishSearch}
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          {fishLoading
-                            ? 'Loading…'
-                            : fishLanguage === 'bn'
-                              ? 'No Bangla-tagged voices found. Try all, or clone a Bangla voice on fish.audio.'
-                              : 'No voices found. Save a Fish API key in Config Agent.'}
-                        </CommandEmpty>
-                        {ownedFish.length > 0 ? (
-                          <CommandGroup heading="Your voices">
-                            {ownedFish.map((v) => (
-                              <CommandItem
-                                key={v.id}
-                                value={`${v.id} ${v.title}`}
-                                onSelect={() => {
-                                  setVoiceModel(v.id)
-                                  setFishPopoverOpen(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'size-4 shrink-0',
-                                    voiceModel === v.id ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                <span className="flex flex-col gap-0.5 min-w-0">
-                                  <span className="truncate">{v.title}</span>
-                                  <span className="text-xs text-muted-foreground font-mono truncate">
-                                    {v.id}
-                                  </span>
-                                </span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        ) : null}
-                        {publicFish.length > 0 ? (
-                          <CommandGroup heading="Public voices">
-                            {publicFish.map((v) => (
-                              <CommandItem
-                                key={v.id}
-                                value={`${v.id} ${v.title}`}
-                                onSelect={() => {
-                                  setVoiceModel(v.id)
-                                  setFishPopoverOpen(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'size-4 shrink-0',
-                                    voiceModel === v.id ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                <span className="flex flex-col gap-0.5 min-w-0">
-                                  <span className="truncate">{v.title}</span>
-                                  <span className="text-xs text-muted-foreground font-mono truncate">
-                                    {v.id}
-                                    {v.languages.length ? ` · ${v.languages.join(', ')}` : ''}
-                                  </span>
-                                </span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        ) : null}
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <p className="text-xs text-neutral-500">
-                Uses{' '}
-                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-                  s2.1-pro-free
-                </code>
-                . Fish can speak Bangla on most voices; pick a Bangla-tagged voice
-                for better accent, or clone one on fish.audio.
-              </p>
-              <p className="text-xs text-neutral-500">
-                Selected reference_id:{' '}
-                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
-                  {voiceModel.trim() || '—'}
-                </code>
-              </p>
             </div>
-          ) : source === 'livekit' ? (
-            <Select value={voiceModel} onValueChange={setVoiceModel}>
-              <SelectTrigger className="bg-primary/10 border-input">
-                <SelectValue placeholder="Select Deepgram voice" />
-              </SelectTrigger>
-              <SelectContent>
-                {DEEPGRAM_VOICES.map((v) => (
-                  <SelectItem key={v.id} value={v.id}>
-                    {v.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              value={voiceModel}
-              onChange={(e) => setVoiceModel(e.target.value)}
-              className="bg-primary/10 border-input"
-              disabled
-            />
-          )}
+          </div>
+        ) : null}
+
+        <div>
+          <div className="flex items-end justify-between gap-2">
+            <FieldLabel htmlFor="agent-first-message" hint="The first thing the agent says when a call starts.">
+              First message
+            </FieldLabel>
+            <span className="mb-2 text-xs tabular-nums text-neutral-500">{form.firstMessage.length} chars</span>
+          </div>
+          <Input
+            id="agent-first-message"
+            value={form.firstMessage}
+            onChange={(event) => setField('firstMessage', event.target.value)}
+            lang={form.language}
+            className="border-input bg-primary/10"
+          />
+          {isLivekit ? (
+            <div className="mt-2">
+              <AgentAiEditor
+                compact
+                agentId={livekitAgent.id}
+                field="firstMessage"
+                value={form.firstMessage}
+                language={form.language}
+                systemPromptContext={form.systemPrompt}
+                onApply={(text) => setField('firstMessage', text)}
+              />
+            </div>
+          ) : null}
         </div>
+
+        <div>
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <FieldLabel htmlFor="agent-system-prompt" hint="Who the agent is, what it knows, and the rules it follows on every call.">
+              System prompt
+            </FieldLabel>
+            {outline.length > 1 ? (
+              <div className="mb-2 flex flex-wrap gap-1" aria-label="Jump to section">
+                {outline.map((item) => (
+                  <button
+                    key={`${item.offset}-${item.label}`}
+                    type="button"
+                    onClick={() => promptRef.current && scrollTextareaTo(promptRef.current, item.offset)}
+                    className="rounded-md bg-neutral-800 px-2 py-0.5 text-[11px] text-neutral-400 hover:bg-neutral-700 hover:text-neutral-100"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <Textarea
+            id="agent-system-prompt"
+            ref={promptRef}
+            value={form.systemPrompt}
+            onChange={(event) => setField('systemPrompt', event.target.value)}
+            lang={form.language}
+            className="h-[260px] resize-y border-input bg-primary/10 md:h-[320px] lg:h-[380px]"
+          />
+          <div className="mt-1.5 flex justify-end gap-3 text-xs tabular-nums text-neutral-500">
+            <span>≈ {promptTokens.toLocaleString()} tokens</span>
+            <span>{form.systemPrompt.length.toLocaleString()} chars</span>
+          </div>
+          {isLivekit ? (
+            <div className="mt-2">
+              <AgentAiEditor
+                agentId={livekitAgent.id}
+                field="systemPrompt"
+                value={form.systemPrompt}
+                language={form.language}
+                onApply={(text) => setField('systemPrompt', text)}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {issues.length > 0 ? (
+          <ul className="space-y-1.5 rounded-lg border border-white/10 bg-neutral-950/40 p-3" aria-label="Checks">
+            {issues.map((issue) => (
+              <li key={issue.message} className="flex items-start gap-2 text-xs">
+                {issue.level === 'warn' ? (
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                ) : (
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-neutral-500" />
+                )}
+                <span className={issue.level === 'warn' ? 'text-neutral-200' : 'text-neutral-400'}>
+                  {issue.message}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </div>
   )

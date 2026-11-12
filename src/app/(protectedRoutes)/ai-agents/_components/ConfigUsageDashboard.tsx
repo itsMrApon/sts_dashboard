@@ -58,6 +58,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: 'Gemini',
   openai: 'OpenAI',
   anthropic: 'Claude',
+  openrouter: 'OpenRouter',
+  xai: 'xAI Grok',
   deepseek: 'DeepSeek',
   kimi: 'Kimi',
   deepgram: 'Deepgram',
@@ -70,7 +72,7 @@ const LLM_SURFACE_META = [
   {
     surface: 'messages',
     label: 'Messages',
-    hint: 'Chat, Telegram, Slack, Discord',
+    hint: 'Chat AI and hosted chat',
     Icon: MessageSquare,
   },
   {

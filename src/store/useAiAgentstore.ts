@@ -12,6 +12,9 @@ type AiAgentStore = {
   setLivekitAgent: (agent: LiveKitUiAgentConfig) => void;
   setSource: (source: SourceType) => void;
   clearAiAssistant: () => void;
+  /** True while the Model section has edits that are not saved yet. */
+  hasUnsavedChanges: boolean;
+  setHasUnsavedChanges: (value: boolean) => void;
 };
 
 export const useAiAgentStore = create<AiAgentStore>((set) => ({
@@ -21,5 +24,8 @@ export const useAiAgentStore = create<AiAgentStore>((set) => ({
   setAssistant: (assistant) => set({ assistant }),
   setLivekitAgent: (agent) => set({ livekitAgent: agent }),
   setSource: (source) => set({ source }),
-  clearAiAssistant: () => set({ assistant: null, livekitAgent: null, source: 'vapi' }),
+  clearAiAssistant: () =>
+    set({ assistant: null, livekitAgent: null, source: 'vapi', hasUnsavedChanges: false }),
+  hasUnsavedChanges: false,
+  setHasUnsavedChanges: (value) => set({ hasUnsavedChanges: value }),
 }));

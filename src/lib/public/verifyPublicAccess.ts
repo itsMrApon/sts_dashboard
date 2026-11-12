@@ -100,7 +100,7 @@ export async function verifyPublicAccess(
     }
   }
 
-  const keyCheck = verifySiteKeyAgainstConfig(request, config, { requireEnabled: true })
+  const keyCheck = await verifySiteKeyAgainstConfig(request, config)
   if (!keyCheck.ok) {
     return keyCheck
   }

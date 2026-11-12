@@ -8,6 +8,14 @@ export async function resolveRoomOwnerUserId(
   agentId: string,
   roomName: string,
 ): Promise<string | null> {
+  const ownedAgent = await prismaClient.liveKitAgent.findUnique({
+    where: { id: agentId },
+    select: { userId: true },
+  })
+  if (ownedAgent?.userId) {
+    return ownedAgent.userId
+  }
+
   const businessLink = await prismaClient.publishAgent.findFirst({
     where: { agentId },
     select: { publishProfile: { select: { userId: true } } },

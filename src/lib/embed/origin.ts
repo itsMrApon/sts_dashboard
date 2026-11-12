@@ -50,41 +50,14 @@ export function isDevLocalhostOrigin(origin: string | null): boolean {
   return normalized ? isLocalhostOrigin(normalized) : false
 }
 
+/** Strict allowlist: an empty list allows nothing (dev localhost excepted). */
 export function isOriginAllowed(
   origin: string | null,
   allowedOrigins: string[],
 ): boolean {
-  if (!origin || allowedOrigins.length === 0) return true
+  if (!origin) return false
   const normalized = normalizeOrigin(origin)
   if (!normalized) return false
   if (allowedOrigins.includes(normalized)) return true
-  if (isDevLocalhostOrigin(origin)) return true
-  return false
-}
-
-export function isSameAppOrigin(request: Request): boolean {
-  const requestOrigin = getRequestOrigin(request)
-  if (!requestOrigin) return false
-
-  // Browser same-origin fetch: Origin matches the Host this request hit.
-  // Needed when NEXT_PUBLIC_APP_URL is ngrok but the creator opens localhost:3000
-  // (or the reverse). External embeds still fail because their Origin differs.
-  const host = request.headers.get('host')
-  if (host) {
-    let proto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
-    if (!proto) {
-      proto = requestOrigin.startsWith('https:') ? 'https' : 'http'
-    }
-    const hostOrigin = normalizeOrigin(`${proto}://${host}`)
-    if (hostOrigin && hostOrigin === requestOrigin) return true
-  }
-
-  // Local dashboard in development while APP_URL points at a tunnel.
-  if (isDevLocalhostOrigin(requestOrigin)) return true
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
-  if (!appUrl) return false
-  const appOrigin = normalizeOrigin(appUrl)
-  if (!appOrigin) return false
-  return appOrigin === requestOrigin
+  return isDevLocalhostOrigin(normalized)
 }

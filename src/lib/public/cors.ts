@@ -25,7 +25,7 @@ export async function publicCorsHeadersForWorkspace(
   const config = await findEmbedConfigForWorkspace(workspaceId)
   if (!config?.enabled) return {}
 
-  if (config.allowedOrigins.length === 0 || isOriginAllowed(origin, config.allowedOrigins)) {
+  if (isOriginAllowed(origin, config.allowedOrigins)) {
     return corsHeadersForOrigin(normalized)
   }
 

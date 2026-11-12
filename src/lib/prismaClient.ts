@@ -5,7 +5,7 @@ import { isDevPerfEnabled } from '@/lib/dev/perf'
  * Bump when Prisma model accessors change (e.g. Business → PublishProfile)
  * so the Next.js HMR singleton does not keep a stale client without the new delegates.
  */
-const PRISMA_CLIENT_GENERATION = 'provider-usage-v2'
+const PRISMA_CLIENT_GENERATION = 'web-channel-v1'
 
 declare global {
   // eslint-disable-next-line no-var

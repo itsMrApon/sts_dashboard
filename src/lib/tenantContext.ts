@@ -17,6 +17,8 @@ export type IndustryVertical = (typeof INDUSTRY_VERTICALS)[number]
 
 type CoreInput = {
   termsAndConditions?: string
+  /** Business page website content (see src/lib/business/siteContent.ts). */
+  site?: unknown
 }
 
 export type IndustryInput = {
@@ -116,6 +118,8 @@ export const buildCompactProfile = (
     blog: {
       intro: nonEmpty(draft.blog?.intro),
     },
+    /** Website content served to the creator's site (SEO, footer, socials, services, key dates). */
+    site: draft.core.site ?? null,
   }
 
   const compactString = JSON.stringify(compact)

@@ -55,8 +55,8 @@ export async function connectOutreachChannel(
       },
     })
 
-    revalidatePath('/tenants/publish')
-    revalidatePath('/tenants/publish')
+    revalidatePath('/messages/publish')
+    revalidatePath('/messages/publish')
     return { ok: true }
   } catch (error) {
     console.error(`connectOutreach[${platform}] error`, error)
@@ -81,8 +81,8 @@ export async function disconnectOutreachChannel(
       where: { id: channelId, userId: user.id },
     })
 
-    revalidatePath('/tenants/publish')
-    revalidatePath('/tenants/publish')
+    revalidatePath('/messages/publish')
+    revalidatePath('/messages/publish')
     return { ok: true }
   } catch (error) {
     console.error(`disconnectOutreach error`, error)

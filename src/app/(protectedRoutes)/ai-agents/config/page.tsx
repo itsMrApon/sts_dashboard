@@ -1,21 +1,40 @@
-import React from 'react'
+import { redirect } from 'next/navigation'
+import { onAuthenticateUser } from '@/actions/auth'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
-import ConfigProviderSidebar from '../_components/ConfigProviderSidebar'
-import ConfigUsageDashboard from '../_components/ConfigUsageDashboard'
+import { getEngineForUser } from '@/lib/agents/engineSettings'
+import { prismaClient } from '@/lib/prismaClient'
+import { providerKeyStatuses } from '@/lib/credentials/providerKeys'
+import { isConfigCredentialProvider } from '@/lib/usage/configProviders'
+import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
+import ProviderHub from '../_components/config/ProviderHub'
 
-const ConfigAgentPage = () => {
+export default async function ConfigAgentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ provider?: string | string[] }>
+}) {
+  const authResult = await onAuthenticateUser()
+  const userId = authResult.user?.id
+  if (!userId) redirect('/sign-in')
+
+  const [{ provider }, credentialRow, engineView, agentCount] = await Promise.all([
+    searchParams,
+    getUserVoiceCredentialByUserId(userId),
+    getEngineForUser(userId),
+    prismaClient.liveKitAgent.count({ where: { userId } }),
+  ])
+  const requestedProvider = Array.isArray(provider) ? provider[0] : provider
+
   return (
-    <PageViewport>
-      <div className="flex h-full min-h-0 w-full overflow-hidden rounded-se-xl border border-border text-primary">
-        <ConfigProviderSidebar />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
-            <ConfigUsageDashboard />
-          </div>
-        </div>
-      </div>
+    <PageViewport scrollable>
+      <ProviderHub
+        initialStatuses={providerKeyStatuses(credentialRow)}
+        initialEngine={engineView.engine}
+        initialVoiceLabel={engineView.voiceLabel}
+        savedBefore={engineView.source === 'settings'}
+        agentCount={agentCount}
+        initialOpenProvider={isConfigCredentialProvider(requestedProvider) ? requestedProvider : null}
+      />
     </PageViewport>
   )
 }
-
-export default ConfigAgentPage

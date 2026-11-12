@@ -1,6 +1,7 @@
 import type { RoomEmbedConfig } from '@prisma/client'
-import { getRequestOrigin, isOriginAllowed, isSameAppOrigin } from '@/lib/embed/origin'
-import { verifySiteKey } from '@/lib/embed/siteKey'
+import { prismaClient } from '@/lib/prismaClient'
+import { getRequestOrigin, isOriginAllowed } from '@/lib/embed/origin'
+import { hashSiteKey, verifySiteKey } from '@/lib/embed/siteKey'
 
 export const SITE_KEY_HEADER = 'x-sts-site-key'
 
@@ -9,24 +10,25 @@ export function getSiteKeyFromRequest(request: Request): string {
 }
 
 export type SiteKeyAccessResult =
-  | { ok: true }
+  | { ok: true; origin: string | null }
   | { ok: false; status: number; code: string; message: string }
 
 type VerifyOptions = {
-  /** When true, missing site key is allowed for same-origin STS app requests. */
-  allowSameOriginWithoutKey?: boolean
-  /** When false, disabled embed configs reject the request. */
-  requireEnabled?: boolean
+  /** Browser-only callers (widget session mint) must present an Origin header. */
+  requireOrigin?: boolean
 }
 
-export function verifySiteKeyAgainstConfig(
+/**
+ * Verifies site key + origin allowlist against an embed config.
+ * Fails closed: disabled config, empty allowlist, or unlisted origin are rejected.
+ * Requests without Origin (server-to-server) are only allowed when `requireOrigin` is false.
+ */
+export async function verifySiteKeyAgainstConfig(
   request: Request,
   config: RoomEmbedConfig,
   options: VerifyOptions = {},
-): SiteKeyAccessResult {
-  const { allowSameOriginWithoutKey = false, requireEnabled = true } = options
-
-  if (requireEnabled && !config.enabled) {
+): Promise<SiteKeyAccessResult> {
+  if (!config.enabled) {
     return {
       ok: false,
       status: 403,
@@ -35,11 +37,27 @@ export function verifySiteKeyAgainstConfig(
     }
   }
 
+  const origin = getRequestOrigin(request)
+  if (origin) {
+    if (!isOriginAllowed(origin, config.allowedOrigins)) {
+      return {
+        ok: false,
+        status: 403,
+        code: config.allowedOrigins.length === 0 ? 'ORIGIN_ALLOWLIST_EMPTY' : 'ORIGIN_NOT_ALLOWED',
+        message: 'This website is not allowed to use this site key.',
+      }
+    }
+  } else if (options.requireOrigin) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'ORIGIN_REQUIRED',
+      message: 'Embedded sessions must be requested from a browser on an allowed website.',
+    }
+  }
+
   const siteKey = getSiteKeyFromRequest(request)
   if (!siteKey) {
-    if (allowSameOriginWithoutKey && isSameAppOrigin(request)) {
-      return { ok: true }
-    }
     return {
       ok: false,
       status: 401,
@@ -48,24 +66,17 @@ export function verifySiteKeyAgainstConfig(
     }
   }
 
-  if (!verifySiteKey(siteKey, config.siteKeyHash)) {
-    return {
-      ok: false,
-      status: 401,
-      code: 'INVALID_SITE_KEY',
-      message: 'Invalid site key.',
-    }
+  const keyCheck = await verifySiteKey(siteKey, config.siteKeyHash)
+  if (!keyCheck.ok) {
+    return { ok: false, status: 401, code: 'INVALID_SITE_KEY', message: 'Invalid site key.' }
   }
 
-  const origin = getRequestOrigin(request)
-  if (origin && config.allowedOrigins.length > 0 && !isOriginAllowed(origin, config.allowedOrigins)) {
-    return {
-      ok: false,
-      status: 403,
-      code: 'ORIGIN_NOT_ALLOWED',
-      message: `Origin is not allowed. Allowed: ${config.allowedOrigins.join(', ')}`,
-    }
+  if (keyCheck.needsRehash) {
+    // Lazy migration from legacy scrypt hashes to fast SHA-256.
+    void prismaClient.roomEmbedConfig
+      .update({ where: { id: config.id }, data: { siteKeyHash: hashSiteKey(siteKey) } })
+      .catch((error) => console.warn('[site-key] rehash failed', error))
   }
 
-  return { ok: true }
+  return { ok: true, origin }
 }

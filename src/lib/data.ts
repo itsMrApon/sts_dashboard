@@ -26,9 +26,9 @@ export const sidebarData = [
   },
   {
     id: 5,
-    title: 'Partners',
+    title: 'Integrations',
     icon: Megaphone,
-    link: '/tenants',
+    link: '/integrations',
   },
   {
     id: 6,

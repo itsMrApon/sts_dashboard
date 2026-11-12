@@ -3,16 +3,19 @@ name = "livekit-voice-agent"
 version = "0.1.0"
 description = "Voice AI agent built with LiveKit Agents framework"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
-    "livekit-agents[mcp]>=1.2.0",
-    "livekit-plugins-openai>=1.0.0",
-    "livekit-plugins-deepgram>=1.0.0",
-    "livekit-plugins-fishaudio>=1.0.0",
-    "livekit-plugins-silero>=1.0.0",
-    "livekit-plugins-turn-detector>=1.0.0",
+    # LiveKit packages are released in lockstep; keep every plugin on the same version as livekit-agents.
+    "livekit-agents[mcp]>=1.8.11",
+    "livekit-plugins-openai>=1.8.11",
+    "livekit-plugins-deepgram>=1.8.11",
+    "livekit-plugins-fishaudio>=1.8.11",
+    "livekit-plugins-silero>=1.8.11",
+    "livekit-plugins-turn-detector>=1.8.11",
+    "livekit-plugins-google>=1.8.11",
+    "livekit-plugins-anthropic>=1.8.11",
+    "livekit-plugins-xai>=1.8.11",
     "python-dotenv>=1.0.0",
-    "livekit-plugins-google>=1.2.14",
 ]
 
 [project.optional-dependencies]
@@ -60,7 +63,7 @@ all = [
 
 [tool.black]
 line-length = 100
-target-version = ["py39", "py310", "py311"]
+target-version = ["py311"]
 
 [tool.ruff]
 line-length = 100
@@ -73,7 +76,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

@@ -1,54 +1,38 @@
+'use client'
+
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { withRoomQuery } from '../_lib/messagingRooms'
+import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
-export type MessagesSection = 'rooms' | 'connections' | 'publish'
+const SECTIONS: { href: string; label: string; exact?: boolean }[] = [
+  { href: '/messages', label: 'All services', exact: true },
+  { href: '/messages/chat', label: 'Chat AI' },
+  { href: '/messages/speak', label: 'Speak AI' },
+  { href: '/messages/form', label: 'Form' },
+  { href: '/messages/wizard', label: 'Wizard' },
+  { href: '/messages/publish', label: 'Business' },
+]
 
-type Props = {
-  active: MessagesSection
-  selectedRoomName?: string | null
-}
-
-function hrefFor(section: MessagesSection, roomName?: string | null): string {
-  const base =
-    section === 'rooms'
-      ? '/messages/voice'
-      : section === 'connections'
-        ? '/messages/connections'
-        : '/messages/publish'
-  return withRoomQuery(base, roomName ?? null)
-}
-
-export function MessagesSubnav({ active, selectedRoomName = null }: Props) {
+export function MessagesSubnav() {
+  const pathname = usePathname()
   return (
-    <nav aria-label="Messages sections" className="flex h-10 items-center gap-1.5">
-      <Button size="sm" variant="ghost" className="h-10 px-2" asChild>
-        <Link href={withRoomQuery('/messages', selectedRoomName)}>Hub</Link>
-      </Button>
-      <Button
-        size="sm"
-        variant={active === 'rooms' ? 'default' : 'secondary'}
-        className="h-10"
-        asChild
-      >
-        <Link href={hrefFor('rooms', selectedRoomName)}>Voice AI</Link>
-      </Button>
-      <Button
-        size="sm"
-        variant={active === 'connections' ? 'default' : 'secondary'}
-        className="h-10"
-        asChild
-      >
-        <Link href={hrefFor('connections', selectedRoomName)}>Connections</Link>
-      </Button>
-      <Button
-        size="sm"
-        variant={active === 'publish' ? 'default' : 'secondary'}
-        className="h-10"
-        asChild
-      >
-        <Link href={hrefFor('publish', selectedRoomName)}>Publish</Link>
-      </Button>
+    <nav aria-label="Messages sections" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
+      {SECTIONS.map((section) => {
+        const active = section.exact ? pathname === section.href : pathname.startsWith(section.href)
+        return (
+          <Link
+            key={section.href}
+            href={section.href}
+            aria-current={active ? 'page' : undefined}
+            className={cn(
+              'shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors',
+              active ? 'bg-primary/15 font-medium text-primary' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+            )}
+          >
+            {section.label}
+          </Link>
+        )
+      })}
     </nav>
   )
 }

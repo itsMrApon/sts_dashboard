@@ -24,10 +24,6 @@ const LiveKitCall = dynamic(
   () => import('@/app/(publicRoutes)/live-project/[liveProjectId]/call/_components/LiveKitCall'),
   { ssr: false, loading: () => <div className="flex items-center justify-center h-full min-h-[300px]"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div> }
 )
-const AutoConnectCall = dynamic(
-  () => import('@/app/(publicRoutes)/live-project/[liveProjectId]/call/_components/AutoConnectCall'),
-  { ssr: false, loading: () => <div className="flex items-center justify-center h-full min-h-[300px]"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div> }
-)
 
 type Props = {
   user: User | null
@@ -51,16 +47,11 @@ export default function ProductExperience({
 
   const handleBuyNow = async () => {
     try {
-      if (!product.priceId || !product.presenter?.stripeConnectId) {
+      if (!product.presenter?.stripeConnectId) {
         toast.error('Checkout not configured for this product')
         return
       }
-      const session = await createCheckoutLink(
-        product.priceId,
-        product.presenter.stripeConnectId,
-        attendee.id,
-        product.id
-      )
+      const session = await createCheckoutLink(product.id, attendee.id)
       if (session.sessionUrl) window.open(session.sessionUrl, '_blank')
       else toast.error('Could not create checkout session')
     } catch (e) {
@@ -70,7 +61,6 @@ export default function ProductExperience({
   }
 
   const hasLiveKit = !!livekitRoomName
-  const hasVapi = !!product.aiAgentId
   const [showPostCallDialog, setShowPostCallDialog] = useState(false)
 
   // Connect Stream chat on mount so it's always visible on the right
@@ -158,20 +148,7 @@ export default function ProductExperience({
                 onCallEnd={() => setShowPostCallDialog(true)}
               />
             )}
-            {!hasLiveKit && hasVapi && (
-              <AutoConnectCall
-                userName={attendee.name}
-                assistantId={product.aiAgentId!}
-                assistantName="AI Assistant"
-                assistantImage=""
-                callTimeLimit={180}
-                project={product}
-                userId={attendee.id}
-                hideBuyNow
-                onCallEnd={() => setShowPostCallDialog(true)}
-              />
-            )}
-            {!hasLiveKit && !hasVapi && (
+            {!hasLiveKit && (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 No voice agent configured
               </div>

@@ -45,6 +45,15 @@ class RoomConfig(BaseModel):
     voice_model: str = "aura-asteria-en"
     llm_model: str = os.getenv("LLM_CHOICE", "gemini-2.5-flash")
     llm_provider: str = "google"
+    # "pipeline" = STT -> LLM -> TTS; "realtime" = one speech-to-speech model.
+    engine_mode: str = "pipeline"
+    stt_provider: str = "deepgram"
+    stt_model: Optional[str] = None
+    # Free-text speaking style for TTS/realtime models that accept instructions (accent, tone).
+    voice_style: Optional[str] = None
+    realtime_provider: Optional[str] = None
+    realtime_model: Optional[str] = None
+    realtime_voice: Optional[str] = None
     enabled_mcp_servers: List[str] = []
 
     # Environment variables specific to this tenant (e.g. their Stripe Key)
@@ -56,6 +65,9 @@ class RoomConfig(BaseModel):
     transcript_api_key: Optional[str] = None
     usage_ingest_url: Optional[str] = None
     usage_surface: Optional[str] = None
+    # Set for calls started from an offer's share page (/o/<slug>): enables show_order_button.
+    offer_slug: Optional[str] = None
+    offer_title: Optional[str] = None
 
 
 # --- Simulated SaaS Database (fallback for local/dev) ---

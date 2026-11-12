@@ -6,7 +6,10 @@ import { buildAgentContext } from '@/lib/messages/buildAgentContext';
 import { decryptToken } from '@/lib/messages/encrypt';
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo';
 import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId';
-import { DEFAULT_LLM_MODEL } from '@/lib/llm/defaultModel';
+import { resolveAgentEngine } from '@/lib/agents/engineSettings';
+import { parseOfferRoomName } from '@/lib/offers/offerAi';
+import { buildOfferBrief } from '@/lib/offers/offerAiBrief';
+import { loadPublicOffer } from '@/lib/offers/publicOffer';
 
 function safeDecrypt(value: string | null | undefined): string | null {
   try {
@@ -25,7 +28,11 @@ export async function GET(
     // Allow ephemeral voice room names while resolving config from base room.
     // Example: room-apon-7eom6m__voice__abc123 -> room-apon-7eom6m
     // Example: room-apon-7eom6m-v2 (per-call LiveKit room) -> room-apon-7eom6m
-    const baseRoomName = roomName.split('__voice__')[0].replace(/-v\d+$/u, '');
+    // Offer share-page calls: <agentRoom>__offer__<slug>__<random>
+    const offerRoom = parseOfferRoomName(roomName);
+    const baseRoomName = offerRoom
+      ? offerRoom.baseRoomName
+      : roomName.split('__voice__')[0].replace(/-v\d+$/u, '');
     const authHeader = req.headers.get('authorization');
     const expected = process.env.SAAS_API_KEY;
     if (expected && authHeader !== `Bearer ${expected}`) {
@@ -40,6 +47,8 @@ export async function GET(
       const context = await buildAgentContext(baseRoomName);
 
       const userId = await resolveRoomOwnerUserId(livekitAgent.id, baseRoomName);
+      // LLM + voice are account-wide (AI Agents → Config); legacy agent columns are the fallback.
+      const engine = await resolveAgentEngine(livekitAgent, userId);
 
       const userCredential = userId
         ? await getUserVoiceCredentialByUserId(userId)
@@ -58,7 +67,12 @@ export async function GET(
         process.env.MOONSHOT_API_KEY ||
         process.env.KIMI_API_KEY ||
         null;
+      const openrouterApiKey =
+        safeDecrypt(userCredential?.openrouterApiKey) || process.env.OPENROUTER_API_KEY || null;
       if (googleApiKey) tenantEnv.GOOGLE_API_KEY = googleApiKey;
+      if (openrouterApiKey) tenantEnv.OPENROUTER_API_KEY = openrouterApiKey;
+      const xaiApiKey = safeDecrypt(userCredential?.xaiApiKey) || process.env.XAI_API_KEY || null;
+      if (xaiApiKey) tenantEnv.XAI_API_KEY = xaiApiKey;
       if (deepgramApiKey) tenantEnv.DEEPGRAM_API_KEY = deepgramApiKey;
       if (openaiApiKey) tenantEnv.OPENAI_API_KEY = openaiApiKey;
       if (anthropicApiKey) tenantEnv.ANTHROPIC_API_KEY = anthropicApiKey;
@@ -74,16 +88,39 @@ export async function GET(
         select: { id: true },
       })
 
-      const agentRow = livekitAgent as typeof livekitAgent & { voiceProvider?: string }
+      // Only brief the agent on an offer it actually sells (the slug comes from the room name).
+      const offer = offerRoom ? await loadPublicOffer(offerRoom.offerSlug) : null;
+      const offerForAgent = offer?.live && offer.agentRoomName === baseRoomName ? offer : null;
+      const baseInstructions = context.systemInstruction || livekitAgent.systemPrompt || aiAgentPrompt;
       const config = {
         room_name: livekitAgent.roomName,
         business_type: 'Sales & Lead Qualification',
-        instructions: context.systemInstruction || livekitAgent.systemPrompt || aiAgentPrompt,
+        instructions: offerForAgent
+          ? `${baseInstructions}\n\n${buildOfferBrief(
+              {
+                title: offerForAgent.title,
+                description: offerForAgent.description,
+                businessName: offerForAgent.business.name,
+                prices: offerForAgent.prices,
+              },
+              'voice',
+            )}`
+          : baseInstructions,
+        // Turns on the agent's show_order_button tool (it messages the buyer's page).
+        offer_slug: offerForAgent?.slug ?? null,
+        offer_title: offerForAgent?.title ?? null,
         language: livekitAgent.language || 'en',
-        voice_provider: agentRow.voiceProvider || 'deepgram',
-        voice_model: livekitAgent.voiceModel || 'aura-asteria-en',
-        llm_model: livekitAgent.llmModel || DEFAULT_LLM_MODEL,
-        llm_provider: livekitAgent.llmProvider || 'google',
+        voice_provider: engine.voiceProvider,
+        voice_model: engine.voiceModel,
+        llm_model: engine.llmModel,
+        llm_provider: engine.llmProvider,
+        engine_mode: engine.mode,
+        stt_provider: engine.sttProvider,
+        stt_model: engine.sttModel,
+        voice_style: engine.voiceStyle,
+        realtime_provider: engine.realtimeProvider,
+        realtime_model: engine.realtimeModel,
+        realtime_voice: engine.realtimeVoice,
         enabled_mcp_servers: [] as string[],
         tenant_env: tenantEnv,
         first_message: livekitAgent.firstMessage || null,

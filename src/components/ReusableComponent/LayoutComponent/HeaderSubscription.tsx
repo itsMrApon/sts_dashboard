@@ -1,16 +1,9 @@
 'use client'
 
 import React from 'react'
-import { User } from '@prisma/client'
-import { StripeElements } from '../Stripe/Element'
-import SubscriptionModel from '../SubscriptionModel'
+import PackagesDialog from '../PlatformPackages/PackagesDialog'
 
-type Props = { user: User }
-
-export default function HeaderSubscription({ user }: Props) {
-  return (
-    <StripeElements>
-      <SubscriptionModel user={user} />
-    </StripeElements>
-  )
+/** Shown in the header for creators without access: opens the $49 setup / $499 monthly packages. */
+export default function HeaderSubscription() {
+  return <PackagesDialog />
 }

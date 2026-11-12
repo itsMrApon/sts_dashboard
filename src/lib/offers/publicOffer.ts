@@ -1,0 +1,141 @@
+import 'server-only'
+import { cache } from 'react'
+import { OfferPriceKind, OrderModeKind } from '@prisma/client'
+import { prismaClient } from '@/lib/prismaClient'
+import { AI_SERVICES, ORDER_MODE_KINDS, type AiService, type OrderModesInput } from './offerTypes'
+import type { BuyerPriceOption, PublicOfferView } from './publicOfferTypes'
+import { toOfferKind } from './offerSettings'
+
+const SLUG_RE = /^[a-z0-9-]{1,80}$/
+
+function aiServicesFrom(config: unknown): AiService[] {
+  const services = (config as { services?: unknown } | null)?.services
+  if (!Array.isArray(services)) return [...AI_SERVICES]
+  return AI_SERVICES.filter((service) => services.includes(service))
+}
+
+/** Order: default first, then deposit, then the monthly alternative. Max three. */
+function buyerPrices(
+  prices: Array<{
+    id: string
+    kind: OfferPriceKind
+    amountCents: number | null
+    depositCents: number | null
+    balanceDueDays: number | null
+    isDefault: boolean
+    sortOrder: number
+  }>,
+): BuyerPriceOption[] {
+  return [...prices]
+    .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.sortOrder - b.sortOrder)
+    .slice(0, 3)
+    .map((price) => ({
+      id: price.id,
+      kind: price.kind,
+      amountCents: price.amountCents,
+      depositCents: price.depositCents,
+      balanceDueDays: price.balanceDueDays,
+      isDefault: price.isDefault,
+    }))
+}
+
+/** Internal record used by the buyer actions (includes ids buyers never see). */
+export type PublicOfferRecord = PublicOfferView & {
+  creatorUserId: string
+  stripeAccount: string | null
+  legacyPriceId: string | null
+  /** LiveKit room of the agent that sells this offer (chat + voice). */
+  agentRoomName: string | null
+}
+
+export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRecord | null> => {
+  if (!SLUG_RE.test(slug)) return null
+  const offer = await prismaClient.webinar.findFirst({
+    where: { slug, deletedAt: null },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      kind: true,
+      thumbnail: true,
+      startTime: true,
+      webinarStatus: true,
+      priceId: true,
+      presenterId: true,
+      livekitAgentId: true,
+      presenter: {
+        select: {
+          subscription: true,
+          stripeConnectId: true,
+          name: true,
+          publishProfile: { select: { name: true, logo: true } },
+        },
+      },
+      prices: {
+        where: { active: true },
+        select: {
+          id: true,
+          kind: true,
+          amountCents: true,
+          depositCents: true,
+          balanceDueDays: true,
+          isDefault: true,
+          sortOrder: true,
+        },
+      },
+      orderModes: { select: { kind: true, enabled: true, config: true } },
+    },
+  })
+  if (!offer?.slug) return null
+
+  const modes = Object.fromEntries(
+    ORDER_MODE_KINDS.map((kind) => [kind, offer.orderModes.find((mode) => mode.kind === kind)?.enabled ?? false]),
+  ) as OrderModesInput
+  const aiMode = offer.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)
+  const [agent, wizard] = await Promise.all([
+    offer.livekitAgentId
+      ? prismaClient.liveKitAgent.findUnique({ where: { id: offer.livekitAgentId }, select: { roomName: true } })
+      : null,
+    prismaClient.voiceWizard.findFirst({
+      where: { userId: offer.presenterId, isPublished: true },
+      orderBy: { createdAt: 'asc' },
+      select: { slug: true },
+    }),
+  ])
+  const live = offer.presenter.subscription
+  const prices = buyerPrices(offer.prices)
+  const hasPrice = prices.length > 0 || !!offer.priceId
+
+  return {
+    id: offer.id,
+    slug: offer.slug,
+    title: offer.title,
+    description: offer.description ?? '',
+    kind: toOfferKind(offer.kind),
+    thumbnail: offer.thumbnail,
+    startTime: offer.startTime.toISOString(),
+    webinarStatus: offer.webinarStatus,
+    business: {
+      name: offer.presenter.publishProfile?.name || offer.presenter.name,
+      logo: offer.presenter.publishProfile?.logo ?? null,
+    },
+    live,
+    acceptingPayments: live && !!offer.presenter.stripeConnectId && hasPrice,
+    prices,
+    modes,
+    aiServices: aiServicesFrom(aiMode?.config),
+    wizardSlug: wizard?.slug ?? null,
+    creatorUserId: offer.presenterId,
+    agentRoomName: agent?.roomName ?? null,
+    stripeAccount: offer.presenter.stripeConnectId,
+    legacyPriceId: offer.priceId,
+  }
+})
+
+/** Strips server-only fields before handing the offer to a client component. */
+export function toPublicView(record: PublicOfferRecord): PublicOfferView {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { creatorUserId, stripeAccount, legacyPriceId, agentRoomName, ...view } = record
+  return view
+}

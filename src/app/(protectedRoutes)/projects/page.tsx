@@ -31,39 +31,28 @@ const page = async ({ searchParams }: Props) => {
 
   const shouldAutoLaunch = openAdd === '1' && (intent === 'product' || intent === 'webinar')
 
-  // Default path: projects list only (cached). Stripe/Vapi/LiveKit only when launcher opens.
+  // Default path: projects list only (cached). Stripe/LiveKit only when launcher opens.
   const webinars = await getProjectByPresenterId(
     checkUser.user.id,
     webinarStatus as WebinarStatusEnum,
   )
 
   let stripeProducts: unknown[] = []
-  let assistants: unknown[] = []
   let livekitAgents: unknown[] = []
 
   if (shouldAutoLaunch) {
-    const [{ getAllProductsFromStripe }, { getAllAssistants }, { getLiveKitAgents }] =
-      await Promise.all([
-        import('@/actions/stripe'),
-        import('@/actions/vapi'),
-        import('@/actions/livekitAgent'),
-      ])
-    const launcherData = await Promise.all([
-      getAllProductsFromStripe(),
-      getAllAssistants(),
-      getLiveKitAgents(),
+    const [{ getAllProductsFromStripe }, { getLiveKitAgents }] = await Promise.all([
+      import('@/actions/stripe'),
+      import('@/actions/livekitAgent'),
     ])
+    const launcherData = await Promise.all([getAllProductsFromStripe(), getLiveKitAgents()])
     stripeProducts =
       launcherData[0]?.success && Array.isArray(launcherData[0].products)
         ? launcherData[0].products
         : []
-    assistants =
+    livekitAgents =
       launcherData[1]?.success && Array.isArray(launcherData[1].data)
         ? launcherData[1].data
-        : []
-    livekitAgents =
-      launcherData[2]?.success && Array.isArray(launcherData[2].data)
-        ? launcherData[2].data
         : []
   }
 
@@ -80,7 +69,6 @@ const page = async ({ searchParams }: Props) => {
           intent={intent as 'product' | 'webinar'}
           tenantId={tenantId}
           stripeProducts={stripeProducts as never}
-          assistants={assistants as never}
           livekitAgents={livekitAgents as never}
         />
       ) : null}

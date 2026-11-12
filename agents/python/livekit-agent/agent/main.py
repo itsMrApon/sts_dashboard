@@ -24,6 +24,9 @@ from .config import get_mcp_server_config, load_room_config, RoomConfig
 from .pipeline import SaasAssistant, create_voice_pipeline
 from .tools import AgentTools
 
+# Data-channel topic the share page (/o/<slug>) listens on for the order button.
+OFFER_TOPIC = "sts.offer"
+
 _project_root = Path(__file__).resolve().parent.parent
 _repo_root = Path(__file__).resolve().parents[4]
 # Same as config.py: worker .env then repo root .env (so GOOGLE_API_KEY can live only in sts-ai/.env).
@@ -154,24 +157,34 @@ class UsageReporter:
             tts_chars = self._agent_chars
         stt_ms = int(stt_seconds * 1000) if stt_seconds > 0 else duration_ms
 
-        voice_provider = (getattr(self.config, "voice_provider", None) or "deepgram").lower()
-        tts_provider = "fish" if voice_provider in ("fish", "fishaudio", "fish_audio") else "deepgram"
-
-        payload = {
-            "userId": self.config.user_id,
-            "surface": getattr(self.config, "usage_surface", None) or "messages",
-            "llmProvider": getattr(self.config, "llm_provider", None) or "google",
-            "sttProvider": "deepgram",
-            "ttsProvider": tts_provider,
-            "llmInputTokens": llm_in,
-            "llmOutputTokens": llm_out,
-            "llmRequests": 1 if (llm_in or llm_out) else 0,
-            "sttAudioMs": stt_ms,
-            "sttRequests": 1 if stt_ms else 0,
-            "ttsCharacters": tts_chars,
-            "ttsRequests": 1 if tts_chars else 0,
-            "sessionAudioMs": duration_ms,
-        }
+        realtime = (getattr(self.config, "engine_mode", None) or "pipeline").lower() == "realtime"
+        if realtime:
+            # One speech-to-speech model: everything is billed as that provider's model usage.
+            payload = {
+                "userId": self.config.user_id,
+                "surface": getattr(self.config, "usage_surface", None) or "messages",
+                "llmProvider": getattr(self.config, "realtime_provider", None) or "openai",
+                "llmInputTokens": llm_in,
+                "llmOutputTokens": llm_out,
+                "llmRequests": 1,
+                "sessionAudioMs": duration_ms,
+            }
+        else:
+            payload = {
+                "userId": self.config.user_id,
+                "surface": getattr(self.config, "usage_surface", None) or "messages",
+                "llmProvider": getattr(self.config, "llm_provider", None) or "google",
+                "sttProvider": getattr(self.config, "stt_provider", None) or "deepgram",
+                "ttsProvider": getattr(self.config, "voice_provider", None) or "deepgram",
+                "llmInputTokens": llm_in,
+                "llmOutputTokens": llm_out,
+                "llmRequests": 1 if (llm_in or llm_out) else 0,
+                "sttAudioMs": stt_ms,
+                "sttRequests": 1 if stt_ms else 0,
+                "ttsCharacters": tts_chars,
+                "ttsRequests": 1 if tts_chars else 0,
+                "sessionAudioMs": duration_ms,
+            }
 
         try:
             import urllib.request
@@ -261,14 +274,25 @@ async def entrypoint(ctx: JobContext):
                         )
                     )
 
-        session = AgentSession(
-            stt=pipeline_components["stt"],
-            llm=pipeline_components["llm"],
-            tts=pipeline_components["tts"],
-            vad=pipeline_components["vad"],
-            turn_detection=pipeline_components["turn_detection"],
-            mcp_servers=mcp_servers,
+        session_kwargs: dict = {
+            "llm": pipeline_components["llm"],
+            "vad": pipeline_components["vad"],
+            "mcp_servers": mcp_servers,
+        }
+        # Realtime models hear and speak themselves; only the pipeline gets STT/TTS/turn detection.
+        if pipeline_components["mode"] == "pipeline":
+            session_kwargs["stt"] = pipeline_components["stt"]
+            session_kwargs["tts"] = pipeline_components["tts"]
+            session_kwargs["turn_detection"] = pipeline_components["turn_detection"]
+        logger.info(
+            "Engine mode=%s llm=%s stt=%s tts=%s realtime=%s",
+            pipeline_components["mode"],
+            config.llm_provider,
+            config.stt_provider,
+            config.voice_provider,
+            config.realtime_provider,
         )
+        session = AgentSession(**session_kwargs)
 
         transcript_logger = TranscriptLogger(config)
         usage_reporter = UsageReporter(config)
@@ -281,22 +305,40 @@ async def entrypoint(ctx: JobContext):
             async def get_current_date_and_time(self, context: RunContext) -> str:
                 return await AgentTools().get_current_date_and_time(context)
 
-        assistant = ConfiguredAssistant(config, pipeline_components)
+        class OfferAssistant(ConfiguredAssistant):
+            """Share-page calls: can put the order button on the buyer's screen."""
 
-        @session.on("user_speech_committed")
-        def _on_user_speech(ev):
-            text = getattr(ev, "text", None) or getattr(ev, "content", None) or str(ev)
-            if text:
+            @function_tool
+            async def show_order_button(self, context: RunContext) -> str:
+                """Show the order button on the buyer's screen. Call this once the buyer
+                clearly wants to buy or asks how to pay. Payment happens on a secure page,
+                so never ask for card details yourself."""
+                await ctx.room.local_participant.publish_data(
+                    json.dumps({"type": "show_order", "offer": config.offer_slug}).encode("utf-8"),
+                    reliable=True,
+                    topic=OFFER_TOPIC,
+                )
+                logger.info("Order button shown for offer %s", config.offer_slug)
+                return "The order button is now on the buyer's screen. Tell them they can tap it to pay."
+
+        assistant_class = OfferAssistant if config.offer_slug else ConfiguredAssistant
+        assistant = assistant_class(config, pipeline_components)
+
+        # One event for both sides of the conversation, in pipeline and realtime mode.
+        # (The old user_speech_committed / agent_speech_committed events do not exist in
+        # livekit-agents 1.x, so transcripts were never captured before this.)
+        @session.on("conversation_item_added")
+        def _on_conversation_item(ev):
+            item = getattr(ev, "item", None)
+            role = getattr(item, "role", None)
+            text = getattr(item, "text_content", None) if item is not None else None
+            if not text or role not in ("user", "assistant"):
+                return
+            if role == "user":
                 transcript_logger.on_user_speech(text)
-                logger.debug("User said: %s", text[:80])
-
-        @session.on("agent_speech_committed")
-        def _on_agent_speech(ev):
-            text = getattr(ev, "text", None) or getattr(ev, "content", None) or str(ev)
-            if text:
+            else:
                 transcript_logger.on_agent_speech(text)
                 usage_reporter.add_agent_speech(text)
-                logger.debug("Agent said: %s", text[:80])
 
         @session.on("metrics_collected")
         def _on_metrics(ev):

@@ -4,7 +4,8 @@
  import { onAuthenticateUser } from "./auth"
  import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
  import { prismaClient } from "@/lib/prismaClient"
- import { CtaTypeEnum, WebinarKind, WebinarStatusEnum } from "@prisma/client"
+ import { CtaTypeEnum, OfferPriceKind, WebinarKind, WebinarStatusEnum } from "@prisma/client"
+ import { buildOfferSlug, orderModesFromVariants, parseLiveKitAgentValue } from '@/lib/offers/offerModel'
  import {
   hasBookCallVariant,
   hasProjectVariant,
@@ -88,17 +89,17 @@ export const createProject = async(
         startTime = combinedDateTime
       }
 
-      // Parse aiAgent: "vapi:id" or "livekit:id" format
-      let aiAgentId: string | null = null
-      let livekitAgentId: string | null = null
-      const aiAgentValue = formData.cta.aiAgent || ''
-      if (aiAgentValue.startsWith('livekit:')) {
-        livekitAgentId = aiAgentValue.slice(8) || null
-      } else if (aiAgentValue.startsWith('vapi:')) {
-        aiAgentId = aiAgentValue.slice(5) || null
-      } else if (aiAgentValue) {
-        // Backward compat: plain id treated as vapi
-        aiAgentId = aiAgentValue
+      // AI for project links comes from the AI config (LiveKit agents) only; Vapi is no longer supported here.
+      const livekitAgentId = parseLiveKitAgentValue(formData.cta.aiAgent)
+      if (livekitAgentId) {
+        // Same visibility as getLiveKitAgents: own agents plus legacy unowned ones.
+        const ownsAgent = await prismaClient.liveKitAgent.findFirst({
+          where: { id: livekitAgentId, OR: [{ userId: presenterId }, { userId: null }] },
+          select: { id: true },
+        })
+        if (!ownsAgent) {
+          return { status: 400, message: 'Choose one of your AI agents' }
+        }
       }
 
       // Default record fields keep compatibility for existing readers.
@@ -106,7 +107,7 @@ export const createProject = async(
         ? CtaTypeEnum.BUY_NOW
         : CtaTypeEnum.BOOK_A_CALL
 
-      if (hasBookCallVariant(selectedVariants) && !aiAgentId && !livekitAgentId) {
+      if (hasBookCallVariant(selectedVariants) && !livekitAgentId) {
         return { status: 400, message: 'AI agent is required for Book a Call links' }
       }
       if (!formData.cta.priceld) {
@@ -123,7 +124,6 @@ export const createProject = async(
         ctaLabel: formData.cta.ctaLabel,
         ctaType,
         kind: primaryMeta.kind === 'product' ? WebinarKind.PRODUCT : WebinarKind.PROJECT,
-        aiAgentId,
         livekitAgentId,
         priceId: formData.cta.priceld || null,
         linkVariants: selectedVariants,
@@ -137,7 +137,20 @@ export const createProject = async(
         workspaceId: workspaceId || null,
       }
 
-      const webinar = await prismaClient.webinar.create({ data })
+      // Write the offer model alongside the legacy fields so new projects match the backfilled ones.
+      const priceId = formData.cta.priceld || null
+      const webinar = await prismaClient.webinar.create({
+        data: {
+          ...data,
+          slug: buildOfferSlug(data.title),
+          orderModes: {
+            create: orderModesFromVariants(selectedVariants).map((kind) => ({ kind })),
+          },
+          prices: priceId
+            ? { create: [{ kind: OfferPriceKind.ONE_TIME, stripePriceId: priceId, isDefault: true }] }
+            : undefined,
+        },
+      })
 
       // Phase 2 unified add flow: if a workspace is selected, attach created project/webinar
       // to the workspace's publish profile so Messages/Publish can discover it immediately.

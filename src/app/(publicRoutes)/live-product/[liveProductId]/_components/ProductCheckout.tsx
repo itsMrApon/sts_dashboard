@@ -15,16 +15,11 @@ type Props = {
 export default function ProductCheckout({ product, attendee }: Props) {
   const handleBuyNow = async () => {
     try {
-      if (!product.priceId || !product.presenter?.stripeConnectId) {
+      if (!product.presenter?.stripeConnectId) {
         toast.error('Checkout not configured for this product')
         return
       }
-      const session = await createCheckoutLink(
-        product.priceId,
-        product.presenter.stripeConnectId,
-        attendee.id,
-        product.id
-      )
+      const session = await createCheckoutLink(product.id, attendee.id)
       if (session.sessionUrl) window.open(session.sessionUrl, '_blank')
       else toast.error('Could not create checkout session')
     } catch (e) {

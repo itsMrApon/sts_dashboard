@@ -73,12 +73,13 @@ const LiveProjectView = ({
   }
 
 
-  const handleCTAButtonClick = async () => { 
+  // "Drop offer": every attendee gets the buy dialog at once.
+  const handleCTAButtonClick = async () => {
     if (!channel) return
-    console.log('CTA button clicked', channel)
     await channel.sendEvent({
       type: 'open_cta_dialog',
     })
+    toast.success('Offer sent to everyone watching')
   }
 
   useEffect (() => {
@@ -266,8 +267,8 @@ const LiveProjectView = ({
                 </Button>
                 <Button onClick={handleCTAButtonClick}>
                   {project.ctaType === CtaTypeEnum.BOOK_A_CALL
-                    ?'Book a Call'
-                    :'Buy Now'}
+                    ? 'Send Book a Call'
+                    : 'Drop offer'}
                 </Button>
               </div>
             )}

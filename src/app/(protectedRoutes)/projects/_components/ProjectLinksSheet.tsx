@@ -38,8 +38,13 @@ export default function ProjectLinksSheet({ project }: Props) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
 
   const links = useMemo(() => {
-    const variants = getProjectVariants(project)
-    return buildVariantLinks(project.id, variants, baseUrl)
+    // The one share link (/o/slug) first; the older per-variant links still work, so keep them listed.
+    const share = project.slug ? [{ label: 'Share link', url: `${baseUrl}/o/${project.slug}` }] : []
+    const legacy = buildVariantLinks(project.id, getProjectVariants(project), baseUrl).map((link) => ({
+      label: share.length ? `Older link · ${link.label}` : link.label,
+      url: link.url,
+    }))
+    return [...share, ...legacy]
   }, [project, baseUrl])
 
   const handleCopy = (url: string) => {

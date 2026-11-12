@@ -1,10 +1,11 @@
 "use server"
 
+import type Stripe from 'stripe'
+import { OfferPriceKind } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
-import { subscriptionPriceId } from '@/lib/data'
-import { prismaClient } from '@/lib/prismaClient'
 import { stripe } from '@/lib/stripe'
-import Stripe from 'stripe'
+import { prismaClient } from '@/lib/prismaClient'
+import { pickDefaultPrice } from '@/lib/offers/offerSettings'
 import { changeAttendanceType } from './attendance'
 
 export const getAllProductsFromStripe = async () => {
@@ -45,133 +46,69 @@ export const getAllProductsFromStripe = async () => {
   }
 }
 
-export const onGetStripeClientSecret = async (email: string, userId: string) => {
-  try {
-    let customer: Stripe.Customer;
-    const existingCustomers = await stripe.customers.list({ email: email });
-    if (existingCustomers.data.length > 0) {
-      customer = existingCustomers.data[0]
-    }else {
-      customer = await stripe.customers.create({ 
-        email: email,
-        metadata: {
-          userId: userId,
-        },
-      })
-    }
-    await prismaClient.user.update({
-      where: { id: userId },
-      data: {
-        stripeCustomerId: customer.id,
-      },
-    })
-    const subscription = await stripe.subscriptions.create({
-      customer: customer.id,
-      items: [{ price: subscriptionPriceId}], 
-      payment_behavior: 'default_incomplete', 
-      expand: ['latest_invoice.payment_intent'],
-      metadata: {
-        userId: userId,
-      },
-    })
+// Platform packages ($49 setup / $499 monthly) live in src/actions/platformBilling.ts.
 
-    const invoice = subscription.latest_invoice as Stripe.Invoice
-    const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent
-    
-    if (!paymentIntent || !paymentIntent.client_secret) {
-      throw new Error('Payment intent not found in subscription invoice')
-    }
-    
-    return {
-      status: 200,
-      secret: paymentIntent.client_secret, 
-      customerId: customer.id,
-    }
-  } catch (error) {
-    console.error('Subscription creation error:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create subscription'
-    return { status: 400, message: errorMessage }
-  }
-}
-
-export const updateSubscription = async (subscription: Stripe.Subscription) => {
-  try {
-    const userID = subscription.metadata.userId
-    
-    await prismaClient.user.update({
-      where: { id: userID },
-      data: {
-        subscription: subscription.status === 'active' ? true : false,
-      },
-    })
-  } catch (error) {
-    console.error('Subscription update error:', error)
-  }
-}
-
-export const syncSubscriptionStatus = async (userId: string) => {
-  try {
-    const user = await prismaClient.user.findUnique({
-      where: { id: userId },
-      select: { stripeCustomerId: true },
-    })
-
-    if (!user?.stripeCustomerId) {
-      return { success: false, message: 'No Stripe customer ID found' }
-    }
-
-    const subscriptions = await stripe.subscriptions.list({
-      customer: user.stripeCustomerId,
-      status: 'active',
-      limit: 1,
-    })
-
-    if (subscriptions.data.length > 0) {
-      const subscription = subscriptions.data[0]
-      await prismaClient.user.update({
-        where: { id: userId },
-        data: {
-          subscription: true,
-        },
-      })
-      return { success: true, subscription: subscription.status }
-    }
-
-    return { success: false, message: 'No active subscription found' }
-  } catch (error) {
-    console.error('Sync subscription error:', error)
-    return { success: false, message: 'Failed to sync subscription' }
-  }
-}
-
+/**
+ * Buyer checkout for an offer. The price and the creator's Stripe account are resolved on the
+ * server from the project (never taken from the browser): the creator's default price option
+ * when set, otherwise the legacy Stripe price.
+ */
 export const createCheckoutLink = async (
-  priceId: string, 
-  stripeId: string, 
-  attendeeId: string, 
   projectId: string,
+  attendeeId: string,
   bookCall: boolean = false
 ) => {
   try {
+    const project = await prismaClient.webinar.findFirst({
+      where: { id: projectId, deletedAt: null },
+      select: {
+        id: true,
+        title: true,
+        priceId: true,
+        presenter: { select: { stripeConnectId: true } },
+        prices: { where: { active: true } },
+      },
+    })
+    const stripeAccount = project?.presenter.stripeConnectId
+    if (!project || !stripeAccount) {
+      return { error: 'Checkout is not set up for this offer', status: 400, success: false }
+    }
+
+    const price = pickDefaultPrice(project.prices)
+    let lineItem: Stripe.Checkout.SessionCreateParams.LineItem
+    let mode: Stripe.Checkout.SessionCreateParams.Mode = 'payment'
+    if (price?.amountCents) {
+      const monthly = price.kind === OfferPriceKind.MONTHLY
+      mode = monthly ? 'subscription' : 'payment'
+      lineItem = {
+        quantity: 1,
+        price_data: {
+          currency: price.currency,
+          unit_amount: price.amountCents,
+          product_data: { name: project.title },
+          ...(monthly ? { recurring: { interval: 'month' as const } } : {}),
+        },
+      }
+    } else if (price?.stripePriceId || project.priceId) {
+      lineItem = { quantity: 1, price: (price?.stripePriceId || project.priceId) as string }
+    } else {
+      return { error: 'Set a price for this offer first', status: 400, success: false }
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
     const session = await stripe.checkout.sessions.create(
       {
-        line_items: [
-          {
-            price: priceId, 
-            quantity: 1,
-          }
-        ],
-        mode: 'payment', 
-        // make dynamic in future
-        success_url: `${process. env.NEXT_PUBLIC_BASE_URL}/`,
-        cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/`,
+        line_items: [lineItem],
+        mode,
+        success_url: `${baseUrl}/`,
+        cancel_url: `${baseUrl}/`,
         metadata: {
-          attendeeld: attendeeId, 
-          webinarId: projectId,
-        }
+          attendeeId,
+          webinarId: project.id,
+          ...(price ? { offerPriceId: price.id } : {}),
+        },
       },
-      {
-        stripeAccount: stripeId,
-      }
+      { stripeAccount }
     )
     if (bookCall) {
       await changeAttendanceType(attendeeId, projectId, 'ADDED_TO_CART' )

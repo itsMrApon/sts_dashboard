@@ -8,57 +8,78 @@ datasource db {
 }
 
 model User {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name             String    @db.VarChar(100)
-  clerkId          String    @unique
-  email            String    @unique
-  profileImage     String
-  stripeConnectId  String?   @db.VarChar(255)
-  lastLoginAt      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  deletedAt        DateTime?
-  subscription     Boolean   @default(false)
-  stripeCustomerId String?   @db.VarChar(255)
-  webinars         Webinar[]       @relation("PresenterWebinars")
-  eventLogs        EventLog[]
-  callTranscripts  CallTranscript[]
-  workspaces       Workspace[]
-  partnerConnectors WorkspacePartnerConnector[]
-  huntedLeads      HuntedLead[]
-  huntSchedule     HuntSchedule?
-  outreachChannels OutreachChannel[]
-  publishProfiles  PublishProfile[]
-  voiceCredential  UserVoiceCredential?
-  callIntelConnections CallIntelConnection[]
-  callIntelLeads       CallIntelLead[]
-  callIntelMeetings    CallIntelMeeting[]
-  callIntelSettings    CallIntelSettings?
-  leadSearchBatches    LeadSearchBatch[]
-  leadActivities       LeadActivity[]
-  providerUsageDaily   ProviderUsageDaily[]
+  id                         String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                       String                      @db.VarChar(100)
+  clerkId                    String                      @unique
+  email                      String                      @unique
+  profileImage               String
+  stripeConnectId            String?                     @db.VarChar(255)
+  lastLoginAt                DateTime?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  deletedAt                  DateTime?
+  subscription               Boolean                     @default(false)
+  stripeCustomerId           String?                     @db.VarChar(255)
+  webinars                   Webinar[]                   @relation("PresenterWebinars")
+  eventLogs                  EventLog[]
+  callTranscripts            CallTranscript[]
+  voiceWizards               VoiceWizard[]
+  /// One workspace per creator (single-business model).
+  workspace                  Workspace?
+  partnerConnectors          WorkspacePartnerConnector[]
+  huntedLeads                HuntedLead[]
+  huntSchedule               HuntSchedule?
+  outreachChannels           OutreachChannel[]
+  /// One business profile per creator (single-business model).
+  publishProfile             PublishProfile?
+  voiceCredential            UserVoiceCredential?
+  /// Account-wide LLM + voice engine used by every LiveKit agent this user owns.
+  agentEngineSettings        AgentEngineSettings?
+  liveKitAgents              LiveKitAgent[]
+  callIntelConnections       CallIntelConnection[]
+  callIntelLeads             CallIntelLead[]
+  callIntelMeetings          CallIntelMeeting[]
+  callIntelSettings          CallIntelSettings?
+  leadSearchBatches          LeadSearchBatch[]
+  leadActivities             LeadActivity[]
+  providerUsageDaily         ProviderUsageDaily[]
+  /// Platform packages: "Setup & Integrate" ($49 one-time) and "Run My Business" ($499/month).
+  /// `subscription` stays the single access flag and is derived from these.
+  setupPaidAt                DateTime?
+  businessSubscriptionId     String?                     @db.VarChar(255)
+  businessSubscriptionStatus String?                     @db.VarChar(32)
+  setupRequests              SetupRequest[]
+  contacts                   Contact[]
+  orders                     Order[]
+  paymentRequests            PaymentRequest[]
 
   @@index([email])
   @@index([clerkId])
 }
 
 model UserVoiceCredential {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId              String    @unique @db.Uuid
-  googleApiKey        String?
-  deepgramApiKey      String?
-  openaiApiKey        String?
-  anthropicApiKey     String?
-  fishApiKey          String?
-  deepseekApiKey      String?
-  kimiApiKey          String?
-  googleValidatedAt   DateTime?
-  deepgramValidatedAt DateTime?
-  fishValidatedAt     DateTime?
-  deepseekValidatedAt DateTime?
-  kimiValidatedAt     DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String    @unique @db.Uuid
+  googleApiKey          String?
+  deepgramApiKey        String?
+  openaiApiKey          String?
+  anthropicApiKey       String?
+  fishApiKey            String?
+  deepseekApiKey        String?
+  kimiApiKey            String?
+  openrouterApiKey      String?
+  xaiApiKey             String?
+  googleValidatedAt     DateTime?
+  deepgramValidatedAt   DateTime?
+  fishValidatedAt       DateTime?
+  deepseekValidatedAt   DateTime?
+  kimiValidatedAt       DateTime?
+  openaiValidatedAt     DateTime?
+  anthropicValidatedAt  DateTime?
+  openrouterValidatedAt DateTime?
+  xaiValidatedAt        DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -104,7 +125,6 @@ model Webinar {
   couponExpiry    DateTime?
   lockChat        Boolean           @default(false)
   stripeProductId String?           @db.VarChar(255)
-  aiAgentId       String?           @db.Uuid
   priceId         String?           @db.VarChar(255)
   recordingUrl    String?
   thumbnail       String?
@@ -114,18 +134,193 @@ model Webinar {
   attendeeId      String?           @db.Uuid
   livekitAgentId  String?           @db.Uuid
   kind            WebinarKind       @default(PROJECT)
+  /// Deprecated: replaced by OfferOrderMode rows; removed once the public pages move to /o/[slug].
   linkVariants    String[]          @default([])
-  workspaceId      String?           @db.Uuid
-  attendances      Attendance[]
-  publishProducts  PublishProduct[]
-  Attendee         Attendee?         @relation(fields: [attendeeId], references: [id])
-  presenter        User              @relation("PresenterWebinars", fields: [presenterId], references: [id], onDelete: Cascade)
-  workspace        Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  workspaceId     String?           @db.Uuid
+  /// Public share path: /o/{slug}
+  slug            String?           @unique @db.VarChar(80)
+  attendances     Attendance[]
+  publishProducts PublishProduct[]
+  orderModes      OfferOrderMode[]
+  prices          OfferPrice[]
+  orders          Order[]
+  paymentRequests PaymentRequest[]
+  Attendee        Attendee?         @relation(fields: [attendeeId], references: [id])
+  presenter       User              @relation("PresenterWebinars", fields: [presenterId], references: [id], onDelete: Cascade)
+  workspace       Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
 
   @@index([presenterId])
-  @@index([aiAgentId])
   @@index([startTime])
   @@index([workspaceId])
+}
+
+/// The four ways a buyer can order an offer. One row per kind; the creator toggles them.
+enum OrderModeKind {
+  INSTANT_CHECKOUT
+  AI_ASSISTANT
+  LIVE_HOST
+  DIRECT_PAY
+}
+
+model OfferOrderMode {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webinarId String        @db.Uuid
+  kind      OrderModeKind
+  enabled   Boolean       @default(true)
+  /// Per-mode settings, e.g. AI_ASSISTANT: { services: ["CHAT","SPEAK","WIZARD"] }
+  config    Json          @default("{}")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  webinar Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  @@unique([webinarId, kind])
+}
+
+enum OfferPriceKind {
+  ONE_TIME
+  MONTHLY
+  /// Deposit now, Stripe Invoice for the balance after `balanceDueDays`.
+  DEPOSIT
+}
+
+/// Buyer-facing price options for an offer (max three shown). Amounts are in the smallest currency unit.
+model OfferPrice {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webinarId       String         @db.Uuid
+  kind            OfferPriceKind
+  label           String?        @db.VarChar(80)
+  /// Null only for prices migrated from the legacy `priceId` that have not been synced from Stripe yet.
+  amountCents     Int?
+  currency        String         @default("usd") @db.VarChar(3)
+  depositCents    Int?
+  depositPercent  Int?
+  balanceDueDays  Int?
+  stripeProductId String?        @db.VarChar(255)
+  stripePriceId   String?        @db.VarChar(255)
+  isDefault       Boolean        @default(false)
+  sortOrder       Int            @default(0)
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  webinar Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  orders  Order[]
+
+  @@index([webinarId])
+}
+
+/// A buyer lead, scoped to one creator (unlike the global Attendee table).
+model Contact {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  email     String?  @db.VarChar(255)
+  phone     String?  @db.VarChar(32)
+  name      String?  @db.VarChar(100)
+  source    String   @default("link") @db.VarChar(32)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders          Order[]
+  paymentRequests PaymentRequest[]
+
+  @@unique([userId, email])
+  @@unique([userId, phone])
+  @@index([userId, createdAt])
+}
+
+enum OrderStatus {
+  PENDING
+  DEPOSIT_PAID
+  PAID
+  REFUNDED
+  FAILED
+  CANCELED
+}
+
+/// One purchase attempt. Mirrors Stripe state via the webhook; Stripe stays the source of truth for money.
+model Order {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String         @db.Uuid
+  webinarId               String?        @db.Uuid
+  offerPriceId            String?        @db.Uuid
+  contactId               String?        @db.Uuid
+  paymentRequestId        String?        @unique @db.Uuid
+  orderMode               OrderModeKind?
+  source                  String?        @db.VarChar(64)
+  status                  OrderStatus    @default(PENDING)
+  currency                String         @default("usd") @db.VarChar(3)
+  amountTotalCents        Int            @default(0)
+  amountPaidCents         Int            @default(0)
+  stripeCheckoutSessionId String?        @unique @db.VarChar(255)
+  stripePaymentIntentId   String?        @db.VarChar(255)
+  stripeInvoiceId         String?        @db.VarChar(255)
+  stripeSubscriptionId    String?        @db.VarChar(255)
+  paidAt                  DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  webinar        Webinar?        @relation(fields: [webinarId], references: [id], onDelete: SetNull)
+  offerPrice     OfferPrice?     @relation(fields: [offerPriceId], references: [id], onDelete: SetNull)
+  contact        Contact?        @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  paymentRequest PaymentRequest? @relation(fields: [paymentRequestId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([webinarId])
+  @@index([contactId])
+}
+
+enum PaymentRequestStatus {
+  OPEN
+  PAID
+  EXPIRED
+  CANCELED
+}
+
+/// A creator-set amount sent to one lead (quotes). Only a human sets the amount.
+model PaymentRequest {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String               @db.Uuid
+  contactId   String?              @db.Uuid
+  webinarId   String?              @db.Uuid
+  token       String               @unique @db.VarChar(32)
+  amountCents Int
+  currency    String               @default("usd") @db.VarChar(3)
+  note        String?
+  status      PaymentRequestStatus @default(OPEN)
+  expiresAt   DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  webinar Webinar? @relation(fields: [webinarId], references: [id], onDelete: SetNull)
+  order   Order?
+
+  @@index([userId, createdAt])
+}
+
+enum SetupRequestStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+}
+
+/// Created when a creator buys "Setup & Integrate", so the team can follow up.
+model SetupRequest {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String             @db.Uuid
+  stripePaymentIntentId String             @unique @db.VarChar(255)
+  status                SetupRequestStatus @default(NEW)
+  notes                 String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
 }
 
 model Attendee {
@@ -158,18 +353,18 @@ model Attendance {
 }
 
 model RoomEmbedConfig {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  roomName       String   @unique @db.VarChar(255)
-  userId         String   @db.Uuid
-  workspaceId    String?  @map("tenantId") @db.Uuid
-  publishProfileId String? @map("businessId") @db.Uuid
-  allowedOrigins String[] @default([])
-  siteKeyHash    String
-  siteKeyPrefix  String   @db.VarChar(32)
-  enabled        Boolean  @default(true)
-  rotatedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomName         String    @unique @db.VarChar(255)
+  userId           String    @db.Uuid
+  workspaceId      String?   @map("tenantId") @db.Uuid
+  publishProfileId String?   @map("businessId") @db.Uuid
+  allowedOrigins   String[]  @default([])
+  siteKeyHash      String    @unique
+  siteKeyPrefix    String    @db.VarChar(32)
+  enabled          Boolean   @default(true)
+  rotatedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([userId])
   @@index([workspaceId])
@@ -177,22 +372,51 @@ model RoomEmbedConfig {
 }
 
 model LiveKitAgent {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String          @db.VarChar(255)
-  roomName       String          @unique @db.VarChar(255)
-  firstMessage   String?
-  systemPrompt   String?
-  language       String          @default("en") @db.VarChar(10)
-  voiceModel     String          @default("aura-asteria-en") @db.VarChar(100)
-  voiceProvider  String          @default("deepgram") @db.VarChar(50)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  llmModel       String          @default("gemini-2.0-flash") @db.VarChar(100)
-  llmProvider    String          @default("google") @db.VarChar(50)
-  publishAgents  PublishAgent[]
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String         @db.VarChar(255)
+  roomName      String         @unique @db.VarChar(255)
+  firstMessage  String?
+  systemPrompt  String?
+  language      String         @default("en") @db.VarChar(10)
+  voiceModel    String         @default("aura-asteria-en") @db.VarChar(100)
+  voiceProvider String         @default("deepgram") @db.VarChar(50)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  llmModel      String         @default("gemini-2.0-flash") @db.VarChar(100)
+  llmProvider   String         @default("google") @db.VarChar(50)
+  /// Owner. Null for legacy rows created before ownership; claimed on first authorized edit.
+  userId        String?        @db.Uuid
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  publishAgents PublishAgent[]
 
   @@index([roomName])
   @@index([createdAt])
+  @@index([userId])
+}
+
+/// Account-wide engine (LLM + TTS voice). Overrides the per-agent llm/voice columns at runtime.
+model AgentEngineSettings {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @unique @db.Uuid
+  llmProvider      String   @default("google") @db.VarChar(50)
+  llmModel         String   @db.VarChar(100)
+  voiceProvider    String   @default("deepgram") @db.VarChar(50)
+  voiceModel       String   @default("aura-asteria-en") @db.VarChar(100)
+  /// Display-only voice title (Fish voices are opaque reference_ids).
+  voiceLabel       String?  @db.VarChar(200)
+  /// "pipeline" (STT -> LLM -> TTS) or "realtime" (one speech-to-speech model).
+  engineMode       String   @default("pipeline") @db.VarChar(20)
+  sttProvider      String   @default("deepgram") @db.VarChar(50)
+  sttModel         String?  @db.VarChar(100)
+  /// Speaking-style instructions for TTS/realtime models that accept them (accent, tone).
+  voiceStyle       String?  @db.VarChar(500)
+  realtimeProvider String   @default("openai") @db.VarChar(50)
+  realtimeModel    String   @default("gpt-realtime") @db.VarChar(100)
+  realtimeVoice    String   @default("marin") @db.VarChar(100)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model MessageChannel {
@@ -277,6 +501,8 @@ enum CallStatusEnum {
 }
 
 enum Platform {
+  /// Website chat (Chat AI / hosted page) — conversation history container.
+  WEB
   TELEGRAM
   DISCORD
   SLACK
@@ -294,16 +520,16 @@ enum ChannelStatus {
 }
 
 model EventLog {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String    @db.Uuid
-  leadId     String?   @db.Uuid
-  workspaceId String?  @map("tenantId") @db.Uuid
-  eventType  EventType
-  channel    String?   @db.VarChar(50)
-  metadata   Json?
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @db.Uuid
+  leadId      String?   @db.Uuid
+  workspaceId String?   @map("tenantId") @db.Uuid
+  eventType   EventType
+  channel     String?   @db.VarChar(50)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
 
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([leadId])
@@ -313,20 +539,20 @@ model EventLog {
 }
 
 model CallTranscript {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String   @db.Uuid
-  roomName   String   @db.VarChar(255)
-  leadId     String?  @db.Uuid
-  workspaceId String? @map("tenantId") @db.Uuid
-  transcript Json
-  duration   Int      @default(0)
-  outcome    String?  @db.VarChar(50)
-  objections Json?
-  summary    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @db.Uuid
+  roomName    String   @db.VarChar(255)
+  leadId      String?  @db.Uuid
+  workspaceId String?  @map("tenantId") @db.Uuid
+  transcript  Json
+  duration    Int      @default(0)
+  outcome     String?  @db.VarChar(50)
+  objections  Json?
+  summary     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([roomName])
@@ -335,31 +561,36 @@ model CallTranscript {
 }
 
 model Workspace {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String    @db.Uuid
-  publishProfileId String?   @map("businessId") @db.Uuid
-  webinarId    String?   @db.Uuid
-  name         String    @db.VarChar(255)
-  pitchMessage String
-  videoUrl     String?   @db.VarChar(500)
-  videoType    VideoType @default(LINK)
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String            @unique @db.Uuid
+  publishProfileId     String?           @map("businessId") @db.Uuid
+  webinarId            String?           @db.Uuid
+  name                 String            @db.VarChar(255)
+  pitchMessage         String
+  videoUrl             String?           @db.VarChar(500)
+  videoType            VideoType         @default(LINK)
   contextVertical      String?           @db.VarChar(100)
   contextCoreJson      Json?
   contextIndustryJson  Json?
   contextSocialJson    Json?
   fullProfileJson      Json?
   compactProfileJson   Json?
-  /** Outbound publish modules enabled for this workspace: core, industry, social, blog */
+  /**
+   * Outbound publish modules enabled for this workspace: core, industry, social, blog
+   */
   publishModulesJson   Json?
   contextVersion       String?           @db.VarChar(100)
   compactTokenEstimate Int               @default(0)
   contextStatus        ContextStatusEnum @default(DRAFT)
   publishedAt          DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
-  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  publishProfile    PublishProfile?           @relation(fields: [publishProfileId], references: [id], onDelete: SetNull)
+  user              User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishProfile    PublishProfile?             @relation(fields: [publishProfileId], references: [id], onDelete: SetNull)
+  voiceWizards      VoiceWizard[]
+  serviceConfigs    ServiceConfig[]
+  formSubmissions   FormSubmission[]
   messageChannels   MessageChannel[]
   partnerConnectors WorkspacePartnerConnector[]
   webinars          Webinar[]
@@ -388,10 +619,10 @@ model WorkspacePartnerConnector {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([workspaceId, kind])
   @@index([workspaceId])
   @@index([userId])
   @@index([workspaceId, enabled])
-  @@unique([workspaceId, kind])
   @@map("TenantInboundConnector")
 }
 
@@ -416,7 +647,7 @@ model HuntedLead {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([source])
@@ -436,7 +667,7 @@ model HuntSchedule {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([enabled])
@@ -542,7 +773,7 @@ model OutreachChannel {
 
 model PublishProfile {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String   @db.Uuid
+  userId         String   @unique @db.Uuid
   name           String   @db.VarChar(255)
   description    String?
   logo           String?
@@ -605,18 +836,18 @@ enum StreamCallStatus {
 }
 
 model StreamCallSession {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  roomName          String            @db.VarChar(255)
-  webinarId         String            @db.Uuid
-  callId            String            @unique @db.VarChar(255)
-  hostUserId        String            @db.Uuid
-  attendeeUserId    String            @db.VarChar(255)
-  attendeeIdentity  String            @db.VarChar(255)
-  status            StreamCallStatus @default(PENDING)
-  attendeeJoinedAt  DateTime?
-  creatorJoinedAt   DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomName         String           @db.VarChar(255)
+  webinarId        String           @db.Uuid
+  callId           String           @unique @db.VarChar(255)
+  hostUserId       String           @db.Uuid
+  attendeeUserId   String           @db.VarChar(255)
+  attendeeIdentity String           @db.VarChar(255)
+  status           StreamCallStatus @default(PENDING)
+  attendeeJoinedAt DateTime?
+  creatorJoinedAt  DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   @@index([roomName])
   @@index([webinarId])
@@ -640,14 +871,14 @@ enum CallIntelBriefStatus {
 }
 
 model CallIntelConnection {
-  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String                     @db.Uuid
+  id          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String                    @db.Uuid
   provider    CallIntelProvider
   credentials Json?
-  status      CallIntelConnectionStatus  @default(ACTIVE)
+  status      CallIntelConnectionStatus @default(ACTIVE)
   metadata    Json?
-  createdAt   DateTime                   @default(now())
-  updatedAt   DateTime                   @updatedAt
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -657,30 +888,34 @@ model CallIntelConnection {
 }
 
 model CallIntelLead {
-  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String               @db.Uuid
-  email             String               @db.VarChar(255)
-  name              String               @db.VarChar(255)
-  company           String?              @db.VarChar(255)
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String             @db.Uuid
+  email             String             @db.VarChar(255)
+  name              String             @db.VarChar(255)
+  company           String?            @db.VarChar(255)
   notes             String?
-  selectedAgentId   String?              @db.Uuid
+  selectedAgentId   String?            @db.Uuid
   lastAppointmentAt DateTime?
   webResearchJson   Json?
-  /** MEETING = Fathom/Calendar; BUSINESS = Serper Maps cold outreach */
-  source            String               @default("MEETING") @db.VarChar(20)
-  phone             String?              @db.VarChar(50)
-  website           String?              @db.VarChar(500)
-  address           String?              @db.VarChar(500)
-  placeId           String?              @db.VarChar(100)
-  /** Manual outbound pipeline: NEW | ON_PROCESS | DONE */
-  outboundStatus    LeadOutboundStatus   @default(NEW)
-  searchBatchId     String?              @db.Uuid
+  /**
+   * MEETING = Fathom/Calendar; BUSINESS = Serper Maps cold outreach
+   */
+  source            String             @default("MEETING") @db.VarChar(20)
+  phone             String?            @db.VarChar(50)
+  website           String?            @db.VarChar(500)
+  address           String?            @db.VarChar(500)
+  placeId           String?            @db.VarChar(100)
+  /**
+   * Manual outbound pipeline: NEW | ON_PROCESS | DONE
+   */
+  outboundStatus    LeadOutboundStatus @default(NEW)
+  searchBatchId     String?            @db.Uuid
   nextFollowUpAt    DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  searchBatch LeadSearchBatch?  @relation(fields: [searchBatchId], references: [id], onDelete: SetNull)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  searchBatch LeadSearchBatch?   @relation(fields: [searchBatchId], references: [id], onDelete: SetNull)
   meetings    CallIntelMeeting[]
   briefs      CallIntelBrief[]
   activities  LeadActivity[]
@@ -697,12 +932,12 @@ model CallIntelLead {
 }
 
 model LeadSearchBatch {
-  id        String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String                  @db.Uuid
-  location  String                  @db.VarChar(255)
-  niche     String                  @db.VarChar(255)
-  source    LeadSearchBatchSource   @default(MANUAL)
-  createdAt DateTime                @default(now())
+  id        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String                @db.Uuid
+  location  String                @db.VarChar(255)
+  niche     String                @db.VarChar(255)
+  source    LeadSearchBatchSource @default(MANUAL)
+  createdAt DateTime              @default(now())
 
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   leads CallIntelLead[]
@@ -810,25 +1045,120 @@ model CallIntelBrief {
   @@index([forDate])
 }
 
-/** Per-user Call Intelligence setup (agent + projects + calendar). */
+/**
+ * Per-user Call Intelligence setup (agent + projects + calendar).
+ */
 model CallIntelSettings {
-  userId             String    @id @db.Uuid
-  defaultAgentId     String?   @db.Uuid
-  selectedWebinarIds String[]  @default([])
-  /** ALL = every event today; KEYWORD = match calendarKeyword in title/description */
-  calendarFilterMode String    @default("ALL") @db.VarChar(20)
-  calendarKeyword    String?   @db.VarChar(100)
-  /** Optional per-user Google OAuth app credentials (encrypted). Env used as fallback. */
-  googleClientIdEnc  String?
+  userId                String    @id @db.Uuid
+  defaultAgentId        String?   @db.Uuid
+  selectedWebinarIds    String[]  @default([])
+  /**
+   * ALL = every event today; KEYWORD = match calendarKeyword in title/description
+   */
+  calendarFilterMode    String    @default("ALL") @db.VarChar(20)
+  calendarKeyword       String?   @db.VarChar(100)
+  /**
+   * Optional per-user Google OAuth app credentials (encrypted). Env used as fallback.
+   */
+  googleClientIdEnc     String?
   googleClientSecretEnc String?
-  /** Optional per-user Serper API key (encrypted). Env SERPER_API_KEY used as fallback. */
-  serperApiKeyEnc    String?
-  /** Business lead discovery: city/area + niche for Serper Maps sync */
-  businessLocation   String?   @db.VarChar(255)
-  businessNiche      String?   @db.VarChar(255)
-  setupCompletedAt   DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  /**
+   * Optional per-user Serper API key (encrypted). Env SERPER_API_KEY used as fallback.
+   */
+  serperApiKeyEnc       String?
+  /**
+   * Business lead discovery: city/area + niche for Serper Maps sync
+   */
+  businessLocation      String?   @db.VarChar(255)
+  businessNiche         String?   @db.VarChar(255)
+  setupCompletedAt      DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Fixed-window rate limit + daily quota counters shared across serverless instances.
+model RateLimitCounter {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+/// Voice-guided website tour ("Wizard") — scripted narration + pre-rendered TTS clips.
+model VoiceWizard {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @db.Uuid
+  workspaceId String?   @db.Uuid
+  slug        String    @unique @db.VarChar(80)
+  name        String    @db.VarChar(255)
+  guideName   String    @default("Nova") @db.VarChar(60)
+  /// en | bn
+  language    String    @default("en") @db.VarChar(8)
+  voice       String    @default("aura-2-thalia-en") @db.VarChar(64)
+  theme       String    @default("obsidian") @db.VarChar(32)
+  shape       String    @default("circle") @db.VarChar(16)
+  /// VoiceWizardStep[]
+  steps       Json      @default("[]")
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace?        @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  clips     VoiceWizardClip[]
+
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+/// Cached narration audio, keyed by hash(voice + text) so edits only regenerate changed lines.
+model VoiceWizardClip {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  wizardId  String   @db.Uuid
+  textHash  String   @db.VarChar(64)
+  mimeType  String   @default("audio/mpeg") @db.VarChar(32)
+  audio     Bytes
+  createdAt DateTime @default(now())
+
+  wizard VoiceWizard @relation(fields: [wizardId], references: [id], onDelete: Cascade)
+
+  @@unique([wizardId, textHash])
+}
+
+enum WebServiceKind {
+  CHAT
+  SPEAK
+  FORM
+}
+
+/// Per-business config for a website service (Chat AI, Speak AI, Form). Wizard lives in VoiceWizard.
+model ServiceConfig {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String         @db.Uuid
+  kind        WebServiceKind
+  enabled     Boolean        @default(false)
+  config      Json           @default("{}")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, kind])
+}
+
+/// Lead / callback form submissions from the Form service.
+model FormSubmission {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String   @db.Uuid
+  fields      Json
+  source      String   @default("sdk") @db.VarChar(32)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }

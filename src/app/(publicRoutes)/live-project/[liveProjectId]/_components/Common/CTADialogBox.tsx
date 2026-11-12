@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import React, { useState } from 'react'
 import { WebinarWithPresenter } from '@/lib/type'
 import { toast } from 'sonner'
-import { createCheckoutLink } from '@/actions/stripe'
+import { startLiveCheckout } from '@/actions/buyer'
 import { CtaTypeEnum } from '@prisma/client'
 import { resolveVariantFromParam, VARIANT_META } from '@/lib/webinarLinkVariants'
 
@@ -38,21 +38,12 @@ const CTADialogBox = ({
         const variantPart = variant ? `&variant=${variant}` : ''
         router.push(`/live-project/${project.id}/call?attendeeId=${userId}${variantPart}`)
       } else {
-        if (!project.priceId || !project.presenter.stripeConnectId) {
-          return toast.error('No priceld or stripeConnectId found' )
+        // Tracked as a LIVE_HOST order, priced from the offer's settings.
+        const session = await startLiveCheckout({ webinarId: project.id, attendeeId: userId })
+        if (!session.ok) {
+          return toast.error(session.error)
         }
-
-        const session = await createCheckoutLink(
-          project.priceId, 
-          project.presenter.stripeConnectId, 
-          userId,
-          project.id, 
-          true
-        )
-        if (!session.sessionUrl) {
-          throw new Error(`session ID is missing` )
-        }
-        window.open(session.sessionUrl, '_blank')
+        window.open(session.url, '_blank')
       }
     } catch (error) {
       console.error('Error redirecting to CTA page:', error)

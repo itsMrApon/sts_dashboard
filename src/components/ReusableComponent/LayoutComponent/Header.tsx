@@ -3,13 +3,15 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { User } from '.prisma/client'
 import React from 'react'
+import Link from 'next/link'
+import { Building2 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import PurpleIcon from '../PurpleIcon'
 import STS2 from '@/icons/sts-2'
-const AddToWorkspaceButton = dynamic(
-  () => import('../AddToWorkspaceButton').then((m) => m.default),
-  { ssr: false, loading: () => <div className="h-9 w-20 rounded-md bg-muted animate-pulse" /> }
+const AddServiceDialog = dynamic(
+  () => import('../AddService/AddServiceDialog').then((m) => m.default),
+  { ssr: false, loading: () => <div className="h-9 w-28 rounded-xl bg-muted animate-pulse" /> }
 )
 
 const HeaderSubscription = dynamic(
@@ -19,9 +21,10 @@ const HeaderSubscription = dynamic(
 
 type Props = {
   user: User
+  businessName: string
 }
 
-const Header = ({ user }: Props) => {
+const Header = ({ user, businessName }: Props) => {
   const pathname = usePathname()
   const router = useRouter()
   return (
@@ -43,12 +46,16 @@ const Header = ({ user }: Props) => {
           <PurpleIcon>
             <STS2 className="w-8 h-8" />
           </PurpleIcon>
-          {/* Unified add-to-workspace entrypoint */}
-          {user.subscription? (
-            <AddToWorkspaceButton />
-          ) : (
-            <HeaderSubscription user={user} />
-          )}
+          {/* Single business: show it instead of the old multi-workspace entrypoint */}
+          <Link
+            href="/messages"
+            className="flex max-w-[220px] items-center gap-2 rounded-xl border border-border bg-primary/10 px-4 py-2 text-sm text-primary hover:bg-primary/20"
+          >
+            <Building2 className="h-4 w-4 shrink-0" />
+            <span className="truncate">{businessName}</span>
+          </Link>
+          {/* Paid creators add offers and services here; everyone else sees the packages. */}
+          {user.subscription ? <AddServiceDialog /> : <HeaderSubscription />}
 
         </div>
     </div>

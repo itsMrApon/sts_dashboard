@@ -58,8 +58,7 @@ export default async function LiveProductPage({ params, searchParams }: Props) {
 
   if (isBookACall) {
     const livekitAgentId = (product as { livekitAgentId?: string | null }).livekitAgentId
-    const hasAiAgent = product.aiAgentId || livekitAgentId
-    if (!hasAiAgent) {
+    if (!livekitAgentId) {
       return (
         <div className="w-full min-h-screen flex justify-center items-center text-lg">
           This product has no AI agent configured for the 1:1 call.

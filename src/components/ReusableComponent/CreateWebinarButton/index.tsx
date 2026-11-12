@@ -17,13 +17,11 @@ import CTAStep from './CTAStep'
 import AdditionalInfostep from './AdditionalInfostep'
 import type Stripe from 'stripe'
 import SuccessStep from './SuccessStep'
-import { Assistant } from '@vapi-ai/server-sdk/api'
 import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes'
 import { buildVariantLinks, sanitizeVariants } from '@/lib/webinarLinkVariants'
 
 type Props = {
   stripeProducts: Stripe.Product[] | []
-  assistants: Assistant[] | []
   livekitAgents?: LiveKitUiAgentConfig[]
   hideTrigger?: boolean
   autoOpenIntent?: 'product' | 'webinar'
@@ -32,7 +30,6 @@ type Props = {
 
 const CreateWebinarButton = ({
   stripeProducts,
-  assistants,
   livekitAgents = [],
   hideTrigger = false,
   autoOpenIntent,
@@ -99,7 +96,6 @@ const CreateWebinarButton = ({
       description: 'Please provide the end-point for your customers through your chat',
       component: (
         <CTAStep
-          assistants={assistants}
           livekitAgents={livekitAgents}
           stripeProducts={stripeProducts}
         />

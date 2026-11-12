@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { WebinarWithPresenter } from '@/lib/type'
 import { cn } from '@/lib/utils'
 import { fetchLiveKitConnectionDetails } from '@/lib/livekit/livekitClient'
+import { getFirstPartySessionToken } from '@/lib/embed/firstPartySessionClient'
 import { CallStatusEnum } from '@prisma/client'
 import { TokenSource } from 'livekit-client'
 import { Track } from 'livekit-client'
@@ -153,15 +154,10 @@ function LiveKitCallInner({
 
   const checkoutLink = async () => {
     try {
-      if (!project?.priceId || !project?.presenter?.stripeConnectId) {
-        return toast.error('No priceId or stripeConnectId found')
+      if (!project?.presenter?.stripeConnectId) {
+        return toast.error('Checkout is not set up for this offer')
       }
-      const sessionRes = await createCheckoutLink(
-        project.priceId,
-        project.presenter.stripeConnectId,
-        userId,
-        project.id,
-      )
+      const sessionRes = await createCheckoutLink(project.id, userId)
       if (!sessionRes.sessionUrl) throw new Error('Session ID not found')
       window.open(sessionRes.sessionUrl, '_blank')
     } catch (error) {
@@ -345,6 +341,7 @@ export default function LiveKitCall(props: Props) {
         const details = await fetchLiveKitConnectionDetails({
           roomName,
           participantName: userName,
+          sessionToken: await getFirstPartySessionToken(roomName),
         })
         return details
       }),

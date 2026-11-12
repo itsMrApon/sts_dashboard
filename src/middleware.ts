@@ -7,7 +7,13 @@ const isPublicRoute = createRouteMatcher([
   '/api(.*)',
   '/live-project(.*)',
   '/live-product(.*)',
+  // Buyer share links. Not '/o(.*)': that would also make /onboarding public.
+  '/o/:slug',
+  '/o/:slug/opengraph-image(.*)',
+  '/pay/:slug',
   '/chat(.*)',
+  // Public tour player only — /wizard (list) and /wizard/:slug/configure stay protected.
+  '/wizard/:slug',
   '/callback(.*)',
 ])
 

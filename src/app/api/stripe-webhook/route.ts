@@ -1,99 +1,121 @@
-import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
+import { NextRequest, NextResponse } from 'next/server'
+import type Stripe from 'stripe'
+import { headers } from 'next/headers'
 import { stripe } from '@/lib/stripe'
-import { headers } from "next/headers";
-import { updateSubscription } from "@/actions/stripe";
-import { changeAttendanceType } from "@/actions/attendance";
+import { changeAttendanceType } from '@/actions/attendance'
+import { applySetupPayment, syncPlatformAccessByCustomer } from '@/lib/billing/platformPackages'
+import { applyCheckoutSession } from '@/lib/offers/offerOrders'
+import { applyChargeRefunded, applyInvoicePaid, applySubscriptionEnded } from '@/lib/offers/orderEvents'
 
-const STRIPE_SUBSCRIPTION_EVENTS = new Set([
-  "invoice.created",
-  "invoice.finalized",
-  "invoice.paid",
-  "checkout.session.completed",
-  "customer.subscription.created",
-  "customer.subscription.updated",
-  "customer.subscription.deleted",
-])
-
-const getStripeEvent = async (
-  body: string, 
-  sig: string | null
-): Promise<Stripe.Event> => {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-
-  if (!sig || !webhookSecret) {
+/**
+ * Two kinds of events arrive here:
+ *  - Platform events (no `event.account`): creator packages ($49 setup, $499 monthly).
+ *  - Connected-account events (`event.account` set): buyers paying a creator. Stripe only sends these
+ *    to an endpoint registered for Connect events.
+ * Every handler is idempotent, because Stripe retries and may deliver events more than once.
+ */
+/**
+ * A Connect endpoint in the Stripe dashboard has its own signing secret, so both are accepted:
+ * STRIPE_WEBHOOK_SECRET (platform endpoint) and STRIPE_CONNECT_WEBHOOK_SECRET (Connect endpoint).
+ */
+function constructEvent(body: string, signature: string | null): Stripe.Event {
+  const secrets = [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET]
+    .map((secret) => secret?.trim())
+    .filter((secret): secret is string => !!secret)
+  if (!signature || secrets.length === 0) {
     throw new Error('Missing signature or webhook secret')
+  }
+  let lastError: unknown
+  for (const secret of secrets) {
+    try {
+      return stripe.webhooks.constructEvent(body, signature, secret)
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
 }
-return stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+
+function customerIdOf(value: string | Stripe.Customer | Stripe.DeletedCustomer | null): string | null {
+  if (!value) return null
+  return typeof value === 'string' ? value : value.id
+}
+
+async function handlePlatformEvent(event: Stripe.Event): Promise<void> {
+  switch (event.type) {
+    case 'payment_intent.succeeded': {
+      await applySetupPayment(event.data.object)
+      return
+    }
+    case 'invoice.paid':
+    case 'invoice.payment_failed': {
+      const customerId = customerIdOf(event.data.object.customer)
+      if (customerId) await syncPlatformAccessByCustomer(customerId)
+      return
+    }
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      const customerId = customerIdOf(event.data.object.customer)
+      if (customerId) await syncPlatformAccessByCustomer(customerId)
+      return
+    }
+    default:
+      return
+  }
+}
+
+async function handleConnectedAccountEvent(event: Stripe.Event, account: string): Promise<void> {
+  switch (event.type) {
+    case 'invoice.paid':
+      await applyInvoicePaid(event.data.object)
+      return
+    case 'charge.refunded':
+      await applyChargeRefunded(event.data.object, account)
+      return
+    case 'customer.subscription.deleted':
+      await applySubscriptionEnded(event.data.object)
+      return
+    case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded':
+      break
+    default:
+      return
+  }
+  const session = event.data.object
+  // Share-link checkouts (/o, /pay) carry an orderId; a paid deposit also gets its balance invoice.
+  await applyCheckoutSession(session, account)
+  // `attendeeld` is the misspelled key older checkout sessions were created with.
+  const attendeeId = session.metadata?.attendeeId ?? session.metadata?.attendeeld
+  const webinarId = session.metadata?.webinarId
+  if (attendeeId && webinarId && session.payment_status === 'paid') {
+    await changeAttendanceType(attendeeId, webinarId, 'CONVERTED')
+  }
 }
 
 export async function POST(req: NextRequest) {
-  console.log('Received Stripe webhook event')
   const body = await req.text()
-
   const signature = (await headers()).get('stripe-signature')
+
+  let event: Stripe.Event
   try {
-    const stripeEvent = await getStripeEvent(body, signature)
-    
-    if (stripeEvent.type === 'invoice.paid') {
-      const invoice = stripeEvent.data.object as Stripe.Invoice
-      if (invoice.subscription) {
-        const subscription = await stripe.subscriptions.retrieve(
-          typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription.id
-        )
-        await updateSubscription(subscription)
-      }
-      return NextResponse.json({received: true}, {status: 200})
+    event = constructEvent(body, signature)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid payload'
+    console.error('[stripe-webhook] signature check failed:', message)
+    return new NextResponse(`Webhook Error: ${message}`, { status: 400 })
+  }
+
+  try {
+    if (event.account) {
+      await handleConnectedAccountEvent(event, event.account)
+    } else {
+      await handlePlatformEvent(event)
     }
-    
-    if (STRIPE_SUBSCRIPTION_EVENTS.has(stripeEvent.type)) {
-      console.log('Handling subscription event', stripeEvent.type)
-      return NextResponse.json({received: true}, {status: 200})
-    }
-
-    const event = stripeEvent.data.object as Stripe.Subscription
-    const metadata = event.metadata
-
-    if(
-      metadata.connectAccountPayments || metadata.connectAccountSubscriptions
-    )
-    {
-      console.log('Handling connect account event', stripeEvent.type)
-
-      if (event.metadata && event.metadata.attendeeId) {
-        switch (stripeEvent.type){
-        case "checkout.session.completed":
-          await changeAttendanceType(event?.metadata?.attendeeId, event?.metadata?.webinarId, "CONVERTED");
-          break;
-      }
-      }
-      
-
-      return NextResponse.json(
-        {message: 'Skipping connected account event'}, 
-        {status: 200}
-      )
-    }
-    
-    switch(stripeEvent.type) {
-      case 'checkout.session.completed':
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        await updateSubscription(event)
-        console.log('Created from webhook 💳', event)
-        return NextResponse.json({received: true}, {status: 200})
-      default:
-        console.log('Unhandled event type', stripeEvent.type)
-        return NextResponse.json({received: true}, {status: 200})
-    }
-
-
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const statusCode = (error as { statusCode?: number })?.statusCode || 500
-    console.error('Error 🦺 processing webhook', errorMessage)
-    return new NextResponse(`Webhook Error: ${errorMessage}`, {
-      status: statusCode,
-    })
+    return NextResponse.json({ received: true }, { status: 200 })
+  } catch (error) {
+    // 500 makes Stripe retry; handlers are idempotent.
+    console.error('[stripe-webhook] handler failed', event.type, error instanceof Error ? error.message : error)
+    return new NextResponse('Webhook handler failed', { status: 500 })
   }
 }

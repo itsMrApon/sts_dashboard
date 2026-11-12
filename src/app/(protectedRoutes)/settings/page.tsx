@@ -2,6 +2,7 @@ import {
   LucideAlertCircle,
   LucideArrowRight,
   LucideCheckCircle2,
+  LucideCpu,
 } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -15,6 +16,8 @@ import {
 import { resolveSerperApiKey } from '@/lib/leads/webResearch'
 import { decryptToken } from '@/lib/messages/encrypt'
 import { LeadApiSettings } from './_components/LeadApiSettings'
+import { getPackageCards } from '@/actions/platformBilling'
+import PackagesPanel from '@/components/ReusableComponent/PlatformPackages/PackagesPanel'
 
 export default async function SettingsPage() {
   const userExist = await onAuthenticateUser()
@@ -28,7 +31,7 @@ export default async function SettingsPage() {
     userExist.user.id,
   )
 
-  const [connections, settings, googleOAuth, serperKey] = await Promise.all([
+  const [connections, settings, googleOAuth, serperKey, packageCards] = await Promise.all([
     prismaClient.callIntelConnection.findMany({
       where: { userId: userExist.user.id },
       select: {
@@ -50,6 +53,7 @@ export default async function SettingsPage() {
     }),
     resolveGoogleOAuthCredentials(userExist.user.id),
     resolveSerperApiKey(userExist.user.id),
+    getPackageCards(),
   ])
 
   const fathomOk = connections.some(
@@ -70,7 +74,25 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto w-full px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold">Payment Integration</h1>
+      <h1 className="mb-6 text-2xl font-bold">AI Agents</h1>
+      <Link
+        id="ai-engine"
+        href="/ai-agents/config#ai-engine"
+        className="border-input bg-background group flex w-full items-center gap-4 rounded-lg border p-6 shadow-sm transition-colors hover:border-primary/40"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-indigo-600">
+          <LucideCpu className="h-5 w-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-primary text-xl font-semibold">AI engine & API keys</h2>
+          <p className="text-muted-foreground text-sm">
+            Model, voice and provider keys now live together on AI Agents → Config.
+          </p>
+        </div>
+        <LucideArrowRight className="text-muted-foreground h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+      </Link>
+
+      <h1 className="mt-10 mb-6 text-2xl font-bold">Payment Integration</h1>
 
       <div className="border-input bg-background w-full rounded-lg border p-6 shadow-sm">
         <div className="mb-4 flex items-center">
@@ -166,6 +188,14 @@ export default async function SettingsPage() {
             </ul>
           </div>
         ) : null}
+
+        <div className="border-border mt-6 border-t pt-6">
+          <h3 className="mb-1 text-base font-semibold">Done-for-you packages</h3>
+          <p className="text-muted-foreground mb-4 text-sm">
+            No time to set it all up? We can do it for you, or run it with you every month.
+          </p>
+          <PackagesPanel cards={packageCards} />
+        </div>
       </div>
 
       <div className="mt-10">

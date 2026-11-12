@@ -19,7 +19,7 @@ export default function BuyNowRedirect({ product, attendee }: Props) {
     let mounted = true
 
     const go = async () => {
-      if (!product.priceId || !product.presenter?.stripeConnectId) {
+      if (!product.presenter?.stripeConnectId) {
         if (mounted) {
           setStatus('error')
           toast.error('Checkout not configured for this product')
@@ -27,12 +27,7 @@ export default function BuyNowRedirect({ product, attendee }: Props) {
         return
       }
       try {
-        const session = await createCheckoutLink(
-          product.priceId,
-          product.presenter.stripeConnectId,
-          attendee.id,
-          product.id
-        )
+        const session = await createCheckoutLink(product.id, attendee.id)
         if (!mounted) return
         if (session.sessionUrl) {
           window.location.href = session.sessionUrl

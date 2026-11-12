@@ -5,7 +5,7 @@ import { Webinar, WebinarKind } from '@prisma/client'
 import Link from 'next/link'
 import Image from 'next/image'
 import { format } from 'date-fns'
-import { Calendar } from 'lucide-react'
+import { Calendar, Settings2 } from 'lucide-react'
 import PipelineIcon from '@/icons/PipelineIcon'
 import ProjectLinksSheet from './ProjectLinksSheet'
 
@@ -59,6 +59,13 @@ const ProjectCard  = ({project}: Props) => {
           </div>
         </Link>
         <div className="flex items-center gap-1">
+          <Link
+            href={`/projects/${project.id}`}
+            className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-secondary"
+            aria-label="Offer settings"
+          >
+            <Settings2 className="h-5 w-5" />
+          </Link>
           <ProjectLinksSheet project={project} />
           <Link
             href={`/projects/${project?.id}/pipeline`}

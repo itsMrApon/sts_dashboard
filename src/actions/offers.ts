@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { OrderModeKind, type Prisma, type User, type WebinarKind } from '@prisma/client'
+import { OrderModeKind, WebinarStatusEnum, type Prisma, type User, type WebinarKind } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
@@ -31,7 +31,10 @@ const DESCRIPTION_MAX = 2000
 
 type Owner =
   | { error: string }
-  | { user: User; webinar: { id: string; kind: WebinarKind } | null }
+  | {
+      user: User
+      webinar: { id: string; kind: WebinarKind; startTime: Date; webinarStatus: WebinarStatusEnum } | null
+    }
 
 /** Loads the signed-in creator and, when given, an offer they own. Every write needs a package. */
 async function requireOwner(webinarId?: string): Promise<Owner> {
@@ -41,7 +44,7 @@ async function requireOwner(webinarId?: string): Promise<Owner> {
   if (!webinarId) return { user: auth.user, webinar: null }
   const webinar = await prismaClient.webinar.findFirst({
     where: { id: webinarId, presenterId: auth.user.id, deletedAt: null },
-    select: { id: true, kind: true },
+    select: { id: true, kind: true, startTime: true, webinarStatus: true },
   })
   if (!webinar) return { error: 'Offer not found' }
   return { user: auth.user, webinar }
@@ -50,6 +53,7 @@ async function requireOwner(webinarId?: string): Promise<Owner> {
 function revalidateOffer(webinarId: string) {
   revalidatePath('/projects')
   revalidatePath(`/projects/${webinarId}`)
+  revalidatePath(`/projects/${webinarId}/pipeline`)
   revalidateTag('projects-list')
 }
 
@@ -149,6 +153,8 @@ export async function saveOfferOrderModes(input: {
   modes: OrderModesInput
   aiServices: AiService[]
   livekitAgentId: string | null
+  /** ISO string: when the live session starts (only read when Live with you is on). */
+  liveStartTime?: string
 }): Promise<ActionResult> {
   const owner = await requireOwner(input.id)
   if ('error' in owner || !owner.webinar) return { ok: false, error: 'error' in owner ? owner.error : 'Offer not found' }
@@ -167,6 +173,21 @@ export async function saveOfferOrderModes(input: {
     })
     if (!agent) return { ok: false, error: 'Pick one of your AI agents' }
     livekitAgentId = agent.id
+  }
+
+  // The Live link counts down to startTime. Moving it into the future reopens the waiting room.
+  let liveSchedule: Prisma.WebinarUpdateInput = {}
+  if (modes.LIVE_HOST && input.liveStartTime) {
+    const startTime = new Date(input.liveStartTime)
+    if (Number.isNaN(startTime.getTime())) return { ok: false, error: 'Pick a valid date and time for the live session' }
+    if (startTime.getTime() !== owner.webinar.startTime.getTime()) {
+      liveSchedule = {
+        startTime,
+        ...(startTime.getTime() > Date.now() && owner.webinar.webinarStatus !== WebinarStatusEnum.LIVE
+          ? { webinarStatus: WebinarStatusEnum.SCHEDULED }
+          : {}),
+      }
+    }
   }
 
   await prismaClient.$transaction([
@@ -189,6 +210,7 @@ export async function saveOfferOrderModes(input: {
       where: { id: input.id },
       data: {
         ...legacyLinkFields(owner.webinar.kind, modes),
+        ...liveSchedule,
         // Keep the current agent when AI is switched off, so turning it back on is one click.
         ...(livekitAgentId ? { livekitAgentId } : {}),
       },

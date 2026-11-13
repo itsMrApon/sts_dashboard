@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Phones on the same Wi-Fi open dev links by network address (see lib/offers/publicBaseUrl).
+  allowedDevOrigins: ['192.168.86.182', '192.168.*.*', '10.*.*.*', '*.ngrok-free.app', '*.ngrok-free.dev'],
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {

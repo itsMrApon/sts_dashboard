@@ -40,9 +40,7 @@ const page = async () => {
         >
           <AiAgentSidebarLoader livekitAgents={livekitAgents} />
         </Suspense>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <ModelSelection engineView={engineView} />
-        </div>
+        <ModelSelection engineView={engineView} />
       </div>
     </PageViewport>
   )

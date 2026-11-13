@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Webinar, WebinarKind } from '@prisma/client'
+import { OrderModeKind, Webinar, WebinarKind } from '@prisma/client'
 import Link from 'next/link'
 import Image from 'next/image'
 import { format } from 'date-fns'
@@ -10,18 +10,20 @@ import PipelineIcon from '@/icons/PipelineIcon'
 import ProjectLinksSheet from './ProjectLinksSheet'
 
 type Props = {
-  project: Webinar
+  project: Webinar & { orderModes?: { kind: OrderModeKind; enabled: boolean }[] }
   hostUser: {
     id: string
     name: string
     profileImage: string
   }
+  shareBaseUrl: string
 }
     
-const ProjectCard  = ({project}: Props) => {
+const ProjectCard  = ({project, shareBaseUrl}: Props) => {
   const isProduct = project.kind === WebinarKind.PRODUCT
+  // Products: what buyers said to your AI lives in the pipeline. Webinars: your host room.
   const roomHref = isProduct
-    ? `/live-product/${project.id}`
+    ? `/projects/${project.id}/pipeline`
     : `/live-project/${project.id}`
 
   return (
@@ -66,7 +68,7 @@ const ProjectCard  = ({project}: Props) => {
           >
             <Settings2 className="h-5 w-5" />
           </Link>
-          <ProjectLinksSheet project={project} />
+          <ProjectLinksSheet project={project} shareBaseUrl={shareBaseUrl} />
           <Link
             href={`/projects/${project?.id}/pipeline`}
             className="flex items-center justify-center p-2 rounded-md hover:opacity-80 transition-opacity"

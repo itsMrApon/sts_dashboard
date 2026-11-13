@@ -215,9 +215,11 @@ const getProjectsByPresenterCached = unstable_cache(
         ctaType: true,
         linkVariants: true,
         webinarStatus: true,
+        slug: true,
+        orderModes: { select: { kind: true, enabled: true } },
       },
     }),
-  ['projects-by-presenter-v1'],
+  ['projects-by-presenter-v2'],
   { revalidate: 20, tags: ['projects-list'] },
 )
 

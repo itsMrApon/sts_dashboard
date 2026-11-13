@@ -119,8 +119,8 @@ export function OfferSettings({ offer }: Props) {
 
   // --- Details -------------------------------------------------------------
   const initialDetails = useMemo(
-    () => ({ title: offer.title, description: offer.description, startTime: toLocalInput(offer.startTime) }),
-    [offer.title, offer.description, offer.startTime],
+    () => ({ title: offer.title, description: offer.description }),
+    [offer.title, offer.description],
   )
   const [details, setDetails] = useState(initialDetails)
   const [savingDetails, startDetails] = useTransition()
@@ -132,7 +132,6 @@ export function OfferSettings({ offer }: Props) {
         id: offer.id,
         title: details.title,
         description: details.description,
-        startTime: offer.kind === 'WEBINAR' ? new Date(details.startTime).toISOString() : undefined,
       })
       if (!result.ok) return void toast.error(result.error)
       toast.success('Details saved')
@@ -180,10 +179,21 @@ export function OfferSettings({ offer }: Props) {
 
   // --- Ways to order -----------------------------------------------------------
   const initialModes = useMemo(
-    () => ({ modes: offer.modes, aiServices: offer.aiServices, agentId: offer.livekitAgentId ?? offer.agents[0]?.id ?? '' }),
-    [offer.modes, offer.aiServices, offer.livekitAgentId, offer.agents],
+    () => ({
+      modes: offer.modes,
+      aiServices: offer.aiServices,
+      agentId: offer.livekitAgentId ?? offer.agents[0]?.id ?? '',
+      liveStart: toLocalInput(offer.startTime),
+    }),
+    [offer.modes, offer.aiServices, offer.livekitAgentId, offer.agents, offer.startTime],
   )
-  const [modes, setModes] = useState<{ modes: OrderModesInput; aiServices: AiService[]; agentId: string }>(initialModes)
+  const [modes, setModes] = useState<{
+    modes: OrderModesInput
+    aiServices: AiService[]
+    agentId: string
+    /** datetime-local value: when the live session starts (the Live link counts down to it). */
+    liveStart: string
+  }>(initialModes)
   const [savingModes, startModes] = useTransition()
   const modesDirty = JSON.stringify(modes) !== JSON.stringify(initialModes)
 
@@ -194,6 +204,8 @@ export function OfferSettings({ offer }: Props) {
         modes: modes.modes,
         aiServices: modes.aiServices,
         livekitAgentId: modes.agentId || null,
+        liveStartTime:
+          modes.modes.LIVE_HOST && modes.liveStart ? new Date(modes.liveStart).toISOString() : undefined,
       })
       if (!result.ok) return void toast.error(result.error)
       toast.success('Ways to order saved')
@@ -303,17 +315,6 @@ export function OfferSettings({ offer }: Props) {
                 onChange={(event) => setDetails({ ...details, description: event.target.value })}
               />
             </div>
-            {offer.kind === 'WEBINAR' ? (
-              <div className="space-y-2">
-                <Label htmlFor="offer-start">Starts</Label>
-                <Input
-                  id="offer-start"
-                  type="datetime-local"
-                  value={details.startTime}
-                  onChange={(event) => setDetails({ ...details, startTime: event.target.value })}
-                />
-              </div>
-            ) : null}
           </Section>
 
           <Section
@@ -464,13 +465,25 @@ export function OfferSettings({ offer }: Props) {
                         </div>
                       </div>
                       {modes.aiServices.includes('WIZARD') ? (
-                        <p className="text-xs text-muted-foreground">
-                          The guided tour uses your published wizard from{' '}
-                          <Link href="/messages/wizard" className="underline underline-offset-2">
-                            Messages → Wizard
-                          </Link>
-                          .
-                        </p>
+                        offer.tourStatus === 'published' ? (
+                          <p className="text-xs text-muted-foreground">
+                            The guided tour sits in the middle of your share page, using your wizard from{' '}
+                            <Link href="/messages/wizard" className="underline underline-offset-2">
+                              Messages → Wizard
+                            </Link>
+                            .
+                          </p>
+                        ) : (
+                          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+                            {offer.tourStatus === 'draft'
+                              ? 'Your guided tour is still a draft: only you see it on the share page. Publish it so buyers get it too, in '
+                              : 'You have no guided tour yet. Create and publish one in '}
+                            <Link href="/messages/wizard" className="font-medium underline underline-offset-2">
+                              Messages → Wizard
+                            </Link>
+                            .
+                          </p>
+                        )
                       ) : null}
                       <div className="space-y-2">
                         <Label htmlFor="offer-agent">AI agent</Label>
@@ -499,8 +512,28 @@ export function OfferSettings({ offer }: Props) {
                       </div>
                     </div>
                   ) : null}
-                  {kind === 'LIVE_HOST' && on && offer.kind === 'PRODUCT' ? (
-                    <p className="mt-3 text-xs text-muted-foreground">Works best for webinars, where you are live with buyers.</p>
+                  {kind === 'LIVE_HOST' && on ? (
+                    <div className="mt-4 space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="offer-live-start">Live session starts</Label>
+                        <Input
+                          id="offer-live-start"
+                          type="datetime-local"
+                          value={modes.liveStart}
+                          onChange={(event) => setModes({ ...modes, liveStart: event.target.value })}
+                          className="sm:max-w-[260px]"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          The Live link shows a countdown to this time. People who save a seat land in your pipeline.
+                        </p>
+                      </div>
+                      <Link
+                        href={`/live-project/${offer.id}`}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium underline-offset-2 hover:underline"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Open your host room
+                      </Link>
+                    </div>
                   ) : null}
                 </div>
               )
@@ -545,7 +578,10 @@ export function OfferSettings({ offer }: Props) {
               {offer.shareLinks.length ? (
                 offer.shareLinks.map((link) => (
                   <div key={link.variant} className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground">{link.label}</p>
+                    <p className="text-xs">
+                      <span className="font-medium">{link.label}</span>
+                      <span className="text-muted-foreground"> · {link.hint}</span>
+                    </p>
                     <div className="flex items-center gap-2">
                       <Input readOnly value={link.url} className="h-9 text-xs" onFocus={(event) => event.target.select()} />
                       <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" onClick={() => copy(link.url)} aria-label="Copy link">
@@ -576,18 +612,6 @@ export function OfferSettings({ offer }: Props) {
               <p className="text-xs text-muted-foreground">
                 Add <code className="rounded bg-muted px-1">?src=email</code> (or any tag) to see where buyers came from.
               </p>
-              {offer.legacyLinks.length ? (
-                <details className="pt-1 text-xs text-muted-foreground">
-                  <summary className="cursor-pointer">Older links (still work)</summary>
-                  <ul className="mt-2 space-y-1 break-all">
-                    {offer.legacyLinks.map((link) => (
-                      <li key={link.variant}>
-                        {link.label}: {link.url}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : null}
             </div>
           </div>
         </aside>

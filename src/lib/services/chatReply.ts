@@ -11,6 +11,8 @@ type StoredMessage = {
   role: 'user' | 'assistant'
   content: string
   timestamp?: string
+  /** 'creator' when typed by the creator from the pipeline. */
+  from?: 'creator'
 }
 
 const HISTORY_LIMIT = 50
@@ -96,8 +98,14 @@ export async function generateRoomChatReply(input: {
   const replyText = marker ? result.text.split(marker).join('').trim() : result.text
 
   const now = new Date().toISOString()
+  // Re-read before saving: the creator may have replied from the pipeline while the model ran.
+  const latest = await prismaClient.messageConversation.findFirst({
+    where: { channelId: channel.id, externalId: sessionId },
+    select: { messages: true },
+  })
+  const latestHistory: StoredMessage[] = Array.isArray(latest?.messages) ? (latest.messages as StoredMessage[]) : history
   const updatedHistory: StoredMessage[] = [
-    ...history,
+    ...latestHistory,
     { role: 'user' as const, content: message, timestamp: now },
     { role: 'assistant' as const, content: replyText, timestamp: now },
   ].slice(-HISTORY_LIMIT)

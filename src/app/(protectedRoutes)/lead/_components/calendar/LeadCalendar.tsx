@@ -1,5 +1,6 @@
 'use client'
 
+import { openLeadSettings } from '../leadSettingsEvents'
 import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -771,8 +772,8 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                     toast.error(res.error || 'Failed', {
                       action: needsSettings
                         ? {
-                            label: 'Settings',
-                            onClick: () => router.push('/settings'),
+                            label: 'Lead settings',
+                            onClick: openLeadSettings,
                           }
                         : undefined,
                     })

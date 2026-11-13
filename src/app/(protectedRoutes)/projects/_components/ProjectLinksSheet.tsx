@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useMemo, useState } from 'react'
-import { Webinar } from '@prisma/client'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   Drawer,
@@ -13,42 +13,38 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer'
-import { Check, Copy, ExternalLink, MessageCircle } from 'lucide-react'
-import { buildVariantLinks, DEFAULT_VARIANT, isWebinarLinkVariant, sanitizeVariants, WebinarLinkVariant } from '@/lib/webinarLinkVariants'
+import { Check, Copy, CreditCard, ExternalLink, MessageCircle, Radio, Sparkles } from 'lucide-react'
+import { buildOfferShareLinks, type OfferShareLink } from '@/lib/offers/offerLinks'
+import type { OrderModeKey } from '@/lib/offers/offerTypes'
 
 type Props = {
-  project: Webinar
+  project: {
+    id: string
+    title: string
+    slug: string | null
+    orderModes?: { kind: OrderModeKey; enabled: boolean }[]
+  }
+  /** From the server: the address buyers can open (your network address in development). */
+  shareBaseUrl: string
 }
 
-const getProjectVariants = (project: Webinar): WebinarLinkVariant[] => {
-  const rawVariants = ((project as Webinar & { linkVariants?: string[] }).linkVariants || []).filter(
-    isWebinarLinkVariant,
-  )
-
-  if (rawVariants.length) return sanitizeVariants(rawVariants)
-
-  if (project.kind === 'PRODUCT' && project.ctaType === 'BUY_NOW') return ['PRODUCT_BUY_NOW']
-  if (project.kind === 'PRODUCT' && project.ctaType === 'BOOK_A_CALL') return ['PRODUCT_BOOK_A_CALL']
-  if (project.kind === 'PROJECT' && project.ctaType === 'BUY_NOW') return ['PROJECT_BUY_NOW']
-  return [DEFAULT_VARIANT]
+const LINK_ICON: Record<OfferShareLink['variant'], React.ReactNode> = {
+  share: <Sparkles className="h-4 w-4" />,
+  pay: <CreditCard className="h-4 w-4" />,
+  live: <Radio className="h-4 w-4" />,
 }
 
-export default function ProjectLinksSheet({ project }: Props) {
+/** The offer's public links (share, direct pay, live), built from its ways to order. */
+export default function ProjectLinksSheet({ project, shareBaseUrl }: Props) {
   const [copied, setCopied] = useState<string | null>(null)
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
 
   const links = useMemo(() => {
-    // The one share link (/o/slug) first; the older per-variant links still work, so keep them listed.
-    const share = project.slug ? [{ label: 'Share link', url: `${baseUrl}/o/${project.slug}` }] : []
-    const legacy = buildVariantLinks(project.id, getProjectVariants(project), baseUrl).map((link) => ({
-      label: share.length ? `Older link · ${link.label}` : link.label,
-      url: link.url,
-    }))
-    return [...share, ...legacy]
-  }, [project, baseUrl])
+    const modes = Object.fromEntries((project.orderModes ?? []).map((mode) => [mode.kind, mode.enabled]))
+    return buildOfferShareLinks(project.slug, modes, shareBaseUrl)
+  }, [project.slug, project.orderModes, shareBaseUrl])
 
   const handleCopy = (url: string) => {
-    navigator.clipboard.writeText(url)
+    void navigator.clipboard.writeText(url)
     setCopied(url)
     setTimeout(() => setCopied(null), 1500)
   }
@@ -56,12 +52,7 @@ export default function ProjectLinksSheet({ project }: Props) {
   return (
     <Drawer>
       <DrawerTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 rounded-md hover:bg-secondary"
-          aria-label="Open share links"
-        >
+        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-md hover:bg-secondary" aria-label="Open share links">
           <MessageCircle className="h-5 w-5" />
         </Button>
       </DrawerTrigger>
@@ -69,32 +60,46 @@ export default function ProjectLinksSheet({ project }: Props) {
       <DrawerContent>
         <div className="mx-auto w-full max-w-2xl">
           <DrawerHeader>
-            <DrawerTitle>Share Links</DrawerTitle>
+            <DrawerTitle>Share links</DrawerTitle>
             <DrawerDescription>{project.title}</DrawerDescription>
           </DrawerHeader>
 
-          <div className="max-h-[60vh] overflow-y-auto px-4 pb-2 space-y-3">
-          {links.map((item) => (
-            <div key={item.url} className="rounded-xl border border-border bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground mb-2">{item.label}</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  value={item.url}
-                  readOnly
-                  className="h-9 min-w-[220px] flex-1 rounded-md border border-input bg-background px-3 text-sm"
-                />
-                <Button variant="outline" size="icon" onClick={() => handleCopy(item.url)} aria-label={`Copy ${item.label}`}>
-                  {copied === item.url ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  <Button variant="outline" size="sm" className="gap-1">
-                    <ExternalLink className="h-4 w-4" />
-                    Open
-                  </Button>
-                </a>
-              </div>
-            </div>
-          ))}
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto px-4 pb-2">
+            {links.length ? (
+              links.map((item) => (
+                <div key={item.variant} className="rounded-xl border border-border bg-background/50 p-3">
+                  <div className="mb-2 flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-primary">{LINK_ICON[item.variant]}</span>
+                    <p className="shrink-0 whitespace-nowrap text-sm font-medium">{item.label}</p>
+                    <p className="min-w-0 truncate text-xs text-muted-foreground">· {item.hint}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={item.url}
+                      readOnly
+                      onFocus={(event) => event.target.select()}
+                      className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+                    />
+                    <Button variant="outline" size="icon" className="shrink-0" onClick={() => handleCopy(item.url)} aria-label={`Copy ${item.label}`}>
+                      {copied === item.url ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                    <Button variant="outline" size="icon" className="shrink-0" asChild>
+                      <a href={item.url} target="_blank" rel="noreferrer" aria-label={`Open ${item.label}`}>
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                No links yet. Turn on a way to order in{' '}
+                <Link href={`/projects/${project.id}`} className="underline underline-offset-2">
+                  offer settings
+                </Link>
+                .
+              </p>
+            )}
           </div>
 
           <DrawerFooter>
@@ -107,4 +112,3 @@ export default function ProjectLinksSheet({ project }: Props) {
     </Drawer>
   )
 }
-

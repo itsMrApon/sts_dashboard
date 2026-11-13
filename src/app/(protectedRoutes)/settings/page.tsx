@@ -2,20 +2,11 @@ import {
   LucideAlertCircle,
   LucideArrowRight,
   LucideCheckCircle2,
-  LucideCpu,
 } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { onAuthenticateUser } from '@/actions/auth'
 import { getStripeAuthLink } from '@/lib/stripe/utils'
-import { prismaClient } from '@/lib/prismaClient'
-import {
-  googleCalendarNeedsReconnect,
-  resolveGoogleOAuthCredentials,
-} from '@/lib/leads/googleCalendar'
-import { resolveSerperApiKey } from '@/lib/leads/webResearch'
-import { decryptToken } from '@/lib/messages/encrypt'
-import { LeadApiSettings } from './_components/LeadApiSettings'
 import { getPackageCards } from '@/actions/platformBilling'
 import PackagesPanel from '@/components/ReusableComponent/PlatformPackages/PackagesPanel'
 
@@ -31,68 +22,11 @@ export default async function SettingsPage() {
     userExist.user.id,
   )
 
-  const [connections, settings, googleOAuth, serperKey, packageCards] = await Promise.all([
-    prismaClient.callIntelConnection.findMany({
-      where: { userId: userExist.user.id },
-      select: {
-        provider: true,
-        status: true,
-        metadata: true,
-        credentials: true,
-      },
-    }),
-    prismaClient.callIntelSettings.findUnique({
-      where: { userId: userExist.user.id },
-      select: {
-        googleClientIdEnc: true,
-        googleClientSecretEnc: true,
-        serperApiKeyEnc: true,
-        calendarFilterMode: true,
-        calendarKeyword: true,
-      },
-    }),
-    resolveGoogleOAuthCredentials(userExist.user.id),
-    resolveSerperApiKey(userExist.user.id),
-    getPackageCards(),
-  ])
-
-  const fathomOk = connections.some(
-    (c) => c.provider === 'FATHOM' && c.status === 'ACTIVE',
-  )
-  const gcalConn = connections.find((c) => c.provider === 'GOOGLE_CALENDAR')
-  const gcalOk = Boolean(gcalConn && gcalConn.status === 'ACTIVE')
-  const refreshToken = gcalConn?.credentials
-    ? decryptToken(
-        (gcalConn.credentials as { refreshToken?: string }).refreshToken,
-      )
-    : null
-  const gcalNeedsReconnect = googleCalendarNeedsReconnect(
-    gcalConn || null,
-    refreshToken,
-    googleOAuth?.clientId,
-  )
+  const packageCards = await getPackageCards()
 
   return (
     <div className="mx-auto w-full px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold">AI Agents</h1>
-      <Link
-        id="ai-engine"
-        href="/ai-agents/config#ai-engine"
-        className="border-input bg-background group flex w-full items-center gap-4 rounded-lg border p-6 shadow-sm transition-colors hover:border-primary/40"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-indigo-600">
-          <LucideCpu className="h-5 w-5 text-white" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-primary text-xl font-semibold">AI engine & API keys</h2>
-          <p className="text-muted-foreground text-sm">
-            Model, voice and provider keys now live together on AI Agents → Config.
-          </p>
-        </div>
-        <LucideArrowRight className="text-muted-foreground h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
-      </Link>
-
-      <h1 className="mt-10 mb-6 text-2xl font-bold">Payment Integration</h1>
+      <h1 className="mb-6 text-2xl font-bold">Payment Integration</h1>
 
       <div className="border-input bg-background w-full rounded-lg border p-6 shadow-sm">
         <div className="mb-4 flex items-center">
@@ -196,25 +130,6 @@ export default async function SettingsPage() {
           </p>
           <PackagesPanel cards={packageCards} />
         </div>
-      </div>
-
-      <div className="mt-10">
-        <h1 className="mb-6 text-2xl font-bold">Connections</h1>
-        <LeadApiSettings
-          fathomOk={fathomOk}
-          gcalOk={gcalOk}
-          gcalNeedsReconnect={gcalNeedsReconnect}
-          googleOAuthConfigured={Boolean(googleOAuth)}
-          hasUserGoogleOAuth={Boolean(
-            settings?.googleClientIdEnc && settings?.googleClientSecretEnc,
-          )}
-          serperConfigured={Boolean(serperKey)}
-          hasUserSerperKey={Boolean(settings?.serperApiKeyEnc)}
-          calendarFilterMode={
-            settings?.calendarFilterMode === 'KEYWORD' ? 'KEYWORD' : 'ALL'
-          }
-          calendarKeyword={settings?.calendarKeyword || '[Sales]'}
-        />
       </div>
     </div>
   )

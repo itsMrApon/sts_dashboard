@@ -28,11 +28,16 @@ export type PublicOfferView = {
   prices: BuyerPriceOption[]
   modes: OrderModesInput
   aiServices: AiService[]
-  /** The creator's published voice tour, if any (Wizard option). */
+  /** The creator's voice tour (Guided tour option): published, or a draft only its owner can load. */
   wizardSlug: string | null
 }
 
-export type OfferChatMessage = { role: 'user' | 'assistant'; content: string }
+export type OfferChatMessage = {
+  role: 'user' | 'assistant'
+  content: string
+  /** Set when the creator typed it from the pipeline (not the AI). */
+  from?: 'creator'
+}
 
 export type BuyerContactView = { name: string | null; email: string | null; phone: string | null }
 

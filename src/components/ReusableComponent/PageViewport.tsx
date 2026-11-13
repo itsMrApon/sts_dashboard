@@ -30,11 +30,12 @@ export function PageViewport({
     const el = ref.current
     if (!el) return
 
-    // Phones (< md) also reserve the bottom tab bar (MobileNav, 56px) plus a little air.
+    // Phones (< md): reserve only the bottom tab bar (MobileNav, 56px) plus 8px, so panes reach
+    // down to it. Desktop keeps `bottomPad` for the layout's py-10.
     const phone = window.matchMedia('(max-width: 767px)')
     const syncHeight = () => {
       const top = el.getBoundingClientRect().top
-      const pad = phone.matches ? bottomPad + 64 : bottomPad
+      const pad = phone.matches ? 64 : bottomPad
       el.style.height = `${Math.max(0, window.innerHeight - top - pad)}px`
     }
 

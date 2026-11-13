@@ -8,7 +8,6 @@ import { useCallStateHooks, ParticipantView, type Call } from '@stream-io/video-
 import { StreamChat } from 'stream-chat'
 import React, { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { CtaTypeEnum } from '@prisma/client'
 import { useRouter } from 'next/navigation'
 import { Chat, Channel, MessageList, MessageInput } from 'stream-chat-react'
 import CTADialogBox from './CTADialogBox'
@@ -267,9 +266,7 @@ const LiveProjectView = ({
                   )}
                 </Button>
                 <Button onClick={handleCTAButtonClick}>
-                  {project.ctaType === CtaTypeEnum.BOOK_A_CALL
-                    ? 'Send Book a Call'
-                    : 'Drop offer'}
+                  Drop offer
                 </Button>
               </div>
             )}

@@ -9,7 +9,9 @@ import {
 } from '@prisma/client'
 import { stripe } from '@/lib/stripe'
 import { prismaClient } from '@/lib/prismaClient'
-import { buildVariantLinks, type WebinarLinkVariant } from '@/lib/webinarLinkVariants'
+import type { WebinarLinkVariant } from '@/lib/webinarLinkVariants'
+import { buildOfferShareLinks } from './offerLinks'
+import { publicBaseUrl } from './publicBaseUrl'
 import {
   AI_SERVICES,
   ORDER_MODE_KINDS,
@@ -45,7 +47,11 @@ export function legacyLinkFields(
   if (modes.AI_ASSISTANT) variants.push(kind === WebinarKind.PRODUCT ? 'PRODUCT_BOOK_A_CALL' : 'PROJECT_BOOK_A_CALL')
   if (modes.INSTANT_CHECKOUT) variants.push('PRODUCT_BUY_NOW')
   if (modes.LIVE_HOST) variants.push('PROJECT_BUY_NOW')
-  return { linkVariants: variants, ctaType: modes.AI_ASSISTANT ? CtaTypeEnum.BOOK_A_CALL : CtaTypeEnum.BUY_NOW }
+  // The live session always sells with Buy now; Book a call only remains for AI-only offers.
+  return {
+    linkVariants: variants,
+    ctaType: modes.AI_ASSISTANT && !modes.LIVE_HOST ? CtaTypeEnum.BOOK_A_CALL : CtaTypeEnum.BUY_NOW,
+  }
 }
 
 export function defaultOrderModes(kind: OfferKindInput, hasAgent: boolean): OrderModesInput {
@@ -237,7 +243,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     webinar = (await load()) ?? webinar
   }
 
-  const [agents, business, orders] = await Promise.all([
+  const [agents, business, orders, tours] = await Promise.all([
     prismaClient.liveKitAgent.findMany({
       where: agentVisibleTo(userId),
       select: { id: true, name: true },
@@ -262,6 +268,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
         contact: { select: { name: true, email: true, phone: true } },
       },
     }),
+    prismaClient.voiceWizard.findMany({ where: { userId }, select: { isPublished: true } }),
   ])
   const counted = orders.filter((order) => order.status === 'PAID' || order.status === 'DEPOSIT_PAID')
 
@@ -269,7 +276,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     ORDER_MODE_KINDS.map((kind) => [kind, webinar.orderModes.find((mode) => mode.kind === kind)?.enabled ?? false]),
   ) as OrderModesInput
   const aiMode = webinar.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
+  const baseUrl = publicBaseUrl()
 
   return {
     id: webinar.id,
@@ -282,6 +289,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     modes,
     aiServices: readAiServices(aiMode?.config),
     livekitAgentId: webinar.livekitAgentId,
+    tourStatus: tours.some((tour) => tour.isPublished) ? 'published' : tours.length ? 'draft' : 'none',
     agents,
     hasBusiness: !!business?.publishProfileId,
     onBusiness:
@@ -289,13 +297,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
       webinar.publishProducts.some((link) => link.publishProfileId === business.publishProfileId),
     stripeConnected: !!webinar.presenter.stripeConnectId,
     hasPaidAccess: webinar.presenter.subscription,
-    shareLinks: [
-      ...(webinar.slug ? [{ variant: 'share', label: 'Share link', url: `${baseUrl}/o/${webinar.slug}` }] : []),
-      ...(webinar.slug && modes.DIRECT_PAY
-        ? [{ variant: 'pay', label: 'Direct pay link (no form)', url: `${baseUrl}/pay/${webinar.slug}` }]
-        : []),
-    ],
-    legacyLinks: buildVariantLinks(webinar.id, legacyLinkFields(webinar.kind, modes).linkVariants, baseUrl),
+    shareLinks: buildOfferShareLinks(webinar.slug, modes, baseUrl),
     orders: orders.map((order) => ({
       id: order.id,
       status: order.status,

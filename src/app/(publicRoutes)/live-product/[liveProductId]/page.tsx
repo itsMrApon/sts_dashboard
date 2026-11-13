@@ -30,6 +30,12 @@ export default async function LiveProductPage({ params, searchParams }: Props) {
     )
   }
 
+  // Older product links (Book a call / Order now) now open the one share page. Buyers and the
+  // creator see the same thing there; the creator's view of conversations is the pipeline.
+  if (product.slug && !product.deletedAt) {
+    redirect(`/o/${product.slug}`)
+  }
+
   const resolvedVariant = resolveVariantFromParam(variant)
   const ctaType = resolvedVariant
     ? (VARIANT_META[resolvedVariant].ctaType as CtaTypeEnum)

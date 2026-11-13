@@ -5,6 +5,7 @@ import { stripe } from '@/lib/stripe'
 import { prismaClient } from '@/lib/prismaClient'
 import type { PublicOfferRecord } from './publicOffer'
 import { scheduleDepositBalance } from './orderEvents'
+import { publicBaseUrl } from './publicBaseUrl'
 
 type CheckoutInput = {
   offer: PublicOfferRecord
@@ -17,8 +18,9 @@ type CheckoutInput = {
 
 export type CheckoutStart = { ok: true; url: string; orderId: string } | { ok: false; error: string }
 
+/** Stripe sends the buyer back here (the phone-reachable address in development). */
 function baseUrl(): string {
-  return (process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, '')
+  return publicBaseUrl()
 }
 
 /**

@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
+import { ConsoleBanner } from "@/components/ReusableComponent/ConsoleBanner";
  
 const manrope = Manrope ({
   subsets: ['latin'], 
@@ -36,6 +37,7 @@ export default function RootLayout({
           >
             {children}
             <Toaster position="top-center" richColors closeButton />
+            <ConsoleBanner />
           </ThemeProvider>
         </body>
       </html>

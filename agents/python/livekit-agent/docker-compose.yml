@@ -1,0 +1,22 @@
+# Voice worker for /o offer links, product links and the AI agents page.
+#
+# Run (on the Linux box now, the VPS later — same steps):
+#   docker compose up -d --build
+#   docker compose logs -f voice-agent      # look for "registered worker"
+#
+# .env next to this file must have:
+#   LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET   (same LiveKit project as the Next.js app)
+#   SAAS_API_URL   the app's public base + /api, e.g. https://your-app-domain/api
+#                  (http://localhost:3000/api only works when the app runs on the same machine
+#                   with network_mode: host)
+#   SAAS_API_KEY   same value as the app's SAAS_API_KEY
+#   DEEPGRAM_API_KEY / GOOGLE_API_KEY ...  optional fallbacks; the app normally sends keys per room
+services:
+  voice-agent:
+    build: .
+    image: sts-ai-voice-agent
+    env_file: .env
+    restart: unless-stopped
+    # On deploy/restart the worker stops taking new calls and lets live ones finish first.
+    stop_grace_period: 5m
+    init: true

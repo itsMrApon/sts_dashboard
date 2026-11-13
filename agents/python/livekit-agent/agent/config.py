@@ -16,10 +16,12 @@ from pydantic import BaseModel, Field
 # might not include SAAS_API_URL / SAAS_API_KEY. Those live in the Next.js repo
 # root `.env`, so we load both to ensure the agent prompt/instructions are
 # fetched from the DB-backed SaaS endpoint.
-_local_env = Path(__file__).resolve().parents[1] / ".env"  # livekit-agent/.env
-_root_env = Path(__file__).resolve().parents[4] / ".env"  # sts-ai/.env
+_here = Path(__file__).resolve()
+_local_env = _here.parents[1] / ".env"  # livekit-agent/.env
 load_dotenv(_local_env)
-load_dotenv(_root_env)
+# sts-ai/.env only exists in a repo checkout; in Docker (/app/agent) there is no such parent.
+if len(_here.parents) > 4:
+    load_dotenv(_here.parents[4] / ".env")
 
 logger = logging.getLogger(__name__)
 

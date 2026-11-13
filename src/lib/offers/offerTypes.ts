@@ -2,6 +2,8 @@
  * Client-safe types and constants for offer settings (no Prisma runtime import, so client
  * components can use them).
  */
+import type { OfferShareLink } from './offerLinks'
+
 export const ORDER_MODE_KINDS = ['INSTANT_CHECKOUT', 'AI_ASSISTANT', 'LIVE_HOST', 'DIRECT_PAY'] as const
 export type OrderModeKey = (typeof ORDER_MODE_KINDS)[number]
 export type OrderModesInput = Record<OrderModeKey, boolean>
@@ -38,14 +40,14 @@ export type OfferSettingsView = {
   modes: OrderModesInput
   aiServices: AiService[]
   livekitAgentId: string | null
+  /** The creator's guided tour: buyers only see a published one. */
+  tourStatus: 'published' | 'draft' | 'none'
   agents: { id: string; name: string }[]
   hasBusiness: boolean
   onBusiness: boolean
   stripeConnected: boolean
   hasPaidAccess: boolean
-  shareLinks: { variant: string; label: string; url: string }[]
-  /** The per-variant links from before /o existed; they keep working. */
-  legacyLinks: { variant: string; label: string; url: string }[]
+  shareLinks: OfferShareLink[]
   orders: OfferOrderRow[]
   orderSummary: { collectedCents: number; paidCount: number; balanceDueCents: number }
 }
@@ -71,11 +73,11 @@ export const ORDER_MODE_COPY: Record<OrderModeKey, { title: string; description:
   },
   AI_ASSISTANT: {
     title: 'AI sales assistant',
-    description: 'Buyer talks to your AI by chat, voice or wizard; the AI brings up the order button.',
+    description: 'On your share link: chat, guided tour and voice side by side, then Continue to payment.',
   },
   LIVE_HOST: {
     title: 'Live with you',
-    description: 'During your live webinar you drop the offer and attendees get an order button.',
+    description: 'Its own link: a waiting room counts down to your start time, then you go live and drop a Buy now button.',
   },
   DIRECT_PAY: {
     title: 'Direct pay link',

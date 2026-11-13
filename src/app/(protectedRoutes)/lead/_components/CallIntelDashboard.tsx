@@ -12,6 +12,7 @@ import {
   LeadCalendar,
   type LeadCalendarMonth,
 } from './calendar/LeadCalendar'
+import { openLeadSettings } from './leadSettingsEvents'
 import {
   LEAD_VIEW_KEY,
   type LeadViewMode,
@@ -76,7 +77,7 @@ export function CallIntelDashboard(props: CallIntelDashboardProps) {
     const messages: Record<string, string> = {
       connected: 'Google Calendar connected.',
       failed: 'Could not connect Google Calendar. Try again.',
-      missing_oauth: 'Add Google OAuth Client ID & Secret in Settings first.',
+      missing_oauth: 'Add your Google OAuth Client ID & Secret in Lead settings first.',
       no_refresh: 'Google did not return a refresh token. Try Connect again.',
       error: 'Google Calendar authorization was cancelled.',
     }
@@ -89,8 +90,8 @@ export function CallIntelDashboard(props: CallIntelDashboardProps) {
       } else {
         toast.error(msg, {
           action: {
-            label: 'Settings',
-            onClick: () => router.push('/settings'),
+            label: 'Lead settings',
+            onClick: openLeadSettings,
           },
         })
       }

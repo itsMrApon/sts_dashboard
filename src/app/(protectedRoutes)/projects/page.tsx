@@ -9,6 +9,7 @@ import ProjectCard from './_components/ProjectCard '
 import { WebinarStatusEnum } from '@prisma/client'
 import Link from 'next/link'
 import ProjectIntentLauncher from './_components/ProjectIntentLauncher'
+import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
 
 type Props = {
   searchParams: Promise<{
@@ -56,6 +57,8 @@ const page = async ({ searchParams }: Props) => {
         : []
   }
 
+  const shareBaseUrl = publicBaseUrl()
+
   const hostUser = {
     id: checkUser.user.id,
     name: checkUser.user.name,
@@ -102,7 +105,7 @@ const page = async ({ searchParams }: Props) => {
         >
           {webinars?.length > 0 ? (
             webinars.map((project, index: number) => (
-              <ProjectCard key={index} project={project as never} hostUser={hostUser} />
+              <ProjectCard key={index} project={project as never} hostUser={hostUser} shareBaseUrl={shareBaseUrl} />
             ))
           ) : (
             <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
@@ -117,7 +120,7 @@ const page = async ({ searchParams }: Props) => {
         >
           {webinars?.length > 0 ? (
             webinars.map((project, index: number) => (
-              <ProjectCard key={index} project={project as never} hostUser={hostUser} />
+              <ProjectCard key={index} project={project as never} hostUser={hostUser} shareBaseUrl={shareBaseUrl} />
             ))
           ) : (
             <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
@@ -132,7 +135,7 @@ const page = async ({ searchParams }: Props) => {
         >
           {webinars?.length > 0 ? (
             webinars.map((project, index: number) => (
-              <ProjectCard key={index} project={project as never} hostUser={hostUser} />
+              <ProjectCard key={index} project={project as never} hostUser={hostUser} shareBaseUrl={shareBaseUrl} />
             ))
           ) : (
             <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">

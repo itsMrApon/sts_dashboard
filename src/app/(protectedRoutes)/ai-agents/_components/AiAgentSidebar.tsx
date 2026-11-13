@@ -112,20 +112,26 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
   }
 
   return (
-    <div className="flex max-h-[40%] min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-border md:h-full md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
+    // Phones: list/detail. The list fills the pane and hides once an agent is open (the editor
+    // has a Back button). md+: the usual 300px side list next to the editor.
+    <div
+      className={`${livekitAgent || assistant ? 'hidden' : 'flex'} min-h-0 w-full flex-1 flex-col overflow-hidden md:flex md:h-full md:w-[300px] md:flex-none md:shrink-0 md:border-r md:border-border`}
+    >
       <div className="shrink-0 p-4">
-        <Button
-          className="w-full flex items-center gap-2 mb-2 cursor-pointer"
-          onClick={() => router.push('/ai-agents/config')}
-        >
-          <Settings2 /> Config Agent
-        </Button>
-        <Button
-          className="w-full flex items-center gap-2 mb-4 cursor-pointer"
-          onClick={() => setIsModalOpen(true)}
-        >
-          <Plus /> Create Assistant
-        </Button>
+        <div className="mb-3 grid grid-cols-2 gap-2 md:mb-4 md:grid-cols-1">
+          <Button
+            className="w-full flex items-center gap-2 cursor-pointer"
+            onClick={() => router.push('/ai-agents/config')}
+          >
+            <Settings2 /> Config Agent
+          </Button>
+          <Button
+            className="w-full flex items-center gap-2 cursor-pointer"
+            onClick={() => setIsModalOpen(true)}
+          >
+            <Plus /> Create Assistant
+          </Button>
+        </div>
         <div className="relative">
           <Input
             placeholder="Search agents"
@@ -162,7 +168,7 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
               <button
                 type="button"
                 aria-label={`Delete ${agent.name}`}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation()
                   openDeleteDialog(agent, 'livekit')
@@ -198,7 +204,7 @@ const AiAgentSidebar = ({ aiAgents, livekitAgents }: Props) => {
               <button
                 type="button"
                 aria-label={`Delete ${aiAssistant.name}`}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation()
                   openDeleteDialog(aiAssistant, 'vapi')

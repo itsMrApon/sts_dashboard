@@ -27,11 +27,13 @@ from .tools import AgentTools
 # Data-channel topic the share page (/o/<slug>) listens on for the order button.
 OFFER_TOPIC = "sts.offer"
 
-_project_root = Path(__file__).resolve().parent.parent
-_repo_root = Path(__file__).resolve().parents[4]
+_here = Path(__file__).resolve()
+_project_root = _here.parent.parent
 # Same as config.py: worker .env then repo root .env (so GOOGLE_API_KEY can live only in sts-ai/.env).
+# In Docker the code sits at /app/agent (no repo root above it); env comes from the container.
 load_dotenv(_project_root / ".env")
-load_dotenv(_repo_root / ".env")
+if len(_here.parents) > 4:
+    load_dotenv(_here.parents[4] / ".env")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

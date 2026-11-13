@@ -93,7 +93,8 @@ export async function GET(
       const offerForAgent = offer?.live && offer.agentRoomName === baseRoomName ? offer : null;
       const baseInstructions = context.systemInstruction || livekitAgent.systemPrompt || aiAgentPrompt;
       const config = {
-        room_name: livekitAgent.roomName,
+        // Offer calls keep the full room name so their transcript can be matched to the buyer.
+        room_name: offerForAgent ? roomName : livekitAgent.roomName,
         business_type: 'Sales & Lead Qualification',
         instructions: offerForAgent
           ? `${baseInstructions}\n\n${buildOfferBrief(

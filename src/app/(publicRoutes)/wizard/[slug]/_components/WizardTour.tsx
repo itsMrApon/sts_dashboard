@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { ChevronLeft, ChevronRight, MessageCircle, Pause, Play, RotateCcw, ShoppingBag, Volume2, VolumeX, X } from 'lucide-react'
 import { WizardGem } from '@/components/wizard/WizardGem'
 import { useWizardNarrator } from '@/components/wizard/useWizardNarrator'
@@ -56,14 +56,26 @@ type WizardTourProps = {
   onClose?: () => void
   /** Embedded use (offer page): replaces "Talk to …" with an order button on the last step. */
   orderAction?: { label: string; onClick: () => void }
+  /**
+   * Fill the parent box instead of the viewport (the offer page's AI room): the tour scrolls
+   * inside its own panel, and the return key is left alone (the chat beside it uses it).
+   */
+  embedded?: boolean
+  /** Embedded use: lets the page start or stop the tour from its own buttons (one tap, no intro). */
+  controlRef?: Ref<WizardTourControl>
+  /** Embedded use: called when narration starts, so the page can stop other audio (a voice call). */
+  onPlay?: () => void
 }
 
-export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
+export type WizardTourControl = { play: () => void; stop: () => void }
+
+export function WizardTour({ wizard, onClose, orderAction, embedded = false, controlRef, onPlay }: WizardTourProps) {
   const palette = resolveTheme(wizard.theme)
   const copy = COPY[wizard.language]
   const { speak, stop, unlock } = useWizardNarrator(wizard.slug, wizard.language)
 
-  const [phase, setPhase] = useState<Phase>('intro')
+  // Embedded (offer page): skip the intro screen and open straight on the steps.
+  const [phase, setPhase] = useState<Phase>(embedded ? 'touring' : 'intro')
   const [activeIndex, setActiveIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speaking, setSpeaking] = useState(false)
@@ -73,13 +85,25 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
   const mutedRef = useRef(muted)
   mutedRef.current = muted
   const sectionRefs = useRef<(HTMLElement | null)[]>([])
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  const scrollToStep = useCallback((index: number) => {
-    sectionRefs.current[index]?.scrollIntoView({
-      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-      block: 'center',
-    })
-  }, [])
+  const scrollToStep = useCallback(
+    (index: number) => {
+      const node = sectionRefs.current[index]
+      if (!node) return
+      const behavior = prefersReducedMotion() ? 'auto' : 'smooth'
+      const box = scrollRef.current
+      if (embedded && box) {
+        // Scroll only this panel (scrollIntoView would also slide the carousel around it), and
+        // centre the step in the space above the player card.
+        const visible = box.clientHeight - 190
+        box.scrollTo({ top: Math.max(0, node.offsetTop - Math.max(16, (visible - node.offsetHeight) / 2)), behavior })
+        return
+      }
+      node.scrollIntoView({ behavior, block: 'center' })
+    },
+    [embedded],
+  )
 
   const playFrom = useCallback(
     async (index: number) => {
@@ -143,6 +167,29 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
     void playFrom(phase === 'done' ? 0 : activeIndex)
   }, [activeIndex, halt, phase, playFrom, playing, unlock])
 
+  const onPlayRef = useRef(onPlay)
+  onPlayRef.current = onPlay
+  useEffect(() => {
+    if (playing) onPlayRef.current?.()
+  }, [playing])
+
+  // Called from the page's own click handlers, so audio is unlocked inside the user's tap.
+  useImperativeHandle(
+    controlRef,
+    () => ({
+      play: () => {
+        if (playing) return
+        unlock()
+        if (phase !== 'touring') setPhase('touring')
+        void playFrom(phase === 'done' ? 0 : activeIndex)
+      },
+      stop: () => {
+        if (playing) halt()
+      },
+    }),
+    [activeIndex, halt, phase, playFrom, playing, unlock],
+  )
+
   const toggleMute = useCallback(() => {
     const nextMuted = !mutedRef.current
     setMuted(nextMuted)
@@ -151,7 +198,7 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
   }, [activeIndex, playFrom, playing])
 
   useEffect(() => {
-    if (phase !== 'intro') return
+    if (phase !== 'intro' || embedded) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Enter') {
         event.preventDefault()
@@ -160,7 +207,7 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [phase, startTour])
+  }, [embedded, phase, startTour])
 
   const activeStep = wizard.steps[activeIndex]
   const mutedText = palette.isLight ? 'text-zinc-500' : 'text-zinc-400'
@@ -169,9 +216,16 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
     : 'border-white/10 bg-zinc-900/80 text-zinc-50'
 
   return (
-    <div className={cn('relative isolate min-h-screen w-full', palette.isLight ? 'text-zinc-900' : 'text-zinc-50')}>
+    <div
+      className={cn(
+        'relative isolate w-full',
+        embedded ? 'h-full overflow-hidden' : 'min-h-screen',
+        palette.isLight ? 'text-zinc-900' : 'text-zinc-50',
+      )}
+    >
       {/* Full-viewport theme background (the public layout constrains width with `container`). */}
-      <div aria-hidden className="fixed inset-0 -z-10" style={{ backgroundColor: palette.colorBack }} />
+      <div aria-hidden className={cn('inset-0 -z-10', embedded ? 'absolute' : 'fixed')} style={{ backgroundColor: palette.colorBack }} />
+      <div ref={scrollRef} className={embedded ? 'relative h-full overflow-y-auto overscroll-contain' : 'contents'}>
       {!wizard.isPublished ? (
         <div className="sticky top-0 z-40 bg-amber-500/90 px-4 py-1.5 text-center text-xs font-medium text-black">
           {copy.draft}
@@ -180,7 +234,10 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
 
       {phase === 'intro' ? (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 px-6 text-center"
+          className={cn(
+            'inset-0 z-50 flex flex-col items-center justify-center gap-6 px-6 text-center',
+            embedded ? 'absolute pb-16' : 'fixed',
+          )}
           style={{ backgroundColor: palette.colorBack }}
         >
           {onClose ? (
@@ -193,9 +250,9 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
               <X className="h-5 w-5" />
             </button>
           ) : null}
-          <WizardGem theme={wizard.theme} shape={wizard.shape} size={220} />
+          <WizardGem theme={wizard.theme} shape={wizard.shape} size={embedded ? 140 : 220} />
           <div className="space-y-2">
-            <p className="text-2xl font-medium">{copy.greeting(wizard.guideName)}</p>
+            <p className={cn('font-medium', embedded ? 'text-xl' : 'text-2xl')}>{copy.greeting(wizard.guideName)}</p>
             <p className={cn('text-base', mutedText)}>{copy.tagline(wizard.businessName)}</p>
           </div>
           <button
@@ -206,9 +263,10 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
               palette.isLight ? 'bg-zinc-900 text-white ring-zinc-900/40' : 'bg-white text-zinc-900 ring-white/40',
             )}
           >
-            {copy.start} ⏎
+            {copy.start}
+            {embedded ? null : ' ⏎'}
           </button>
-          <p className={cn('hidden text-xs sm:block', mutedText)}>{copy.pressEnter}</p>
+          {embedded ? null : <p className={cn('hidden text-xs sm:block', mutedText)}>{copy.pressEnter}</p>}
           <div className="absolute inset-x-0 bottom-6 flex items-center justify-center gap-4 px-4">
             <div className={cn('flex items-center gap-1 rounded-full border p-1 text-xs', surface)}>
               <span className={cn('px-2', mutedText)}>{copy.sound}</span>
@@ -234,7 +292,7 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
         </div>
       ) : null}
 
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
+      <header className={cn('mx-auto flex max-w-5xl items-center justify-between', embedded ? 'px-4 py-3' : 'px-6 py-6')}>
         <span className="text-sm font-semibold tracking-tight">{wizard.businessName}</span>
         <button
           type="button"
@@ -255,7 +313,7 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
         ) : null}
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 pb-48">
+      <main className={cn('mx-auto max-w-5xl', embedded ? 'px-2 pb-56' : 'px-6 pb-48')}>
         {wizard.steps.map((step, index) => {
           const isActive = index === activeIndex && phase !== 'intro'
           const dimmed = playing && !isActive
@@ -268,8 +326,9 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
               }}
               onClick={() => goTo(index)}
               className={cn(
-                'flex cursor-pointer flex-col justify-center rounded-3xl border border-transparent px-6 py-16 transition-all duration-500 sm:px-10',
-                index === 0 ? 'min-h-[70vh]' : 'min-h-[55vh]',
+                'flex cursor-pointer flex-col justify-center rounded-3xl border border-transparent transition-all duration-500',
+                embedded ? 'px-4 py-10' : 'px-6 py-16 sm:px-10',
+                embedded ? (index === 0 ? 'min-h-[50vh]' : 'min-h-[40vh]') : index === 0 ? 'min-h-[70vh]' : 'min-h-[55vh]',
                 dimmed && 'opacity-40',
                 isActive && (palette.isLight ? 'border-black/10 bg-black/[0.03]' : 'border-white/10 bg-white/[0.03]'),
               )}
@@ -277,11 +336,22 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
               <span className={cn('mb-4 text-xs font-medium uppercase tracking-[0.2em]', mutedText)}>
                 {String(index + 1).padStart(2, '0')}
               </span>
-              <h2 className={cn('max-w-3xl font-semibold tracking-tight', index === 0 ? 'text-4xl sm:text-6xl' : 'text-3xl sm:text-4xl')}>
+              <h2
+                className={cn(
+                  'max-w-3xl font-semibold tracking-tight',
+                  embedded
+                    ? index === 0
+                      ? 'text-3xl'
+                      : 'text-2xl'
+                    : index === 0
+                      ? 'text-4xl sm:text-6xl'
+                      : 'text-3xl sm:text-4xl',
+                )}
+              >
                 {step.heading}
               </h2>
               {step.body ? (
-                <p className={cn('mt-5 max-w-2xl text-lg leading-relaxed', mutedText)}>{step.body}</p>
+                <p className={cn('mt-5 max-w-2xl leading-relaxed', embedded ? 'text-base' : 'text-lg', mutedText)}>{step.body}</p>
               ) : null}
               {step.ctaLabel && step.ctaUrl ? (
                 <a
@@ -301,11 +371,15 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
           )
         })}
       </main>
+      </div>
 
       {phase !== 'intro' && activeStep ? (
         <aside
           className={cn(
-            'fixed inset-x-4 bottom-4 z-40 rounded-3xl border p-4 shadow-2xl backdrop-blur-xl sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[380px]',
+            'z-40 rounded-3xl border p-4 shadow-2xl backdrop-blur-xl',
+            embedded
+              ? 'absolute inset-x-3 bottom-3'
+              : 'fixed inset-x-4 bottom-4 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[380px]',
             surface,
           )}
           aria-live="polite"
@@ -342,7 +416,9 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
             ))}
           </div>
 
-          <div className="mt-3 flex items-center justify-between">
+          {/* Playback centred; sound on the right (left cell is a spacer so the centre stays centred). */}
+          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center">
+            <span aria-hidden="true" />
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => goTo(activeIndex - 1)} aria-label="Previous step" className="rounded-full p-2 hover:bg-white/10">
                 <ChevronLeft className="h-4 w-4" />
@@ -358,32 +434,38 @@ export function WizardTour({ wizard, onClose, orderAction }: WizardTourProps) {
               <button type="button" onClick={() => goTo(activeIndex + 1)} aria-label="Next step" className="rounded-full p-2 hover:bg-white/10">
                 <ChevronRight className="h-4 w-4" />
               </button>
+            </div>
+            <div className="flex justify-end">
               <button type="button" onClick={toggleMute} aria-label={muted ? 'Unmute' : 'Mute'} className="rounded-full p-2 hover:bg-white/10">
                 {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
               </button>
             </div>
-            {orderAction && (phase === 'done' || activeIndex === wizard.steps.length - 1) ? (
-              <button
-                type="button"
-                onClick={orderAction.onClick}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium',
-                  palette.isLight ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900',
-                )}
-              >
-                <ShoppingBag className="h-3.5 w-3.5" />
-                {orderAction.label}
-              </button>
-            ) : wizard.chatUrl && !orderAction ? (
-              <a
-                href={wizard.chatUrl}
-                className={cn('flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs', palette.isLight ? 'border-black/10' : 'border-white/15')}
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                <span className="max-w-[140px] truncate">{copy.talk(wizard.businessName)}</span>
-              </a>
-            ) : null}
           </div>
+
+          {orderAction && (phase === 'done' || activeIndex === wizard.steps.length - 1) ? (
+            <button
+              type="button"
+              onClick={orderAction.onClick}
+              className={cn(
+                'mt-3 flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium',
+                palette.isLight ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900',
+              )}
+            >
+              <ShoppingBag className="h-4 w-4" />
+              {orderAction.label}
+            </button>
+          ) : wizard.chatUrl && !orderAction ? (
+            <a
+              href={wizard.chatUrl}
+              className={cn(
+                'mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border px-3 py-2 text-sm',
+                palette.isLight ? 'border-black/10' : 'border-white/15',
+              )}
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="truncate">{copy.talk(wizard.businessName)}</span>
+            </a>
+          ) : null}
         </aside>
       ) : null}
     </div>

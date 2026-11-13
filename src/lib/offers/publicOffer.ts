@@ -97,9 +97,11 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
     offer.livekitAgentId
       ? prismaClient.liveKitAgent.findUnique({ where: { id: offer.livekitAgentId }, select: { roomName: true } })
       : null,
+    // Published tour first. A draft is still returned so its owner can preview it on the share
+    // page; getPublicWizard only hands a draft to its owner, so buyers never see one.
     prismaClient.voiceWizard.findFirst({
-      where: { userId: offer.presenterId, isPublished: true },
-      orderBy: { createdAt: 'asc' },
+      where: { userId: offer.presenterId },
+      orderBy: [{ isPublished: 'desc' }, { createdAt: 'asc' }],
       select: { slug: true },
     }),
   ])

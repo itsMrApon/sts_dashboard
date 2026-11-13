@@ -33,7 +33,7 @@ export async function loadOfferChatHistory(offer: PublicOfferRecord, contactId: 
   return messages
     .filter((message) => (message.role === 'user' || message.role === 'assistant') && typeof message.content === 'string')
     .slice(-30)
-    .map(({ role, content }) => ({ role, content }))
+    .map(({ role, content, from }) => (from === 'creator' ? { role, content, from } : { role, content }))
 }
 
 export async function replyToOfferChat(
@@ -60,17 +60,18 @@ export async function replyToOfferChat(
 }
 
 /**
- * A fresh LiveKit room per call whose name carries the offer slug:
- *   <agentRoom>__offer__<slug>__<random>
+ * A fresh LiveKit room per call whose name carries the offer slug and the buyer:
+ *   <agentRoom>__offer__<slug>__<contactId without dashes><random>
  * The agent-config route reads the slug, adds the offer brief and turns on the show_order_button tool.
+ * The voice agent files its transcript under this room name, so the pipeline can match calls to buyers.
  */
 export async function createOfferVoiceSession(offer: PublicOfferRecord, contact: { id: string; name: string | null }) {
   if (!offer.agentRoomName) return null
-  const suffix = randomBytes(4).toString('hex')
+  const suffix = `${contact.id.replace(/-/g, '').toLowerCase()}${randomBytes(4).toString('hex')}`
   return getLiveKitConnectionDetails({
     roomName: `${offer.agentRoomName}__offer__${offer.slug}__${suffix}`,
     participantName: contact.name || 'Guest',
-    participantIdentity: `buyer_${contact.id.slice(0, 8)}_${suffix}`,
+    participantIdentity: `buyer_${suffix}`,
   })
 }
 
@@ -78,4 +79,12 @@ export async function createOfferVoiceSession(offer: PublicOfferRecord, contact:
 export function parseOfferRoomName(roomName: string): { baseRoomName: string; offerSlug: string } | null {
   const match = roomName.match(/^(.+)__offer__([a-z0-9-]{1,80})__[a-z0-9]+$/)
   return match ? { baseRoomName: match[1], offerSlug: match[2] } : null
+}
+
+/** The buyer (Contact id) behind an offer voice room, when the room carries one. */
+export function contactIdFromOfferRoom(roomName: string): string | null {
+  const match = roomName.match(/__offer__[a-z0-9-]{1,80}__([0-9a-f]{32})[0-9a-f]{8}$/)
+  if (!match) return null
+  const hex = match[1]
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }

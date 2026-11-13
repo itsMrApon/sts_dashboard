@@ -9,5 +9,6 @@ type Props = {
 
 /** @deprecated Prefer PageViewport — kept for lead route imports. */
 export function LeadViewport({ children }: Props) {
-  return <PageViewport>{children}</PageViewport>
+  // 16px under the box on desktop (default 40 left a dark band below the list).
+  return <PageViewport bottomPad={16}>{children}</PageViewport>
 }

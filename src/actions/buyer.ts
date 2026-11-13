@@ -9,9 +9,10 @@ import { loadPublicOffer } from '@/lib/offers/publicOffer'
 import { clearBuyerContact, getBuyerContactId, setBuyerContact } from '@/lib/offers/buyerSession'
 import { normalizeEmail, normalizeName, normalizePhone, normalizeSource } from '@/lib/offers/leadInput'
 import { startOfferCheckout } from '@/lib/offers/offerOrders'
-import { createOfferVoiceSession, replyToOfferChat } from '@/lib/offers/offerAi'
+import { createOfferVoiceSession, loadOfferChatHistory, replyToOfferChat } from '@/lib/offers/offerAi'
+import { registerContactOnOffer } from '@/lib/offers/offerAttendance'
 import type { ConnectionDetails } from '@/lib/livekit/livekitVoiceAgent'
-import type { BuyerContactView } from '@/lib/offers/publicOfferTypes'
+import type { BuyerContactView, OfferChatMessage } from '@/lib/offers/publicOfferTypes'
 
 /**
  * Buyer-side actions for /o/[slug] and /pay/[slug]. No Clerk session: buyers are identified by
@@ -57,6 +58,8 @@ export async function captureLead(input: {
     select: { id: true, name: true, email: true, phone: true },
   })
   await setBuyerContact(offer.creatorUserId, contact.id)
+  // Shows up as "Registered" in the creator's pipeline for this offer.
+  await registerContactOnOffer(offer.id, contact)
   return { ok: true, contact: { name: contact.name, email: contact.email, phone: contact.phone } }
 }
 
@@ -117,42 +120,35 @@ export async function startDirectPay(input: {
 }
 
 /**
- * Hands the lead to the live-webinar page, which still identifies visitors through the global
- * Attendee table (email required). WhatsApp-only leads get a reserved, never-deliverable address
- * so they can join; the real number stays on the Contact. Chat, voice and wizard run on /o itself.
+ * Live link: saves the buyer's seat (their lead must be captured first). The live room still
+ * identifies visitors by Attendee, so the returned attendee goes into the attendee store.
  */
-export async function enterBuyerExperience(input: {
+export async function joinLiveWaitlist(input: {
   slug: string
-  experience: 'LIVE'
-}): Promise<Result<{ attendee: Attendee; url: string }>> {
+}): Promise<Result<{ attendee: Attendee; status: string }>> {
   if (!(await allow('enter', 20))) return { ok: false, error: TOO_MANY }
   const offer = await loadPublicOffer(input.slug)
-  if (!offer?.live) return { ok: false, error: 'This offer is not available' }
-  if (!offer.modes.LIVE_HOST) {
-    return { ok: false, error: 'This offer has no live session' }
-  }
+  if (!offer?.live || !offer.modes.LIVE_HOST) return { ok: false, error: 'This offer has no live session' }
 
   const contactId = await getBuyerContactId(offer.creatorUserId)
   const contact = contactId
-    ? await prismaClient.contact.findFirst({ where: { id: contactId, userId: offer.creatorUserId } })
+    ? await prismaClient.contact.findFirst({
+        where: { id: contactId, userId: offer.creatorUserId },
+        select: { email: true, phone: true, name: true },
+      })
     : null
   if (!contact) return { ok: false, error: 'Enter your email or WhatsApp first' }
 
-  const email = contact.email ?? `whatsapp-${(contact.phone ?? '').replace(/\D/g, '')}@lead.invalid`
-  const name = contact.name ?? contact.email?.split('@')[0] ?? 'Guest'
+  const attendee = await registerContactOnOffer(offer.id, contact)
+  return { ok: true, attendee, status: offer.webinarStatus }
+}
 
-  const attendee = await prismaClient.attendee.upsert({
-    where: { email },
-    create: { email, name },
-    update: {},
-  })
-  await prismaClient.attendance.upsert({
-    where: { attendeeId_webinarId: { attendeeId: attendee.id, webinarId: offer.id } },
-    create: { attendeeId: attendee.id, webinarId: offer.id, attendedType: AttendedTypeEnum.REGISTERED },
-    update: {},
-  })
-
-  return { ok: true, attendee, url: `/live-project/${offer.id}?variant=PROJECT_BUY_NOW` }
+/** The waiting room polls this to open the doors when the creator goes live. */
+export async function getLiveStatus(input: { slug: string }): Promise<Result<{ status: string; startTime: string }>> {
+  if (!(await allow('live-status', 30))) return { ok: false, error: TOO_MANY }
+  const offer = await loadPublicOffer(input.slug)
+  if (!offer?.live || !offer.modes.LIVE_HOST) return { ok: false, error: 'This offer has no live session' }
+  return { ok: true, status: offer.webinarStatus, startTime: offer.startTime }
 }
 
 /** The buyer's contact for this offer's creator (from the signed cookie), or null. */
@@ -189,6 +185,18 @@ export async function sendOfferChat(input: {
 
   const result = await replyToOfferChat(offer, contact.id, message)
   return result.ok ? { ok: true, reply: result.reply, showOrder: result.showOrder } : result
+}
+
+/** The buyer's chat, re-read so replies the creator types from the pipeline show up. */
+export async function pollOfferChat(input: { slug: string }): Promise<Result<{ messages: OfferChatMessage[] }>> {
+  if (!(await allow('chat-poll', 30))) return { ok: false, error: TOO_MANY }
+  const offer = await loadPublicOffer(input.slug)
+  if (!offer?.live || !offer.modes.AI_ASSISTANT || !offer.aiServices.includes('CHAT')) {
+    return { ok: false, error: 'Chat is not available for this offer' }
+  }
+  const contact = await buyerContact(offer.creatorUserId)
+  if (!contact) return { ok: false, error: 'Enter your email or WhatsApp first' }
+  return { ok: true, messages: await loadOfferChatHistory(offer, contact.id) }
 }
 
 /** Voice call on the share page: a LiveKit token for a room that carries the offer. */

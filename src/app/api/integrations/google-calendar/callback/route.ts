@@ -103,9 +103,9 @@ export async function GET(req: NextRequest) {
 
     revalidatePath('/lead')
     revalidatePath('/settings')
-    return NextResponse.redirect(new URL('/settings?gcal=connected', req.url))
+    return NextResponse.redirect(new URL('/lead?gcal=connected', req.url))
   } catch (error) {
     console.error('Google Calendar callback failed', error)
-    return NextResponse.redirect(new URL('/settings?gcal=failed', req.url))
+    return NextResponse.redirect(new URL('/lead?gcal=failed', req.url))
   }
 }

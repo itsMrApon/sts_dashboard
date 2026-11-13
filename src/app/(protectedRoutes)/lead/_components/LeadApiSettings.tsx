@@ -33,19 +33,14 @@ import {
   saveGoogleOAuthApp,
   saveSerperApiKey,
 } from '@/actions/callIntel'
+import type { LeadConnectionSettings } from '@/lib/leads/leadConnectionSettings'
 
-type Props = {
-  fathomOk: boolean
-  gcalOk: boolean
-  gcalNeedsReconnect: boolean
-  googleOAuthConfigured: boolean
-  hasUserGoogleOAuth: boolean
-  serperConfigured: boolean
-  hasUserSerperKey: boolean
-  calendarFilterMode: 'ALL' | 'KEYWORD'
-  calendarKeyword: string
+type Props = LeadConnectionSettings & {
+  /** Inside the Lead settings panel: no outer card or title (the panel has its own). */
+  embedded?: boolean
 }
 
+/** Fathom, Google Calendar and Serper connections used by the Leads page. */
 export function LeadApiSettings(props: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -77,8 +72,8 @@ export function LeadApiSettings(props: Props) {
   }
 
   return (
-    <section className="rounded-xl border bg-background">
-      <div className="flex items-start gap-3 border-b px-5 py-4 sm:px-6">
+    <section className={props.embedded ? '' : 'rounded-xl border bg-background'}>
+      <div className={props.embedded ? 'hidden' : 'flex items-start gap-3 border-b px-5 py-4 sm:px-6'}>
         <div className="mt-0.5 flex size-10 items-center justify-center rounded-lg bg-muted">
           <KeyRound className="size-5 text-foreground" />
         </div>
@@ -92,7 +87,7 @@ export function LeadApiSettings(props: Props) {
         </div>
       </div>
 
-      <div className="grid gap-6 p-5 sm:p-6">
+      <div className={props.embedded ? 'grid gap-4' : 'grid gap-6 p-5 sm:p-6'}>
         <div className="space-y-3 rounded-lg border p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>

@@ -8,6 +8,7 @@ import { LeadViewport } from './_components/LeadViewport'
 import { LeadDashboardLoader } from './_components/LeadDashboardLoader'
 import { LeadDashboardSkeleton } from './_components/LeadDashboardSkeleton'
 import { LeadUnavailableState } from './_components/LeadUnavailableState'
+import { LeadSettingsLoader } from './_components/LeadSettingsLoader'
 
 export default async function LeadCallIntelPage() {
   const auth = await onAuthenticateUser()
@@ -23,6 +24,9 @@ export default async function LeadCallIntelPage() {
         mainIcon={<PhoneCall className="h-12 w-12" />}
         rightIcon={<Brain className="h-4 w-4" />}
         heading="The home to all your Leads"
+        mobileHeading="Your Leads"
+        mobileAside={<LeadPageHeaderControls compact />}
+        hideSearchOnMobile
         placeholder="Search option..."
       >
         <LeadPageHeaderControls />
@@ -39,6 +43,11 @@ export default async function LeadCallIntelPage() {
           />
         </Suspense>
       </LeadViewport>
+
+      {/* Lead settings panel (opened by the ⚙ buttons and "add key" prompts). */}
+      <Suspense fallback={null}>
+        <LeadSettingsLoader userId={auth.user.id} />
+      </Suspense>
     </div>
   )
 }

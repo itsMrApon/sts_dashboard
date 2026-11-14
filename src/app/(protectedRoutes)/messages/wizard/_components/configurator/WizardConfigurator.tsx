@@ -1,20 +1,22 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   ArrowDown,
   ArrowUp,
-  Copy,
-  ExternalLink,
+  Compass,
+  Footprints,
   Loader2,
+  Palette,
   Play,
   Plus,
-  Save,
   Sparkles,
   Square,
   Trash2,
+  UserRound,
+  Waves,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -22,18 +24,18 @@ import {
   setVoiceWizardPublished,
   updateVoiceWizard,
 } from '@/actions/voiceWizard'
+import { ServiceStudio } from '@/components/services/studio/ServiceStudio'
+import { Field, Segmented, StudioSection, ToggleRow } from '@/components/services/studio/StudioPrimitives'
 import { WizardGem } from '@/components/wizard/WizardGem'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { SERVICE_SNIPPETS } from '@/lib/services/snippets'
 import {
   WIZARD_LANGUAGES,
   WIZARD_LIMITS,
+  WIZARD_PAUSES,
   WIZARD_SHAPES,
   WIZARD_THEMES,
   WIZARD_VOICES,
@@ -42,6 +44,7 @@ import {
   spokenText,
   type VoiceWizardStep,
   type WizardLanguage,
+  type WizardSettings,
   type WizardShape,
   type WizardThemeId,
 } from '@/lib/wizard/types'
@@ -55,20 +58,31 @@ type EditableWizard = {
   theme: WizardThemeId
   shape: WizardShape
   steps: VoiceWizardStep[]
+  settings: WizardSettings
   isPublished: boolean
+  /** Set when this is a product's own profile; its AI agent is chosen in the product's settings. */
+  product?: { id: string; title: string; agentName: string | null } | null
 }
 
 type Props = {
   initialWizard: EditableWizard
+  /** Business room: the site key on the Integrate tab is set up per business. */
+  roomName: string
 }
 
 const SELECT_CLASS = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm'
+const SECTIONS = [
+  { id: 'basics', label: 'Basics' },
+  { id: 'look', label: 'Look' },
+  { id: 'playback', label: 'Playback' },
+  { id: 'steps', label: 'Steps' },
+]
 
 function settingsSnapshot(wizard: EditableWizard) {
   return JSON.stringify({ ...wizard, isPublished: undefined })
 }
 
-export function WizardConfigurator({ initialWizard }: Props) {
+export function WizardConfigurator({ initialWizard, roomName }: Props) {
   const router = useRouter()
   const [wizard, setWizard] = useState<EditableWizard>(initialWizard)
   const [savedSnapshot, setSavedSnapshot] = useState(() => settingsSnapshot(initialWizard))
@@ -84,6 +98,16 @@ export function WizardConfigurator({ initialWizard }: Props) {
   const palette = resolveTheme(wizard.theme)
   const selectedStep = wizard.steps.find((step) => step.id === selectedStepId) ?? wizard.steps[0]
   const publicPath = `/wizard/${wizard.slug}`
+
+  // "Go to steps" (product settings) links to #tour-steps. The app scrolls inside its own panel,
+  // so the browser's hash jump doesn't reach it: bring the section into view ourselves.
+  useEffect(() => {
+    if (window.location.hash !== '#tour-steps') return
+    const frame = window.requestAnimationFrame(() =>
+      document.getElementById('studio-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    )
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
 
   const patch = useCallback((partial: Partial<EditableWizard>) => {
     setWizard((current) => ({ ...current, ...partial }))
@@ -130,6 +154,7 @@ export function WizardConfigurator({ initialWizard }: Props) {
         theme: wizard.theme,
         shape: wizard.shape,
         steps: wizard.steps,
+        settings: wizard.settings,
       })
       if (!result.ok) {
         toast.error(result.error)
@@ -159,7 +184,7 @@ export function WizardConfigurator({ initialWizard }: Props) {
       patch({ steps: result.steps })
       setSelectedStepId(result.steps[0]?.id ?? null)
       if (result.source === 'ai') toast.success('Draft ready — review it, then Save')
-      else toast.message('Used the built-in template', { description: result.note })
+      else toast.info('Used the built-in template', { description: result.note })
     })
   }
 
@@ -175,7 +200,11 @@ export function WizardConfigurator({ initialWizard }: Props) {
         return
       }
       patch({ isPublished: published })
-      if (published && result.audioFailures > 0) {
+      if (published && result.audioKeyMissing) {
+        toast.warning('Wizard is live with the browser voice. Add your Deepgram API key in AI Agents → Config for the AI voice.', {
+          action: { label: 'Open Config', onClick: () => router.push('/ai-agents/config?provider=deepgram') },
+        })
+      } else if (published && result.audioFailures > 0) {
         toast.warning(`Published, but ${result.audioFailures} clip(s) failed — they'll use the browser voice.`)
       } else {
         toast.success(published ? 'Wizard is live' : 'Wizard unpublished')
@@ -227,317 +256,375 @@ export function WizardConfigurator({ initialWizard }: Props) {
     window.speechSynthesis.speak(utterance)
   }
 
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(`${window.location.origin}${publicPath}`)
-    toast.success('Link copied')
-  }
-
   const voiceLabel = useMemo(
     () => WIZARD_VOICES.find((voice) => voice.id === wizard.voice)?.label ?? wizard.voice,
     [wizard.voice],
   )
+  const patchSettings = (partial: Partial<WizardSettings>) => patch({ settings: { ...wizard.settings, ...partial } })
+  const pauseLabel = WIZARD_PAUSES.find((pause) => pause.ms === wizard.settings.pauseMs)?.label ?? 'Natural'
+
+  const preview = (
+    <div
+      className={cn('flex min-h-[520px] flex-col items-center gap-4 p-6 text-center', palette.isLight ? 'text-zinc-900' : 'text-zinc-50')}
+      style={{ backgroundColor: palette.colorBack }}
+    >
+      <WizardGem theme={wizard.theme} shape={wizard.shape} size={170} speaking={playingStepId !== null} />
+      <p className="text-lg font-medium">
+        {wizard.language === 'bn' ? `হ্যালো! আমি ${wizard.guideName || 'Nova'}।` : `Oh, hi! I'm ${wizard.guideName || 'Nova'}.`}
+      </p>
+      {selectedStep ? (
+        <div className={cn('w-full rounded-2xl border p-3 text-left text-sm', palette.isLight ? 'border-black/10 bg-white/70' : 'border-white/10 bg-white/5')}>
+          <p className="mb-1 text-xs font-semibold">{selectedStep.heading || 'Untitled step'}</p>
+          <p className={palette.isLight ? 'text-zinc-600' : 'text-zinc-300'}>{spokenText(selectedStep) || '…'}</p>
+        </div>
+      ) : null}
+      {wizard.settings.showProgress && wizard.steps.length ? (
+        <div className="flex w-full items-center gap-1.5" aria-hidden>
+          {wizard.steps.map((step, index) => (
+            <span
+              key={step.id}
+              className={cn(
+                'h-1.5 flex-1 rounded-full',
+                index <= wizard.steps.findIndex((item) => item.id === selectedStep?.id)
+                  ? palette.isLight
+                    ? 'bg-zinc-900'
+                    : 'bg-white'
+                  : palette.isLight
+                    ? 'bg-black/15'
+                    : 'bg-white/15',
+              )}
+            />
+          ))}
+        </div>
+      ) : null}
+      <p className={cn('mt-auto text-xs', palette.isLight ? 'text-zinc-500' : 'text-zinc-400')}>
+        {wizard.language === 'en' ? voiceLabel : 'Browser voice (Bangla)'} · {wizard.steps.length} steps ·{' '}
+        {wizard.settings.autoAdvance ? `auto, ${pauseLabel.toLowerCase()} pace` : 'step by step'}
+      </p>
+    </div>
+  )
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold tracking-tight">{wizard.name || 'Untitled wizard'}</h1>
-              <Badge variant={wizard.isPublished ? 'default' : 'secondary'}>{wizard.isPublished ? 'Live' : 'Draft'}</Badge>
-              {isDirty ? <span className="text-xs text-amber-500">Unsaved changes</span> : null}
+    <ServiceStudio
+      name={wizard.product ? 'Product tour' : 'Wizard'}
+      icon={Compass}
+      tagline={wizard.product ? `Guided tour for ${wizard.product.title}, on its share link.` : 'A narrated guided tour of your business.'}
+      status={{ live: wizard.isPublished, label: wizard.isPublished ? 'Published' : 'Draft' }}
+      toggle={{ label: 'Published', checked: wizard.isPublished, onChange: togglePublished, busy: isPublishing }}
+      publicHref={publicPath}
+      publicLabel={wizard.isPublished ? 'Open tour' : 'Preview tour'}
+      dirty={isDirty}
+      saving={isSaving}
+      onSave={save}
+      sections={SECTIONS}
+      preview={preview}
+      previewTitle={`${wizard.slug} · preview`}
+      integrate={{
+        serviceName: 'Wizard',
+        roomName,
+        snippet: SERVICE_SNIPPETS.wizard(),
+        snippetFile: 'components/TourButton.tsx',
+        hostedHref: publicPath,
+        offNotice: wizard.isPublished ? null : 'This tour is a draft. Publish it so visitors and the SDK can play it.',
+        extra: (
+          <p className="px-1 text-xs text-muted-foreground">
+            On your own site, give each step a <span className="font-mono">Website section</span> and tag that section with{' '}
+            <span className="font-mono">data-sts-step</span>. The guide scrolls to it while it speaks.
+          </p>
+        ),
+      }}
+    >
+      <StudioSection
+        id="basics"
+        icon={UserRound}
+        title="Basics"
+        description="The tour's name, your guide, and the language and voice it narrates in."
+        summary={[
+          { label: 'guide', value: wizard.guideName || 'Nova' },
+          { label: 'language', value: wizard.language === 'bn' ? 'Bangla' : 'English' },
+          { label: 'voice', value: wizard.language === 'en' ? voiceLabel : 'browser voice' },
+          ...(wizard.product ? [{ label: 'agent', value: wizard.product.agentName ?? 'none yet' }] : []),
+        ]}
+      >
+        {wizard.product ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm">
+            <div className="min-w-0 space-y-0.5">
+              <p className="truncate">
+                <span className="text-muted-foreground">Product:</span> {wizard.product.title}
+              </p>
+              <p>
+                <span className="text-muted-foreground">AI agent:</span>{' '}
+                {wizard.product.agentName ?? <span className="text-amber-500">none picked yet</span>}
+                <span className="text-xs text-muted-foreground"> · Draft with AI writes from its prompt</span>
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">{publicPath}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
-            {isPublishing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Published
-            <Switch checked={wizard.isPublished} onCheckedChange={togglePublished} disabled={isPublishing} />
-          </label>
-          <Button variant="outline" size="sm" onClick={copyLink}>
-            <Copy className="mr-1.5 h-4 w-4" />
-            Copy link
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={publicPath} target="_blank">
-              <ExternalLink className="mr-1.5 h-4 w-4" />
-              {wizard.isPublished ? 'Open' : 'Preview'}
+            <Link
+              href={`/projects/${wizard.product.id}`}
+              className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              Change agent in product settings
             </Link>
-          </Button>
-          <Button size="sm" onClick={save} disabled={isSaving || !isDirty}>
-            {isSaving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-            Save
-          </Button>
+          </div>
+        ) : null}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Tour name" htmlFor="wizard-name" counter={`${wizard.name.length}/${WIZARD_LIMITS.name}`}>
+            <Input id="wizard-name" value={wizard.name} maxLength={WIZARD_LIMITS.name} onChange={(e) => patch({ name: e.target.value })} />
+          </Field>
+          <Field label="Guide name" htmlFor="guide-name">
+            <Input
+              id="guide-name"
+              value={wizard.guideName}
+              maxLength={WIZARD_LIMITS.guideName}
+              onChange={(e) => patch({ guideName: e.target.value })}
+              placeholder="Nova"
+            />
+          </Field>
         </div>
-      </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Language">
+            <Segmented ariaLabel="Language" value={wizard.language} options={WIZARD_LANGUAGES} onChange={(language) => patch({ language })} />
+          </Field>
+          <Field label="Voice" htmlFor="wizard-voice">
+            {wizard.language === 'en' ? (
+              <select id="wizard-voice" className={SELECT_CLASS} value={wizard.voice} onChange={(e) => patch({ voice: e.target.value })}>
+                {WIZARD_VOICES.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                Bangla narration uses the visitor&apos;s browser voice for now. Captions still advance if their device has no
+                Bangla voice.
+              </p>
+            )}
+          </Field>
+        </div>
+      </StudioSection>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="flex flex-col gap-6">
-          {/* Basics */}
-          <section className="space-y-4 rounded-2xl border border-border bg-card/60 p-5">
-            <h2 className="text-sm font-semibold">Basics</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="wizard-name">Wizard name</Label>
-                <Input id="wizard-name" value={wizard.name} maxLength={WIZARD_LIMITS.name} onChange={(e) => patch({ name: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="guide-name">Guide name</Label>
-                <Input
-                  id="guide-name"
-                  value={wizard.guideName}
-                  maxLength={WIZARD_LIMITS.guideName}
-                  onChange={(e) => patch({ guideName: e.target.value })}
-                  placeholder="Nova"
+      <StudioSection
+        id="look"
+        icon={Palette}
+        accent="rose"
+        title="Look"
+        description="The guide's colours and shape on the tour page."
+        summary={[
+          { label: 'theme', value: WIZARD_THEMES[wizard.theme].label },
+          { label: 'shape', value: WIZARD_SHAPES.find((shape) => shape.id === wizard.shape)?.label ?? wizard.shape },
+        ]}
+      >
+        <Field label="Theme">
+          <div role="radiogroup" aria-label="Theme" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(Object.keys(WIZARD_THEMES) as WizardThemeId[]).map((themeId) => (
+              <button
+                key={themeId}
+                type="button"
+                role="radio"
+                aria-checked={wizard.theme === themeId}
+                onClick={() => patch({ theme: themeId })}
+                className={cn(
+                  'flex items-center gap-2 rounded-xl border p-2 text-sm',
+                  wizard.theme === themeId ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60',
+                )}
+              >
+                <span
+                  className="h-7 w-7 rounded-full border border-white/10"
+                  style={{ background: `linear-gradient(135deg, ${WIZARD_THEMES[themeId].colors.join(', ')})` }}
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Language</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {WIZARD_LANGUAGES.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => patch({ language: option.id })}
-                      className={cn(
-                        'h-9 rounded-md border text-sm',
-                        wizard.language === option.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60',
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+                {WIZARD_THEMES[themeId].label}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Shape">
+          <Segmented ariaLabel="Shape" value={wizard.shape} options={WIZARD_SHAPES} onChange={(shape) => patch({ shape })} />
+        </Field>
+      </StudioSection>
+
+      <StudioSection
+        id="playback"
+        icon={Waves}
+        accent="emerald"
+        title="Playback"
+        description="How the tour starts, moves between steps and ends."
+        summary={[
+          { label: 'start', value: wizard.settings.showIntro ? 'intro screen' : 'first step' },
+          { label: 'advance', value: wizard.settings.autoAdvance ? `auto · ${pauseLabel}` : 'visitor taps Next' },
+          { label: 'progress', value: wizard.settings.showProgress ? 'shown' : 'hidden' },
+          { label: 'talk button', value: wizard.settings.showTalkButton ? 'shown' : 'hidden' },
+        ]}
+      >
+        <ToggleRow
+          label="Start with the guide's intro"
+          hint="Off opens straight on the first step (the share-link panel always does)."
+          checked={wizard.settings.showIntro}
+          onChange={(showIntro) => patchSettings({ showIntro })}
+        />
+        <ToggleRow
+          label="Move on automatically"
+          hint="Off narrates one step at a time; visitors tap Next to hear the next one."
+          checked={wizard.settings.autoAdvance}
+          onChange={(autoAdvance) => patchSettings({ autoAdvance })}
+        />
+        {wizard.settings.autoAdvance ? (
+          <Field label="Pace between steps">
+            <Segmented
+              ariaLabel="Pace between steps"
+              value={wizard.settings.pauseMs}
+              options={WIZARD_PAUSES.map((pause) => ({ id: pause.ms, label: pause.label }))}
+              onChange={(pauseMs) => patchSettings({ pauseMs })}
+            />
+          </Field>
+        ) : null}
+        <ToggleRow
+          label="Show progress"
+          hint="The bar of step dots under the captions."
+          checked={wizard.settings.showProgress}
+          onChange={(showProgress) => patchSettings({ showProgress })}
+        />
+        <ToggleRow
+          label="“Talk to us” at the end"
+          hint={wizard.product ? 'Product tours end on Continue to payment instead.' : 'Opens your Chat AI page when it is on.'}
+          checked={wizard.settings.showTalkButton}
+          onChange={(showTalkButton) => patchSettings({ showTalkButton })}
+          disabled={Boolean(wizard.product)}
+        />
+      </StudioSection>
+
+      <StudioSection
+        id="steps"
+        icon={Footprints}
+        accent="sky"
+        title="Tour steps"
+        description="Each step is a section of the page. The guide speaks the narration, then moves on."
+        summary={[
+          { label: 'steps', value: `${wizard.steps.length} of ${WIZARD_LIMITS.maxSteps}` },
+          { label: 'voice clips', value: wizard.language === 'en' ? 'pre-recorded on publish' : 'browser voice' },
+        ]}
+        action={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={draftWithAi} disabled={isDrafting}>
+              {isDrafting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+              Draft with AI
+            </Button>
+            <Button variant="outline" size="sm" onClick={addStep}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add step
+            </Button>
+          </div>
+        }
+      >
+        {wizard.steps.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+            No steps yet. Draft with AI or add one.
+          </p>
+        ) : null}
+
+        <ol className="space-y-3">
+          {wizard.steps.map((step, index) => (
+            <li
+              key={step.id}
+              onFocusCapture={() => setSelectedStepId(step.id)}
+              onClick={() => setSelectedStepId(step.id)}
+              className={cn(
+                'space-y-3 rounded-xl border p-4 transition-colors',
+                selectedStep?.id === step.id ? 'border-primary/60 bg-primary/5' : 'border-border/70 bg-muted/10',
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-border font-mono text-[10px] text-muted-foreground">
+                  {index + 1}
+                </span>
+                <span className="truncate text-xs font-medium text-muted-foreground">{step.heading || `Step ${index + 1}`}</span>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => previewStep(step)} aria-label="Preview voice">
+                    {playingStepId === step.id ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => moveStep(index, -1)} aria-label="Move up">
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    disabled={index === wizard.steps.length - 1}
+                    onClick={() => moveStep(index, 1)}
+                    aria-label="Move down"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeStep(step.id)} aria-label="Delete step">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="wizard-voice">Voice</Label>
-                {wizard.language === 'en' ? (
-                  <select id="wizard-voice" className={SELECT_CLASS} value={wizard.voice} onChange={(e) => patch({ voice: e.target.value })}>
-                    {WIZARD_VOICES.map((voice) => (
-                      <option key={voice.id} value={voice.id}>
-                        {voice.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                    Bangla narration uses the visitor&apos;s browser voice for now. If their device has no Bangla voice,
-                    captions still advance automatically.
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* Look */}
-          <section className="space-y-4 rounded-2xl border border-border bg-card/60 p-5">
-            <h2 className="text-sm font-semibold">Look</h2>
-            <div className="space-y-2">
-              <Label>Theme</Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {(Object.keys(WIZARD_THEMES) as WizardThemeId[]).map((themeId) => (
-                  <button
-                    key={themeId}
-                    type="button"
-                    onClick={() => patch({ theme: themeId })}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg border p-2 text-sm',
-                      wizard.theme === themeId ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60',
-                    )}
-                  >
-                    <span
-                      className="h-6 w-6 rounded-full border border-white/10"
-                      style={{
-                        background: `linear-gradient(135deg, ${WIZARD_THEMES[themeId].colors.join(', ')})`,
-                      }}
-                    />
-                    {WIZARD_THEMES[themeId].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Shape</Label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {WIZARD_SHAPES.map((shape) => (
-                  <button
-                    key={shape.id}
-                    type="button"
-                    onClick={() => patch({ shape: shape.id })}
-                    className={cn(
-                      'h-9 rounded-md border text-sm',
-                      wizard.shape === shape.id ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted/60',
-                    )}
-                  >
-                    {shape.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* Steps */}
-          <section className="space-y-4 rounded-2xl border border-border bg-card/60 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold">Tour steps</h2>
-                <p className="text-xs text-muted-foreground">
-                  Each step is a section on the page. The guide speaks the narration, then moves on.
+              <Input
+                value={step.heading}
+                maxLength={WIZARD_LIMITS.heading}
+                onChange={(e) => patchStep(step.id, { heading: e.target.value })}
+                placeholder="Section heading"
+                aria-label={`Step ${index + 1} heading`}
+              />
+              <Textarea
+                value={step.body}
+                maxLength={WIZARD_LIMITS.body}
+                onChange={(e) => patchStep(step.id, { body: e.target.value })}
+                placeholder="Text shown on the page"
+                rows={2}
+                aria-label={`Step ${index + 1} text`}
+              />
+              <div className="space-y-1">
+                <Textarea
+                  value={step.narration}
+                  maxLength={WIZARD_LIMITS.narration}
+                  onChange={(e) => patchStep(step.id, { narration: e.target.value })}
+                  placeholder="What the guide says (defaults to heading + text)"
+                  rows={3}
+                  aria-label={`Step ${index + 1} narration`}
+                />
+                <p className="text-right font-mono text-[10px] text-muted-foreground">
+                  {step.narration.length}/{WIZARD_LIMITS.narration}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={draftWithAi} disabled={isDrafting}>
-                  {isDrafting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-                  Draft with AI
-                </Button>
-                <Button variant="outline" size="sm" onClick={addStep}>
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Add step
-                </Button>
+              <div className="space-y-1">
+                <Input
+                  value={step.target}
+                  maxLength={WIZARD_LIMITS.target}
+                  onChange={(e) => patchStep(step.id, { target: e.target.value })}
+                  placeholder="Website section (optional), e.g. pricing"
+                  aria-label={`Step ${index + 1} website section`}
+                />
+                {step.target ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    On your site: <code>{`<section data-sts-step="${step.target}">`}</code>
+                  </p>
+                ) : null}
               </div>
-            </div>
-
-            {wizard.steps.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                No steps yet — draft with AI or add one.
-              </p>
-            ) : null}
-
-            <ol className="space-y-3">
-              {wizard.steps.map((step, index) => (
-                <li
-                  key={step.id}
-                  onFocusCapture={() => setSelectedStepId(step.id)}
-                  onClick={() => setSelectedStepId(step.id)}
-                  className={cn(
-                    'space-y-3 rounded-xl border p-4 transition-colors',
-                    selectedStep?.id === step.id ? 'border-primary/60 bg-primary/5' : 'border-border',
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">Step {index + 1}</span>
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => previewStep(step)} aria-label="Preview voice">
-                        {playingStepId === step.id ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={index === 0} onClick={() => moveStep(index, -1)} aria-label="Move up">
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={index === wizard.steps.length - 1}
-                        onClick={() => moveStep(index, 1)}
-                        aria-label="Move down"
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeStep(step.id)} aria-label="Delete step">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <Input
-                    value={step.heading}
-                    maxLength={WIZARD_LIMITS.heading}
-                    onChange={(e) => patchStep(step.id, { heading: e.target.value })}
-                    placeholder="Section heading"
-                  />
-                  <Textarea
-                    value={step.body}
-                    maxLength={WIZARD_LIMITS.body}
-                    onChange={(e) => patchStep(step.id, { body: e.target.value })}
-                    placeholder="Text shown on the page"
-                    rows={2}
-                  />
-                  <div className="space-y-1">
-                    <Textarea
-                      value={step.narration}
-                      maxLength={WIZARD_LIMITS.narration}
-                      onChange={(e) => patchStep(step.id, { narration: e.target.value })}
-                      placeholder="What the guide says (defaults to heading + text)"
-                      rows={3}
-                    />
-                    <p className="text-right text-[10px] text-muted-foreground">
-                      {step.narration.length}/{WIZARD_LIMITS.narration}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <Input
-                      value={step.target}
-                      maxLength={WIZARD_LIMITS.target}
-                      onChange={(e) => patchStep(step.id, { target: e.target.value })}
-                      placeholder="Website section (optional) — e.g. pricing"
-                    />
-                    {step.target ? (
-                      <p className="text-[10px] text-muted-foreground">
-                        On your site: <code>{`<section data-sts-step="${step.target}">`}</code>
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-[160px_minmax(0,1fr)]">
-                    <Input
-                      value={step.ctaLabel}
-                      maxLength={WIZARD_LIMITS.ctaLabel}
-                      onChange={(e) => patchStep(step.id, { ctaLabel: e.target.value })}
-                      placeholder="Button label"
-                    />
-                    <Input
-                      value={step.ctaUrl}
-                      maxLength={WIZARD_LIMITS.ctaUrl}
-                      onChange={(e) => patchStep(step.id, { ctaUrl: e.target.value })}
-                      placeholder="https://… or /chat/your-room"
-                    />
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-        </div>
-
-        {/* Live preview */}
-        <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div
-            className={cn(
-              'flex flex-col items-center gap-4 rounded-3xl border border-border p-6 text-center',
-              palette.isLight ? 'text-zinc-900' : 'text-zinc-50',
-            )}
-            style={{ backgroundColor: palette.colorBack }}
-          >
-            <WizardGem theme={wizard.theme} shape={wizard.shape} size={180} speaking={playingStepId !== null} />
-            <p className="text-lg font-medium">
-              {wizard.language === 'bn' ? `হ্যালো! আমি ${wizard.guideName || 'Nova'}।` : `Oh, hi! I'm ${wizard.guideName || 'Nova'}.`}
-            </p>
-            {selectedStep ? (
-              <div className={cn('w-full rounded-2xl border p-3 text-left text-sm', palette.isLight ? 'border-black/10 bg-white/70' : 'border-white/10 bg-white/5')}>
-                <p className="mb-1 text-xs font-semibold">{selectedStep.heading || 'Untitled step'}</p>
-                <p className={palette.isLight ? 'text-zinc-600' : 'text-zinc-300'}>{spokenText(selectedStep) || '…'}</p>
+              <div className="grid gap-2 sm:grid-cols-[160px_minmax(0,1fr)]">
+                <Input
+                  value={step.ctaLabel}
+                  maxLength={WIZARD_LIMITS.ctaLabel}
+                  onChange={(e) => patchStep(step.id, { ctaLabel: e.target.value })}
+                  placeholder="Button label"
+                  aria-label={`Step ${index + 1} button label`}
+                />
+                <Input
+                  value={step.ctaUrl}
+                  maxLength={WIZARD_LIMITS.ctaUrl}
+                  onChange={(e) => patchStep(step.id, { ctaUrl: e.target.value })}
+                  placeholder="https://… or /chat/your-room"
+                  aria-label={`Step ${index + 1} button link`}
+                />
               </div>
-            ) : null}
-            <p className={cn('text-xs', palette.isLight ? 'text-zinc-500' : 'text-zinc-400')}>
-              {wizard.language === 'en' ? voiceLabel : 'Browser voice (Bangla)'} · {wizard.steps.length} steps
-            </p>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Publishing pre-records every English line once. Visitors replay the stored clips, so tours don&apos;t
-            add per-visit voice costs.
-          </p>
-          <div className="mt-4 space-y-2 rounded-2xl border border-border bg-card/60 p-4">
-            <p className="text-xs font-semibold">On your own website (SDK)</p>
-            <pre className="overflow-x-auto rounded-lg bg-muted/50 p-3 text-[10px] leading-relaxed">
-              <code>{SERVICE_SNIPPETS.wizard()}</code>
-            </pre>
-            <p className="text-[10px] text-muted-foreground">
-              Set a website section on each step, tag that section with <code>data-sts-step</code>, and publish. Site key
-              and allowed website: any service&apos;s Integrate tab.
-            </p>
-          </div>
-        </aside>
-      </div>
-    </div>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-muted-foreground">
+          Publishing pre-records every English line once. Visitors replay the stored clips, so tours don&apos;t add per-visit
+          voice costs.
+        </p>
+      </StudioSection>
+    </ServiceStudio>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Check, Copy, Loader2, Save } from 'lucide-react'
+import { Check, Copy, ExternalLink, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -24,6 +24,8 @@ type Props = {
   /** Service-specific SDK code for the Integrate tab. */
   snippet: string
   footer?: ReactNode
+  /** This service's hosted public page (e.g. /chat/<room>); opens in a new tab. */
+  publicHref?: string
 }
 
 function CodeBlock({ code, label }: { code: string; label: string }) {
@@ -59,6 +61,7 @@ export function ServiceConfigFrame({
   preview,
   snippet,
   footer,
+  publicHref,
 }: Props) {
   const [tab, setTab] = useState<'settings' | 'integrate'>('settings')
 
@@ -79,6 +82,17 @@ export function ServiceConfigFrame({
         </div>
         <div className="flex items-center gap-2">
           {dirty ? <span className="text-xs text-amber-500">Unsaved changes</span> : null}
+          {publicHref ? (
+            <a
+              href={publicHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted/60"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              Open page
+            </a>
+          ) : null}
           <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm">
             {serviceName} on website
             <Switch checked={enabled} onCheckedChange={onEnabledChange} />

@@ -3,6 +3,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import { generateReply } from '@/lib/messages/geminiText'
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
 import { decryptToken } from '@/lib/messages/encrypt'
+import { describePrice, type BuyerPriceOption } from '@/lib/offers/publicOfferTypes'
 import {
   newStepId,
   sanitizeSteps,
@@ -73,6 +74,102 @@ export async function loadBusinessFacts(input: {
   })
   if (channel?.roomName) facts.chatUrl = `/chat/${encodeURIComponent(channel.roomName)}`
   return facts
+}
+
+/** What a product's own tour talks about (Projects → product → AI sales assistant). */
+export type OfferFacts = {
+  title: string
+  description: string
+  businessName: string
+  /** e.g. ["$150", "$50 today"] */
+  prices: string[]
+  /** The product's AI agent prompt: the tour should say the same things the agent says. */
+  agentBrief: string
+}
+
+export async function loadOfferFacts(webinarId: string): Promise<OfferFacts | null> {
+  const offer = await prismaClient.webinar.findUnique({
+    where: { id: webinarId },
+    select: {
+      title: true,
+      description: true,
+      livekitAgentId: true,
+      presenter: { select: { name: true, publishProfile: { select: { name: true } } } },
+      prices: {
+        where: { active: true },
+        orderBy: [{ isDefault: 'desc' }, { sortOrder: 'asc' }],
+        take: 3,
+        select: { id: true, kind: true, amountCents: true, depositCents: true, balanceDueDays: true, isDefault: true },
+      },
+    },
+  })
+  if (!offer) return null
+  const agent = offer.livekitAgentId
+    ? await prismaClient.liveKitAgent.findUnique({ where: { id: offer.livekitAgentId }, select: { systemPrompt: true } })
+    : null
+  return {
+    agentBrief: agent?.systemPrompt?.trim().slice(0, 2000) ?? '',
+    title: offer.title,
+    description: offer.description?.trim() ?? '',
+    businessName: offer.presenter.publishProfile?.name || offer.presenter.name,
+    prices: offer.prices
+      .filter((price) => price.amountCents != null)
+      .map((price) => describePrice(price as BuyerPriceOption).title),
+  }
+}
+
+/** Deterministic product tour — works without any AI key. Ends on the share page's payment button. */
+export function offerTemplateSteps(offer: OfferFacts, guideName: string, language: WizardLanguage): VoiceWizardStep[] {
+  const step = (heading: string, body: string, narration: string): VoiceWizardStep => ({
+    id: newStepId(),
+    heading,
+    body,
+    narration,
+    ctaLabel: '',
+    ctaUrl: '',
+    target: '',
+  })
+  const price = offer.prices[0] ?? ''
+
+  if (language === 'bn') {
+    return [
+      step(
+        offer.title,
+        offer.description || `${offer.businessName}-এর ${offer.title}।`,
+        `হ্যালো! আমি ${guideName}। চলুন, এক মিনিটে ${offer.title} সম্পর্কে জেনে নিই।`,
+      ),
+      step(
+        'আপনি কী পাবেন',
+        offer.description || `${offer.title} আপনার প্রয়োজন মেটাতে তৈরি।`,
+        offer.description ? `সংক্ষেপে বলি। ${offer.description}` : `${offer.title} আপনার কাজ সহজ করতে তৈরি।`,
+      ),
+      step(
+        'শুরু করুন',
+        price ? `দাম: ${offer.prices.join(' · ')}` : 'নিচের বাটন থেকে অর্ডার করুন।',
+        price ? `দাম ${price}। প্রস্তুত হলে নিচের বাটনে চাপ দিন। ধন্যবাদ!` : 'প্রস্তুত হলে নিচের বাটনে চাপ দিন। ধন্যবাদ!',
+      ),
+    ]
+  }
+
+  return [
+    step(
+      offer.title,
+      offer.description || `${offer.title} by ${offer.businessName}.`,
+      `Hi! I'm ${guideName}. Let me walk you through ${offer.title}. It only takes a minute.`,
+    ),
+    step(
+      "What you get",
+      offer.description || `${offer.title} is built around exactly what you need.`,
+      offer.description ? `Here's the short version. ${offer.description}` : `${offer.title} is built around exactly what you need.`,
+    ),
+    step(
+      'Get started',
+      price ? `Price: ${offer.prices.join(' · ')}` : 'Order with the button below.',
+      price
+        ? `It's ${price}. When you're ready, tap Continue to payment below. Thanks for watching!`
+        : "When you're ready, tap Continue to payment below. Thanks for watching!",
+    ),
+  ]
 }
 
 /** Deterministic draft — works without any AI key. */
@@ -164,9 +261,14 @@ export async function draftStepsWithAi(input: {
   wizardName: string
   guideName: string
   language: WizardLanguage
+  /** Set for a product's own tour: the script is about this offer, not the whole business. */
+  offer?: OfferFacts | null
 }): Promise<{ steps: VoiceWizardStep[]; source: 'ai' | 'template'; note?: string }> {
   const facts = await loadBusinessFacts({ workspaceId: input.workspaceId, fallbackName: input.wizardName })
-  const fallback = templateSteps(facts, input.guideName, input.language)
+  const offer = input.offer ?? null
+  const fallback = offer
+    ? offerTemplateSteps(offer, input.guideName, input.language)
+    : templateSteps(facts, input.guideName, input.language)
 
   let apiKey: string | null = null
   try {
@@ -181,22 +283,42 @@ export async function draftStepsWithAi(input: {
       ? 'Write every heading, body and narration in natural Bangla (bn-BD, Bengali script). Keep brand names as-is.'
       : 'Write in clear, friendly English.'
 
-  const systemPrompt = [
-    `You write scripts for "${input.guideName}", a voice guide that walks visitors through a small-business website section by section.`,
-    languageRule,
-    'Return ONLY a JSON array of 4 to 7 objects with keys: heading (max 60 chars), body (1-2 sentences shown on screen), narration (what the guide says aloud, 1-3 short conversational sentences, max 300 chars), ctaLabel (optional), ctaUrl (optional).',
-    'The first step greets the visitor and introduces the guide by name. The last step invites them to talk to the business.',
-    'Use only facts provided. Never invent prices, awards or statistics.',
-  ].join('\n')
+  const systemPrompt = offer
+    ? [
+        `You write scripts for "${input.guideName}", a voice guide that walks a buyer through one product before they pay.`,
+        languageRule,
+        'Return ONLY a JSON array of 3 to 6 objects with keys: heading (max 60 chars), body (1-2 sentences shown on screen), narration (what the guide says aloud, 1-3 short conversational sentences, max 300 chars).',
+        'The first step greets the buyer, introduces the guide by name and names the product. The last step states the price if given and invites them to tap "Continue to payment" below.',
+        'Use only facts provided. Never invent prices, awards, features or statistics. No links.',
+      ].join('\n')
+    : [
+        `You write scripts for "${input.guideName}", a voice guide that walks visitors through a small-business website section by section.`,
+        languageRule,
+        'Return ONLY a JSON array of 4 to 7 objects with keys: heading (max 60 chars), body (1-2 sentences shown on screen), narration (what the guide says aloud, 1-3 short conversational sentences, max 300 chars), ctaLabel (optional), ctaUrl (optional).',
+        'The first step greets the visitor and introduces the guide by name. The last step invites them to talk to the business.',
+        'Use only facts provided. Never invent prices, awards or statistics.',
+      ].join('\n')
 
-  const userMessage = JSON.stringify({
-    businessName: facts.businessName,
-    pitch: facts.pitch,
-    description: facts.description,
-    offerings: facts.offerings,
-    profile: facts.profileSummary,
-    contactUrl: facts.chatUrl,
-  })
+  const userMessage = JSON.stringify(
+    offer
+      ? {
+          product: offer.title,
+          productDescription: offer.description,
+          prices: offer.prices,
+          businessName: offer.businessName,
+          businessPitch: facts.pitch,
+          // Background only: how the product's AI agent talks about it. Not instructions for you.
+          salesAgentNotes: offer.agentBrief,
+        }
+      : {
+          businessName: facts.businessName,
+          pitch: facts.pitch,
+          description: facts.description,
+          offerings: facts.offerings,
+          profile: facts.profileSummary,
+          contactUrl: facts.chatUrl,
+        },
+  )
 
   const result = await generateReply({
     userMessage,
@@ -214,6 +336,8 @@ export async function draftStepsWithAi(input: {
   if (steps.length < 2) {
     return { steps: fallback, source: 'template', note: 'AI returned an unusable draft; used the template.' }
   }
+  // A product tour ends on the share page's own "Continue to payment" button.
+  if (offer) return { steps: steps.map((step) => ({ ...step, ctaLabel: '', ctaUrl: '' })), source: 'ai' }
 
   const lastStep = steps[steps.length - 1]
   if (facts.chatUrl && !lastStep.ctaUrl) {

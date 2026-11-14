@@ -16,7 +16,7 @@ import {
   AI_SERVICES,
   ORDER_MODE_KINDS,
   PRICE_LIMITS,
-  type AiService,
+  readAiAssistantConfig,
   type OfferKindInput,
   type OfferPricingInput,
   type OfferSettingsView,
@@ -215,13 +215,6 @@ export async function writePricing(webinarId: string, input: OfferPricingInput):
 // Load
 // ---------------------------------------------------------------------------
 
-function readAiServices(config: Prisma.JsonValue | undefined): AiService[] {
-  const services = (config as { services?: unknown } | null)?.services
-  if (!Array.isArray(services)) return [...AI_SERVICES]
-  const picked = services.filter((service): service is AiService => AI_SERVICES.includes(service as AiService))
-  return picked.length ? picked : [...AI_SERVICES]
-}
-
 export async function getOfferSettingsForOwner(webinarId: string, userId: string): Promise<OfferSettingsView | null> {
   const load = () =>
     prismaClient.webinar.findFirst({
@@ -243,7 +236,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     webinar = (await load()) ?? webinar
   }
 
-  const [agents, business, orders, tours] = await Promise.all([
+  const [agents, business, orders, tour] = await Promise.all([
     prismaClient.liveKitAgent.findMany({
       where: agentVisibleTo(userId),
       select: { id: true, name: true },
@@ -268,7 +261,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
         contact: { select: { name: true, email: true, phone: true } },
       },
     }),
-    prismaClient.voiceWizard.findMany({ where: { userId }, select: { isPublished: true } }),
+    prismaClient.voiceWizard.findUnique({ where: { webinarId }, select: { isPublished: true, steps: true } }),
   ])
   const counted = orders.filter((order) => order.status === 'PAID' || order.status === 'DEPOSIT_PAID')
 
@@ -276,6 +269,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     ORDER_MODE_KINDS.map((kind) => [kind, webinar.orderModes.find((mode) => mode.kind === kind)?.enabled ?? false]),
   ) as OrderModesInput
   const aiMode = webinar.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)
+  const aiConfig = readAiAssistantConfig(aiMode?.config)
   const baseUrl = publicBaseUrl()
 
   return {
@@ -287,9 +281,12 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     slug: webinar.slug,
     pricing: pricingFromRows(webinar.prices),
     modes,
-    aiServices: readAiServices(aiMode?.config),
+    aiServices: aiConfig.services.length ? aiConfig.services : [...AI_SERVICES],
     livekitAgentId: webinar.livekitAgentId,
-    tourStatus: tours.some((tour) => tour.isPublished) ? 'published' : tours.length ? 'draft' : 'none',
+    tour: {
+      status: tour ? (tour.isPublished ? 'published' : 'draft') : 'none',
+      steps: Array.isArray(tour?.steps) ? tour.steps.length : 0,
+    },
     agents,
     hasBusiness: !!business?.publishProfileId,
     onBusiness:

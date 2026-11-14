@@ -74,7 +74,7 @@ export async function testProviderKey(
     const row = await getUserVoiceCredentialByUserId(userId)
     const { key, source } = resolveProviderKey(row, provider)
     if (!key) {
-      return { ok: true, check: { valid: false, code: 'MISSING', message: 'No key saved and no .env fallback.' } }
+      return { ok: true, check: { valid: false, code: 'MISSING', message: 'No key saved yet.' } }
     }
     const check = await checkProviderKey(provider, key)
     if (check.valid && source === 'database') {

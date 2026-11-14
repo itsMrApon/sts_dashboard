@@ -4,6 +4,8 @@
  * industry/social JSON so the AI context and public profile API keep working.
  */
 
+import { ACCENTS, type AccentId } from '@/lib/services/types'
+
 export type SiteSeo = { title: string; description: string; ogImage: string }
 
 export type SiteFooter = {
@@ -43,6 +45,30 @@ export type KeyDate = {
 
 export type SiteAdvanced = { vertical: string; websiteUrl: string; termsAndConditions: string }
 
+/** Look of the hosted business site (/business/<room>): colour, hero, which blocks show. */
+export type SiteAppearance = {
+  accent: AccentId
+  heroAlign: 'center' | 'left'
+  show: { offers: boolean; services: boolean; keyDates: boolean; social: boolean; terms: boolean }
+  /** Hero buttons (each also needs its service switched on). */
+  actions: { chat: boolean; speak: boolean; form: boolean; wizard: boolean }
+}
+
+export const SITE_BLOCKS: { id: keyof SiteAppearance['show']; label: string }[] = [
+  { id: 'offers', label: 'Offers' },
+  { id: 'services', label: 'Services' },
+  { id: 'keyDates', label: 'Key dates' },
+  { id: 'social', label: 'Social & media' },
+  { id: 'terms', label: 'Terms' },
+]
+
+export const SITE_ACTIONS: { id: keyof SiteAppearance['actions']; label: string }[] = [
+  { id: 'chat', label: 'Chat with us' },
+  { id: 'speak', label: 'Call us' },
+  { id: 'form', label: 'Request a callback' },
+  { id: 'wizard', label: 'Take the tour' },
+]
+
 export type BusinessSiteContent = {
   seo: SiteSeo
   footer: SiteFooter
@@ -50,9 +76,10 @@ export type BusinessSiteContent = {
   services: SiteService[]
   keyDates: KeyDate[]
   advanced: SiteAdvanced
+  appearance: SiteAppearance
 }
 
-export type SiteSection = 'seo' | 'footer' | 'social' | 'services' | 'keyDates' | 'advanced'
+export type SiteSection = 'look' | 'seo' | 'footer' | 'social' | 'services' | 'keyDates' | 'advanced'
 
 export const SITE_LIMITS = {
   seoTitle: 70,
@@ -114,6 +141,12 @@ export function emptySiteContent(businessName: string): BusinessSiteContent {
     services: [],
     keyDates: [],
     advanced: { vertical: '', websiteUrl: '', termsAndConditions: '' },
+    appearance: {
+      accent: 'violet',
+      heroAlign: 'center',
+      show: { offers: true, services: true, keyDates: true, social: true, terms: true },
+      actions: { chat: true, speak: true, form: true, wizard: true },
+    },
   }
 }
 
@@ -155,7 +188,14 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
   const footer = rec(input.footer)
   const social = rec(input.social)
   const advanced = rec(input.advanced)
+  const appearance = rec(input.appearance)
   const ids = new Set<string>()
+  const flags = <K extends string>(value: unknown, defaults: Record<K, boolean>): Record<K, boolean> => {
+    const row = rec(value)
+    return Object.fromEntries(
+      Object.entries(defaults).map(([key, fallback]) => [key, typeof row[key] === 'boolean' ? row[key] : fallback]),
+    ) as Record<K, boolean>
+  }
 
   const services: SiteService[] = arr(input.services)
     .slice(0, SITE_LIMITS.services)
@@ -249,6 +289,12 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
       vertical: VERTICALS.some((v) => v.id === advanced.vertical) ? String(advanced.vertical) : '',
       websiteUrl: safeUrl(advanced.websiteUrl),
       termsAndConditions: str(advanced.termsAndConditions, SITE_LIMITS.terms),
+    },
+    appearance: {
+      accent: ACCENTS.some((accent) => accent.id === appearance.accent) ? (appearance.accent as AccentId) : base.appearance.accent,
+      heroAlign: appearance.heroAlign === 'left' ? 'left' : 'center',
+      show: flags(appearance.show, base.appearance.show),
+      actions: flags(appearance.actions, base.appearance.actions),
     },
   }
 }

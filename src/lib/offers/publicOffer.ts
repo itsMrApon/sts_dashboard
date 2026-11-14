@@ -2,17 +2,11 @@ import 'server-only'
 import { cache } from 'react'
 import { OfferPriceKind, OrderModeKind } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
-import { AI_SERVICES, ORDER_MODE_KINDS, type AiService, type OrderModesInput } from './offerTypes'
+import { ORDER_MODE_KINDS, readAiAssistantConfig, type OrderModesInput } from './offerTypes'
 import type { BuyerPriceOption, PublicOfferView } from './publicOfferTypes'
 import { toOfferKind } from './offerSettings'
 
 const SLUG_RE = /^[a-z0-9-]{1,80}$/
-
-function aiServicesFrom(config: unknown): AiService[] {
-  const services = (config as { services?: unknown } | null)?.services
-  if (!Array.isArray(services)) return [...AI_SERVICES]
-  return AI_SERVICES.filter((service) => services.includes(service))
-}
 
 /** Order: default first, then deposit, then the monthly alternative. Max three. */
 function buyerPrices(
@@ -85,6 +79,9 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
         },
       },
       orderModes: { select: { kind: true, enabled: true, config: true } },
+      // The product's own tour. A draft is still returned so its owner can preview it on the
+      // share page; getPublicWizard only hands a draft to its owner, so buyers never see one.
+      tour: { select: { slug: true } },
     },
   })
   if (!offer?.slug) return null
@@ -92,19 +89,12 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
   const modes = Object.fromEntries(
     ORDER_MODE_KINDS.map((kind) => [kind, offer.orderModes.find((mode) => mode.kind === kind)?.enabled ?? false]),
   ) as OrderModesInput
-  const aiMode = offer.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)
-  const [agent, wizard] = await Promise.all([
-    offer.livekitAgentId
-      ? prismaClient.liveKitAgent.findUnique({ where: { id: offer.livekitAgentId }, select: { roomName: true } })
-      : null,
-    // Published tour first. A draft is still returned so its owner can preview it on the share
-    // page; getPublicWizard only hands a draft to its owner, so buyers never see one.
-    prismaClient.voiceWizard.findFirst({
-      where: { userId: offer.presenterId },
-      orderBy: [{ isPublished: 'desc' }, { createdAt: 'asc' }],
-      select: { slug: true },
-    }),
-  ])
+  const aiConfig = readAiAssistantConfig(
+    offer.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)?.config,
+  )
+  const agent = offer.livekitAgentId
+    ? await prismaClient.liveKitAgent.findUnique({ where: { id: offer.livekitAgentId }, select: { roomName: true } })
+    : null
   const live = offer.presenter.subscription
   const prices = buyerPrices(offer.prices)
   const hasPrice = prices.length > 0 || !!offer.priceId
@@ -126,8 +116,8 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
     acceptingPayments: live && !!offer.presenter.stripeConnectId && hasPrice,
     prices,
     modes,
-    aiServices: aiServicesFrom(aiMode?.config),
-    wizardSlug: wizard?.slug ?? null,
+    aiServices: aiConfig.services,
+    wizardSlug: offer.tour?.slug ?? null,
     creatorUserId: offer.presenterId,
     agentRoomName: agent?.roomName ?? null,
     stripeAccount: offer.presenter.stripeConnectId,

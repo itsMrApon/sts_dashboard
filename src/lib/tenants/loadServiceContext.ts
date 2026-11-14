@@ -123,12 +123,10 @@ export async function loadServiceContext(
             mcpUrl: status.mcpUrl,
             message: status.message,
           }
-        : await loadExternalMcpContext(
-            'firecrawl',
-            tenantId,
-            process.env.FIRECRAWL_MCP_URL?.trim(),
-            { note: 'Connect FIRECRAWL_MCP_URL or add a Firecrawl partner connector.' },
-          )
+        : // No platform FIRECRAWL_MCP_URL fallback: creators connect their own Firecrawl.
+          await loadExternalMcpContext('firecrawl', tenantId, undefined, {
+            note: 'Add your Firecrawl partner connector to use web crawling.',
+          })
     }
   }
 

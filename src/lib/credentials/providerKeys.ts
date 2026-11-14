@@ -2,6 +2,7 @@ import 'server-only'
 import { decryptToken } from '@/lib/messages/encrypt'
 import {
   CREDENTIAL_COLUMNS,
+  getUserVoiceCredentialByUserId,
   type UserVoiceCredentialRow,
   type VoiceCredentialProvider,
 } from '@/lib/voiceCredentialsRepo'
@@ -13,8 +14,11 @@ import type {
 
 const VALIDATION_TIMEOUT_MS = 8_000
 
-/** Env fallbacks, first match wins. Mirrors what the voice worker receives in tenant_env. */
-const ENV_FALLBACKS: Record<VoiceCredentialProvider, string[]> = {
+/**
+ * Env var names the voice worker reads from tenant_env. Creators bring their own keys:
+ * these names are only the transport, never a server-side fallback.
+ */
+export const PROVIDER_ENV_NAMES: Record<VoiceCredentialProvider, string[]> = {
   google: ['GOOGLE_API_KEY'],
   openai: ['OPENAI_API_KEY'],
   anthropic: ['ANTHROPIC_API_KEY'],
@@ -26,7 +30,7 @@ const ENV_FALLBACKS: Record<VoiceCredentialProvider, string[]> = {
   fish: ['FISH_API_KEY'],
 }
 
-const PROVIDER_LABEL: Record<VoiceCredentialProvider, string> = {
+export const PROVIDER_LABEL: Record<VoiceCredentialProvider, string> = {
   google: 'Gemini',
   openai: 'OpenAI',
   anthropic: 'Claude',
@@ -48,32 +52,46 @@ function safeDecrypt(value: string | null | undefined): string | null {
   }
 }
 
-export function envKeyFor(provider: VoiceCredentialProvider): string | null {
-  for (const name of ENV_FALLBACKS[provider]) {
-    const value = process.env[name]?.trim()
-    if (value) return value
-  }
-  return null
-}
-
 export function savedKeyFor(
   row: UserVoiceCredentialRow | null,
   provider: VoiceCredentialProvider,
 ): string | null {
   if (!row) return null
-  return safeDecrypt(row[CREDENTIAL_COLUMNS[provider].key])
+  return safeDecrypt(row[CREDENTIAL_COLUMNS[provider].key])?.trim() || null
 }
 
-/** Saved key first, then the server env fallback. */
+/**
+ * The creator's own saved key. There is deliberately no server .env fallback: platform keys
+ * must never pay for creators' usage.
+ */
 export function resolveProviderKey(
   row: UserVoiceCredentialRow | null,
   provider: VoiceCredentialProvider,
 ): { key: string | null; source: ProviderKeySource } {
   const saved = savedKeyFor(row, provider)
-  if (saved) return { key: saved, source: 'database' }
-  const env = envKeyFor(provider)
-  if (env) return { key: env, source: 'env' }
-  return { key: null, source: 'none' }
+  return saved ? { key: saved, source: 'database' } : { key: null, source: 'none' }
+}
+
+/** Saved key for one user (one DB read). */
+export async function resolveUserProviderKey(
+  userId: string | null | undefined,
+  provider: VoiceCredentialProvider,
+): Promise<string | null> {
+  if (!userId) return null
+  return savedKeyFor(await getUserVoiceCredentialByUserId(userId), provider)
+}
+
+/** The one message every surface shows when a creator's key is missing. */
+export function missingKeyMessage(provider: VoiceCredentialProvider): string {
+  return missingKeysMessage([provider])
+}
+
+/** "Add your Deepgram and Gemini API keys in AI Agents → Config." */
+export function missingKeysMessage(providers: VoiceCredentialProvider[]): string {
+  const labels = providers.map((provider) => PROVIDER_LABEL[provider])
+  const joined =
+    labels.length <= 1 ? (labels[0] ?? 'provider') : `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)}`
+  return `Add your ${joined} API ${labels.length > 1 ? 'keys' : 'key'} in AI Agents → Config.`
 }
 
 export function maskKey(raw: string | null): string | null {

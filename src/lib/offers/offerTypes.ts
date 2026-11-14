@@ -11,6 +11,25 @@ export type OrderModesInput = Record<OrderModeKey, boolean>
 export const AI_SERVICES = ['CHAT', 'SPEAK', 'WIZARD'] as const
 export type AiService = (typeof AI_SERVICES)[number]
 
+/** How the three AI panels are laid out on the share page (and listed in settings). */
+export const AI_SERVICE_ORDER: readonly AiService[] = ['CHAT', 'WIZARD', 'SPEAK']
+export const AI_SERVICE_LABEL: Record<AiService, string> = { CHAT: 'Chat', WIZARD: 'Guided tour', SPEAK: 'Voice' }
+
+/**
+ * AI sales assistant settings, stored on the AI_ASSISTANT order mode's `config`. One agent
+ * (the offer's `livekitAgentId`) answers on Chat and Voice; the Guided tour is the offer's own.
+ */
+export type AiAssistantConfig = { services: AiService[] }
+
+/** Reads the stored config. Offers saved before services were picked get all three. */
+export function readAiAssistantConfig(config: unknown): AiAssistantConfig {
+  const raw = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>
+  const services = Array.isArray(raw.services)
+    ? AI_SERVICES.filter((service) => (raw.services as unknown[]).includes(service))
+    : [...AI_SERVICES]
+  return { services }
+}
+
 export type OfferKindInput = 'PRODUCT' | 'WEBINAR'
 
 export const PRICE_LIMITS = {
@@ -39,9 +58,10 @@ export type OfferSettingsView = {
   pricing: OfferPricingInput & { legacyPriceUnsynced: boolean }
   modes: OrderModesInput
   aiServices: AiService[]
+  /** The agent that answers on Chat and Voice. */
   livekitAgentId: string | null
-  /** The creator's guided tour: buyers only see a published one. */
-  tourStatus: 'published' | 'draft' | 'none'
+  /** This offer's own guided tour: buyers only see it once it's published. */
+  tour: { status: 'published' | 'draft' | 'none'; steps: number }
   agents: { id: string; name: string }[]
   hasBusiness: boolean
   onBusiness: boolean

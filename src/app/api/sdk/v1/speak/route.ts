@@ -3,6 +3,7 @@ import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { getLiveKitConnectionDetails } from '@/lib/livekit/livekitVoiceAgent'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
 import { guardSdkRequest, sdkJson, sdkOptions, serviceDisabled } from '@/lib/sdk/sdkGuard'
+import { checkVoiceKeysForRoom, VOICE_UNAVAILABLE_FOR_VISITOR } from '@/lib/credentials/voiceKeyCheck'
 
 export async function OPTIONS(request: Request) {
   return sdkOptions(request)
@@ -20,6 +21,12 @@ export async function POST(request: Request) {
 
   const { speak } = await getBusinessServices(guard.business.workspaceId)
   if (!speak.enabled) return serviceDisabled(guard.corsHeaders, 'Speak AI')
+
+  // Creators run voice on their own keys; website visitors get a neutral message.
+  const keys = await checkVoiceKeysForRoom(guard.business.roomName)
+  if (!keys.ok) {
+    return sdkJson({ error: VOICE_UNAVAILABLE_FOR_VISITOR, code: 'MISSING_PROVIDER_KEY' }, guard.corsHeaders, { status: 409 })
+  }
 
   const body = (await request.json().catch(() => null)) as { participantName?: unknown } | null
   const participantName =

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from urllib.parse import urlparse, urlunparse
 
-from .config import GOOGLE_API_KEY, OPENAI_API_KEY, SCRAPE_LLM_MODEL
+from .config import SCRAPE_LLM_MODEL
 from .schemas import EnrichRequest, EnrichResponse, WebsiteEnrichment, WebsiteEnrichmentSchema
 
 logger = logging.getLogger(__name__)
@@ -86,18 +86,15 @@ def candidate_urls(raw: str) -> list[str]:
 
 def build_graph_config(api_key: Optional[str] = None) -> dict[str, Any]:
     model = SCRAPE_LLM_MODEL or "google_genai/gemini-2.5-flash"
+    # The requesting creator's key only (sent per request); never this worker's own env keys.
     key = (api_key or "").strip()
+    if not key:
+        raise RuntimeError("No API key in the request: the creator needs to add their key in AI Agents -> Config")
 
     if model.startswith("openai/") or model.startswith("gpt-"):
-        key = key or OPENAI_API_KEY
-        if not key:
-            raise RuntimeError("OPENAI_API_KEY missing for scrape agent")
         if not model.startswith("openai/"):
             model = f"openai/{model}"
     else:
-        key = key or GOOGLE_API_KEY
-        if not key:
-            raise RuntimeError("GOOGLE_API_KEY missing for scrape agent")
         if not (
             model.startswith("google_genai/")
             or model.startswith("gemini/")

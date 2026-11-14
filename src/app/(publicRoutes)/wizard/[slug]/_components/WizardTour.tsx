@@ -9,7 +9,6 @@ import { resolveTheme, spokenText, type PublicWizard } from '@/lib/wizard/types'
 
 type Phase = 'intro' | 'touring' | 'done'
 
-const PAUSE_BETWEEN_STEPS_MS = 700
 
 const COPY = {
   en: {
@@ -74,8 +73,9 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
   const copy = COPY[wizard.language]
   const { speak, stop, unlock } = useWizardNarrator(wizard.slug, wizard.language)
 
-  // Embedded (offer page): skip the intro screen and open straight on the steps.
-  const [phase, setPhase] = useState<Phase>(embedded ? 'touring' : 'intro')
+  const settings = wizard.settings
+  // Embedded (offer page) or intro turned off: open straight on the steps.
+  const [phase, setPhase] = useState<Phase>(embedded || !settings.showIntro ? 'touring' : 'intro')
   const [activeIndex, setActiveIndex] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speaking, setSpeaking] = useState(false)
@@ -116,13 +116,18 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
         await speak(wizard.steps[current], { muted: mutedRef.current })
         if (runId !== runIdRef.current) return
         setSpeaking(false)
-        await new Promise((resolve) => window.setTimeout(resolve, PAUSE_BETWEEN_STEPS_MS))
+        // Auto-advance off: stop after each step; the visitor taps Next (or Play) to continue.
+        if (!settings.autoAdvance && current < wizard.steps.length - 1) {
+          setPlaying(false)
+          return
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, settings.pauseMs))
         if (runId !== runIdRef.current) return
       }
       setPlaying(false)
       setPhase('done')
     },
-    [scrollToStep, speak, wizard.steps],
+    [scrollToStep, settings.autoAdvance, settings.pauseMs, speak, wizard.steps],
   )
 
   const halt = useCallback(() => {
@@ -147,14 +152,16 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
     (index: number) => {
       const clamped = Math.max(0, Math.min(wizard.steps.length - 1, index))
       if (phase === 'done') setPhase('touring')
-      if (playing) {
+      // Step-by-step tours (auto-advance off) narrate each step the visitor moves to.
+      if (playing || !settings.autoAdvance) {
+        unlock()
         void playFrom(clamped)
         return
       }
       setActiveIndex(clamped)
       scrollToStep(clamped)
     },
-    [phase, playFrom, playing, scrollToStep, wizard.steps.length],
+    [phase, playFrom, playing, scrollToStep, settings.autoAdvance, unlock, wizard.steps.length],
   )
 
   const togglePlay = useCallback(() => {
@@ -395,7 +402,7 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-1.5">
+          <div className={cn('mt-3 flex items-center gap-1.5', !settings.showProgress && 'hidden')}>
             {wizard.steps.map((step, index) => (
               <button
                 key={step.id}
@@ -454,7 +461,7 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
               <ShoppingBag className="h-4 w-4" />
               {orderAction.label}
             </button>
-          ) : wizard.chatUrl && !orderAction ? (
+          ) : wizard.chatUrl && !orderAction && settings.showTalkButton ? (
             <a
               href={wizard.chatUrl}
               className={cn(

@@ -70,7 +70,8 @@ export async function generateRoomChatReply(input: {
       update: {},
     }))
   const ownerVoiceCred = ownerUserId ? await getUserVoiceCredentialByUserId(ownerUserId) : null
-  const googleApiKey = safeDecrypt(ownerVoiceCred?.googleApiKey) || process.env.GOOGLE_API_KEY || null
+  // The agent owner's own key only — never the platform's GOOGLE_API_KEY.
+  const googleApiKey = safeDecrypt(ownerVoiceCred?.googleApiKey) || null
 
   const agentContext = await buildAgentContext(roomName)
 

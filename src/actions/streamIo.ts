@@ -4,6 +4,7 @@ import { Attendee, Webinar } from '@prisma/client'
 import { UserRequest } from '@stream-io/node-sdk'
 import { getStreamClient } from '@/lib/stream/streamClient'
 import { prismaClient } from '@/lib/prismaClient'
+import { onAuthenticateUser } from '@/actions/auth'
 
 export const getStreamIoToken = async (attendee: Attendee | null) => {
   try {
@@ -35,6 +36,9 @@ export const getTokenForHost = async (
   userName: string,
   profilePic: string
 ) => {
+  // A server action is callable by anyone: only mint a host token for the signed-in user themself.
+  const auth = await onAuthenticateUser()
+  if (!auth.user || auth.user.id !== userId) throw new Error('Not allowed')
   try {
     const newUser: UserRequest = {
       id: userId,

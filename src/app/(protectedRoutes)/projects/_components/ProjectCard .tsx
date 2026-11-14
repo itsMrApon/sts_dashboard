@@ -24,7 +24,9 @@ const ProjectCard  = ({project, shareBaseUrl}: Props) => {
   // Products: what buyers said to your AI lives in the pipeline. Webinars: your host room.
   const roomHref = isProduct
     ? `/projects/${project.id}/pipeline`
-    : `/live-project/${project.id}`
+    : project.slug
+      ? `/live/${project.slug}/room`
+      : `/projects/${project.id}`
 
   return (
     <div className="flex gap-3 flex-col items-start w-full">

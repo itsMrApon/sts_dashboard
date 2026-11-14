@@ -2,7 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element -- creator-supplied external URLs, not optimizable */
 import { CalendarDays, ExternalLink, FileText, Gift, Mail, Sparkles } from 'lucide-react'
-import { SOCIAL_PLATFORMS, type BusinessSiteContent, type SiteSection } from '@/lib/business/siteContent'
+import { SITE_ACTIONS, SITE_BLOCKS, SOCIAL_PLATFORMS, type BusinessSiteContent, type SiteSection } from '@/lib/business/siteContent'
+import { accentHex } from '@/lib/services/types'
 
 const FRAME = 'overflow-hidden rounded-3xl border border-border bg-card'
 
@@ -71,6 +72,47 @@ export function SectionPreview({
   content: BusinessSiteContent
   businessName: string
 }) {
+  if (section === 'look') {
+    const { appearance } = content
+    const accent = accentHex(appearance.accent)
+    const left = appearance.heroAlign === 'left'
+    const buttons = SITE_ACTIONS.filter((action) => appearance.actions[action.id])
+    const blocks = SITE_BLOCKS.filter((block) => appearance.show[block.id])
+    return (
+      <div className="space-y-3 bg-[#05060f] p-5 text-zinc-50">
+        <div className={left ? 'space-y-2 text-left' : 'space-y-2 text-center'}>
+          {content.advanced.vertical ? (
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em]" style={{ color: accent }}>
+              {content.advanced.vertical.replace(/_/g, ' ')}
+            </p>
+          ) : null}
+          <p className="text-xl font-semibold leading-tight">{content.seo.title || businessName}</p>
+          {content.seo.description ? <p className="line-clamp-2 text-xs text-zinc-400">{content.seo.description}</p> : null}
+          <div className={left ? 'flex flex-wrap gap-1.5 pt-1' : 'flex flex-wrap justify-center gap-1.5 pt-1'}>
+            {buttons.map((button, index) => (
+              <span
+                key={button.id}
+                className={index === 0 ? 'rounded-full px-3 py-1 text-[11px] font-medium text-white' : 'rounded-full border border-white/15 px-3 py-1 text-[11px]'}
+                style={index === 0 ? { backgroundColor: accent } : undefined}
+              >
+                {button.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1.5 pt-2">
+          {blocks.map((block) => (
+            <div key={block.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs">
+              <span className="uppercase tracking-wider text-zinc-400">{block.label}</span>
+              <span className="h-1.5 w-12 rounded-full" style={{ backgroundColor: accent, opacity: 0.6 }} />
+            </div>
+          ))}
+          {blocks.length === 0 ? <p className="text-center text-xs text-zinc-500">Only the hero shows.</p> : null}
+        </div>
+      </div>
+    )
+  }
+
   if (section === 'seo') {
     const { seo } = content
     const host = hostOf(content.advanced.websiteUrl)

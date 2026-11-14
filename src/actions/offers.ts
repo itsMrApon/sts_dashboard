@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { OrderModeKind, WebinarStatusEnum, type Prisma, type User, type WebinarKind } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
+import { ensureOfferTourQuietly } from '@/lib/wizard/wizardRepo'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
 import { PAID_ACCESS_ERROR } from '@/lib/billing/paidAccess'
 import { buildOfferSlug } from '@/lib/offers/offerModel'
@@ -93,6 +94,8 @@ export async function createOffer(input: { kind: OfferKindInput; title: string }
     },
     select: { id: true },
   })
+  // Every product gets its own wizard profile (Messages → Wizard), separate from the others.
+  await ensureOfferTourQuietly({ webinarId: webinar.id, userId: owner.user.id })
   revalidateOffer(webinar.id)
   return { ok: true, id: webinar.id }
 }
@@ -166,6 +169,7 @@ export async function saveOfferOrderModes(input: {
   let livekitAgentId: string | null = null
   if (modes.AI_ASSISTANT) {
     if (aiServices.length === 0) return { ok: false, error: 'Pick at least one AI service' }
+    // One agent answers on every panel (chat and voice); the tour is the offer's own.
     if (!input.livekitAgentId) return { ok: false, error: 'Pick the AI agent that sells this offer' }
     const agent = await prismaClient.liveKitAgent.findFirst({
       where: { id: input.livekitAgentId, ...agentVisibleTo(owner.user.id) },
@@ -174,6 +178,7 @@ export async function saveOfferOrderModes(input: {
     if (!agent) return { ok: false, error: 'Pick one of your AI agents' }
     livekitAgentId = agent.id
   }
+  const aiConfig = { services: aiServices }
 
   // The Live link counts down to startTime. Moving it into the future reopens the waiting room.
   let liveSchedule: Prisma.WebinarUpdateInput = {}
@@ -198,11 +203,12 @@ export async function saveOfferOrderModes(input: {
           webinarId: input.id,
           kind,
           enabled: modes[kind],
-          config: kind === OrderModeKind.AI_ASSISTANT ? { services: aiServices } : {},
+          config: kind === OrderModeKind.AI_ASSISTANT ? aiConfig : {},
         },
         update: {
           enabled: modes[kind],
-          ...(kind === OrderModeKind.AI_ASSISTANT ? { config: { services: aiServices } } : {}),
+          // Keep the saved picks while AI is off, so turning it back on is one click.
+          ...(kind === OrderModeKind.AI_ASSISTANT && modes.AI_ASSISTANT ? { config: aiConfig } : {}),
         },
       }),
     ),

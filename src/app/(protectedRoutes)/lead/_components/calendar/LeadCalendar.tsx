@@ -332,7 +332,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
       openMeetForLead(batchLead.id, batchLead.name, start)
       return
     }
-    toast.message(
+    toast.info(
       'Drag a lead from Today’s outreach onto this slot, or open a lead profile',
     )
     setSelectedDay(day)

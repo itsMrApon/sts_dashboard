@@ -4,7 +4,8 @@ import "./globals.css";
 
 import { ThemeProvider } from "@/providers/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs";
-import { Toaster } from "sonner";
+// Themed wrapper: follows light/dark and the app's popover colors (raw sonner is always light).
+import { Toaster } from "@/components/ui/sonner";
 import { ConsoleBanner } from "@/components/ReusableComponent/ConsoleBanner";
  
 const manrope = Manrope ({

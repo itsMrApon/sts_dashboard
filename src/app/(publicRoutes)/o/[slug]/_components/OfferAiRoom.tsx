@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { startBuyerCheckout } from '@/actions/buyer'
 import { describePrice, type OfferChatMessage, type PublicOfferView } from '@/lib/offers/publicOfferTypes'
-import type { AiService } from '@/lib/offers/offerTypes'
+import { AI_SERVICE_LABEL, AI_SERVICE_ORDER, type AiService } from '@/lib/offers/offerTypes'
 import type { PublicWizard } from '@/lib/wizard/types'
-import { WizardTour, type WizardTourControl } from '@/app/(publicRoutes)/wizard/[slug]/_components/WizardTour'
-import { OfferChat } from './OfferChat'
-import { OfferVoice, type OfferVoiceControl } from './OfferVoice'
+// The three panels are separate services, each on the agent (or tour) the creator picked for it.
+import { OfferChat } from './services/OfferChat'
+import { OfferTour, type OfferTourControl } from './services/OfferTour'
+import { OfferVoice, type OfferVoiceControl } from './services/OfferVoice'
 
 type Props = {
   offer: PublicOfferView
@@ -26,11 +27,10 @@ type Props = {
 }
 
 /** Ring order: chat, guided tour, voice. The tour starts in front. */
-const PANEL_ORDER: AiService[] = ['CHAT', 'WIZARD', 'SPEAK']
 const PANEL_META: Record<AiService, { label: string; icon: React.ReactNode }> = {
-  CHAT: { label: 'Chat', icon: <MessageSquare className="h-4 w-4" /> },
-  WIZARD: { label: 'Guided tour', icon: <Wand2 className="h-4 w-4" /> },
-  SPEAK: { label: 'Voice', icon: <Mic className="h-4 w-4" /> },
+  CHAT: { label: AI_SERVICE_LABEL.CHAT, icon: <MessageSquare className="h-4 w-4" /> },
+  WIZARD: { label: AI_SERVICE_LABEL.WIZARD, icon: <Wand2 className="h-4 w-4" /> },
+  SPEAK: { label: AI_SERVICE_LABEL.SPEAK, icon: <Mic className="h-4 w-4" /> },
 }
 
 const SWIPE_MIN_PX = 50
@@ -129,10 +129,10 @@ function PaymentButton({
  * and whatever was in front stops. Continue to payment sits centred underneath.
  */
 export function OfferAiRoom({ offer, source, chatHistory, wizard, services, notice }: Props) {
-  const panels = PANEL_ORDER.filter((service) => services.includes(service) && (service !== 'WIZARD' || !!wizard))
+  const panels = AI_SERVICE_ORDER.filter((service) => services.includes(service) && (service !== 'WIZARD' || !!wizard))
   const [active, setActive] = useState(() => Math.max(0, panels.indexOf('WIZARD')))
   const [orderPrompt, setOrderPrompt] = useState(false)
-  const tourRef = useRef<WizardTourControl>(null)
+  const tourRef = useRef<OfferTourControl>(null)
   const voiceRef = useRef<OfferVoiceControl>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
 
@@ -238,13 +238,7 @@ export function OfferAiRoom({ offer, source, chatHistory, wizard, services, noti
               <div className="min-h-0 flex-1" inert={!front}>
                 {service === 'CHAT' ? <OfferChat offer={offer} initialMessages={chatHistory} onOrderRequested={requestOrder} /> : null}
                 {service === 'WIZARD' && wizard ? (
-                  <WizardTour
-                    wizard={wizard}
-                    embedded
-                    controlRef={tourRef}
-                    onPlay={stopVoice}
-                    orderAction={{ label: 'Continue to payment', onClick: requestOrder }}
-                  />
+                  <OfferTour wizard={wizard} controlRef={tourRef} onPlay={stopVoice} onOrderRequested={requestOrder} />
                 ) : null}
                 {service === 'SPEAK' ? (
                   <OfferVoice

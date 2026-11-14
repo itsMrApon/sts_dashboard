@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 
 type Props = {
   roomName: string
+  /** Only the allowed website + site key (the Integrate tab shows the code steps itself). */
+  keyOnly?: boolean
 }
 
 type EmbedConfig = {
@@ -20,7 +22,7 @@ type EmbedConfig = {
   publishProfileId: string | null
 }
 
-export const EmbedSetupCard = ({ roomName }: Props) => {
+export const EmbedSetupCard = ({ roomName, keyOnly = false }: Props) => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [rotating, setRotating] = useState(false)
@@ -155,10 +157,12 @@ import { StsProvider } from '@sts-ai/sdk/react'
 
   return (
     <div className="flex flex-col gap-4 text-sm">
+      {keyOnly ? null : (
       <p className="text-muted-foreground">
         One SDK for every service. Allow your website, copy the site key once, and your designer wires the
         hooks into their own buttons and pop-ups.
       </p>
+      )}
 
       <div className="space-y-2">
         <p className="text-xs font-medium text-muted-foreground">Allowed website URL</p>
@@ -215,6 +219,8 @@ import { StsProvider } from '@sts-ai/sdk/react'
         </div>
       )}
 
+      {keyOnly ? null : (
+      <>
       <div className="rounded-lg bg-muted p-3 space-y-2">
         <p className="text-xs text-muted-foreground font-medium">1. Install package</p>
         <code className="text-xs bg-background px-2 py-1 rounded block">
@@ -245,6 +251,8 @@ import { StsProvider } from '@sts-ai/sdk/react'
           </Button>
         </div>
       </div>
+      </>
+      )}
 
     </div>
   )

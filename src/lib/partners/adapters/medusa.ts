@@ -4,9 +4,9 @@ function baseUrl(connector: PartnerConnectorRuntime): string {
   return connector.mcpUrl.replace(/\/mcp\/?$/, '').replace(/\/$/, '')
 }
 
+/** The creator's own connector token only — a platform env token would be sent to their URL. */
 function authHeaders(connector: PartnerConnectorRuntime): Record<string, string> {
-  const secret =
-    connector.authSecret?.trim() || process.env.MEDUSA_ADMIN_TOKEN?.trim() || ''
+  const secret = connector.authSecret?.trim() || ''
   if (!secret) return {}
   return { Authorization: `Bearer ${secret}` }
 }

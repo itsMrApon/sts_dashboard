@@ -1,7 +1,7 @@
 import 'server-only'
 import nodemailer from 'nodemailer'
 import { prismaClient } from '@/lib/prismaClient'
-import { validateFormValues, type FormServiceConfig } from '@/lib/services/types'
+import { FORM_HONEYPOT_FIELD, validateFormValues, type FormServiceConfig } from '@/lib/services/types'
 
 const SMTP_TIMEOUT_MS = 15_000
 
@@ -46,6 +46,11 @@ export async function submitBusinessForm(input: {
   consent: boolean
   source: 'sdk' | 'preview' | 'hosted'
 }): Promise<FormSubmitResult> {
+  // Spam trap: bots fill every field, including the hidden one. Look successful, store nothing.
+  const trap = (input.values as Record<string, unknown> | null)?.[FORM_HONEYPOT_FIELD]
+  if (input.config.spamProtection && typeof trap === 'string' && trap.trim()) {
+    return { ok: true, message: input.config.successMessage, emailed: false }
+  }
   const checked = validateFormValues(input.config, input.values, input.consent)
   if (!checked.ok) return { ok: false, status: 400, error: checked.error, fieldId: checked.fieldId }
 

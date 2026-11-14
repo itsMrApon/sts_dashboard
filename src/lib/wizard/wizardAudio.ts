@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHash } from 'node:crypto'
+import { resolveUserProviderKey } from '@/lib/credentials/providerKeys'
 import { prismaClient } from '@/lib/prismaClient'
 import { recordProviderUsageLater } from '@/lib/usage/providerUsage'
 import { spokenText, type VoiceWizardStep } from '@/lib/wizard/types'
@@ -18,9 +19,9 @@ export function clipVersion(voice: string, step: VoiceWizardStep): string {
 
 export class TtsUnavailableError extends Error {}
 
-async function synthesizeWithDeepgram(text: string, voice: string): Promise<Uint8Array> {
-  const apiKey = process.env.DEEPGRAM_API_KEY?.trim()
-  if (!apiKey) throw new TtsUnavailableError('DEEPGRAM_API_KEY is not configured')
+/** Narration runs on the wizard owner's own Deepgram key (AI Agents → Config), never the platform's. */
+async function synthesizeWithDeepgram(text: string, voice: string, apiKey: string | null): Promise<Uint8Array> {
+  if (!apiKey) throw new TtsUnavailableError('Wizard owner has no Deepgram API key')
 
   const url = `${DEEPGRAM_SPEAK_URL}?model=${encodeURIComponent(voice)}&encoding=mp3`
   const response = await fetch(url, {
@@ -48,15 +49,21 @@ export async function getOrCreateClip(input: {
   wizardId: string
   voice: string
   step: VoiceWizardStep
-  /** Wizard owner — TTS usage is attributed to them. */
+  /** Wizard owner — TTS runs on (and is attributed to) their key. */
   ownerUserId: string
+  /** Owner's Deepgram key when the caller already has it (saves a DB read per clip). */
+  deepgramApiKey?: string | null
 }): Promise<{ audio: Uint8Array; mimeType: string; created: boolean }> {
   const textHash = clipHash(input.voice, input.step)
   const cached = await getCachedClip(input)
   if (cached) return { ...cached, created: false }
 
   const text = spokenText(input.step)
-  const audio = await synthesizeWithDeepgram(text, input.voice)
+  const apiKey =
+    input.deepgramApiKey !== undefined
+      ? input.deepgramApiKey
+      : await resolveUserProviderKey(input.ownerUserId, 'deepgram')
+  const audio = await synthesizeWithDeepgram(text, input.voice, apiKey)
   recordProviderUsageLater({
     userId: input.ownerUserId,
     provider: 'deepgram',
@@ -89,12 +96,15 @@ export async function pregenerateClips(
   voice: string,
   steps: VoiceWizardStep[],
 ) {
+  const deepgramApiKey = await resolveUserProviderKey(ownerUserId, 'deepgram')
+  if (!deepgramApiKey) return { failed: steps.length, missingKey: true }
+
   let failed = 0
   const queue = [...steps]
   const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
     for (let step = queue.shift(); step; step = queue.shift()) {
       try {
-        await getOrCreateClip({ wizardId, voice, step, ownerUserId })
+        await getOrCreateClip({ wizardId, voice, step, ownerUserId, deepgramApiKey })
       } catch (error) {
         failed += 1
         console.warn('[wizard] clip generation failed', step.id, error)
@@ -102,5 +112,5 @@ export async function pregenerateClips(
     }
   })
   await Promise.all(workers)
-  return { failed }
+  return { failed, missingKey: false }
 }

@@ -3,6 +3,7 @@ import { getLiveKitConnectionDetails } from '@/lib/livekit/livekitVoiceAgent';
 import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit';
 import { embedOptionsForRoom } from '@/lib/embed/cors';
 import { guardEmbedRequest, jsonWithCors } from '@/lib/embed/embedRouteGuard';
+import { checkVoiceKeysForRoom, voiceKeyErrorMessage } from '@/lib/credentials/voiceKeyCheck';
 
 export const revalidate = 0;
 
@@ -43,6 +44,16 @@ export async function POST(req: Request) {
       dailyQuota: EMBED_DAILY_QUOTAS.voice,
     });
     if (!guard.ok) return guard.response;
+
+    // Creators run voice on their own keys: fail fast with a clear message, not a silent room.
+    const keys = await checkVoiceKeysForRoom(liveKitRoomName);
+    if (!keys.ok) {
+      return jsonWithCors(
+        { error: await voiceKeyErrorMessage(keys), code: 'MISSING_PROVIDER_KEY' },
+        guard.corsHeaders,
+        { status: 409, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
 
     const data = await getLiveKitConnectionDetails({
       roomName: liveKitRoomName,

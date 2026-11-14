@@ -10,16 +10,14 @@ function safeDecrypt(value: string | null | undefined): string | null {
 }
 
 /**
- * Resolve Gemini API key the same way chat / Config Agent does:
- * UserVoiceCredential (encrypted) → GOOGLE_API_KEY env fallback.
+ * The creator's own Gemini key from Config Agent (encrypted). No server .env fallback:
+ * creators bring their own keys.
  */
 export async function resolveUserGeminiApiKey(
   userId: string,
 ): Promise<string | null> {
   const row = await getUserVoiceCredentialByUserId(userId)
-  const fromDb = safeDecrypt(row?.googleApiKey)?.trim()
-  if (fromDb) return fromDb
-  return process.env.GOOGLE_API_KEY?.trim() || null
+  return safeDecrypt(row?.googleApiKey)?.trim() || null
 }
 
 export async function userHasLlmKeys(userId: string): Promise<{
@@ -29,17 +27,8 @@ export async function userHasLlmKeys(userId: string): Promise<{
 }> {
   const row = await getUserVoiceCredentialByUserId(userId)
   return {
-    hasGemini: Boolean(
-      safeDecrypt(row?.googleApiKey)?.trim() ||
-        process.env.GOOGLE_API_KEY?.trim(),
-    ),
-    hasOpenAi: Boolean(
-      safeDecrypt(row?.openaiApiKey)?.trim() ||
-        process.env.OPENAI_API_KEY?.trim(),
-    ),
-    hasAnthropic: Boolean(
-      safeDecrypt(row?.anthropicApiKey)?.trim() ||
-        process.env.ANTHROPIC_API_KEY?.trim(),
-    ),
+    hasGemini: Boolean(safeDecrypt(row?.googleApiKey)?.trim()),
+    hasOpenAi: Boolean(safeDecrypt(row?.openaiApiKey)?.trim()),
+    hasAnthropic: Boolean(safeDecrypt(row?.anthropicApiKey)?.trim()),
   }
 }

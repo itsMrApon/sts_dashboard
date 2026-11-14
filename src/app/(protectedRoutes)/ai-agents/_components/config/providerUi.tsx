@@ -6,32 +6,28 @@ import type {
   ProviderKeyStatus,
 } from '@/lib/usage/configProviders'
 
-export type KeyTone = 'verified' | 'saved' | 'env' | 'missing'
+export type KeyTone = 'verified' | 'saved' | 'missing'
 
 export function keyTone(status: ProviderKeyStatus): KeyTone {
   if (status.source === 'database') return status.validatedAt ? 'verified' : 'saved'
-  if (status.source === 'env') return 'env'
   return 'missing'
 }
 
 export const TONE_LABEL: Record<KeyTone, string> = {
   verified: 'Verified',
   saved: 'Saved · not verified',
-  env: 'Server .env',
   missing: 'No key',
 }
 
 const TONE_PILL: Record<KeyTone, string> = {
   verified: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
   saved: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
-  env: 'border-sky-500/30 bg-sky-500/10 text-sky-400',
   missing: 'border-border bg-muted/60 text-muted-foreground',
 }
 
 export const TONE_DOT: Record<KeyTone, string> = {
   verified: 'bg-emerald-400',
   saved: 'bg-amber-400',
-  env: 'bg-sky-400',
   missing: 'bg-rose-500',
 }
 

@@ -25,19 +25,16 @@ import {
   saveOfferPricing,
   setOfferOnBusiness,
 } from '@/actions/offers'
+import { AiPanelPicker, type AiPanelPicks } from './AiPanelPicker'
 import {
-  AI_SERVICES,
   ORDER_MODE_COPY,
   ORDER_MODE_KINDS,
-  type AiService,
   type OfferPricingInput,
   type OfferSettingsView,
   type OrderModesInput,
 } from '@/lib/offers/offerTypes'
 
 type Props = { offer: OfferSettingsView }
-
-const AI_SERVICE_LABEL: Record<AiService, string> = { CHAT: 'Chat', SPEAK: 'Voice call', WIZARD: 'Guided tour' }
 
 const toDollars = (cents: number) => (cents > 0 ? (cents / 100).toFixed(2).replace(/\.00$/, '') : '')
 const toCents = (dollars: string) => Math.round(Number.parseFloat(dollars || '0') * 100)
@@ -187,13 +184,13 @@ export function OfferSettings({ offer }: Props) {
     }),
     [offer.modes, offer.aiServices, offer.livekitAgentId, offer.agents, offer.startTime],
   )
-  const [modes, setModes] = useState<{
-    modes: OrderModesInput
-    aiServices: AiService[]
-    agentId: string
-    /** datetime-local value: when the live session starts (the Live link counts down to it). */
-    liveStart: string
-  }>(initialModes)
+  const [modes, setModes] = useState<
+    AiPanelPicks & {
+      modes: OrderModesInput
+      /** datetime-local value: when the live session starts (the Live link counts down to it). */
+      liveStart: string
+    }
+  >(initialModes)
   const [savingModes, startModes] = useTransition()
   const modesDirty = JSON.stringify(modes) !== JSON.stringify(initialModes)
 
@@ -434,82 +431,14 @@ export function OfferSettings({ offer }: Props) {
                     />
                   </div>
                   {kind === 'AI_ASSISTANT' && on ? (
-                    <div className="mt-4 space-y-4">
-                      <div className="space-y-2">
-                        <Label>Buyers can talk to your AI by</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {AI_SERVICES.map((service) => {
-                            const picked = modes.aiServices.includes(service)
-                            return (
-                              <button
-                                key={service}
-                                type="button"
-                                aria-pressed={picked}
-                                onClick={() =>
-                                  setModes({
-                                    ...modes,
-                                    aiServices: picked
-                                      ? modes.aiServices.filter((item) => item !== service)
-                                      : [...modes.aiServices, service],
-                                  })
-                                }
-                                className={cn(
-                                  'rounded-full border px-3 py-1.5 text-sm transition-colors',
-                                  picked ? 'border-primary bg-primary/15 text-primary' : 'border-border hover:bg-muted/60',
-                                )}
-                              >
-                                {AI_SERVICE_LABEL[service]}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </div>
-                      {modes.aiServices.includes('WIZARD') ? (
-                        offer.tourStatus === 'published' ? (
-                          <p className="text-xs text-muted-foreground">
-                            The guided tour sits in the middle of your share page, using your wizard from{' '}
-                            <Link href="/messages/wizard" className="underline underline-offset-2">
-                              Messages → Wizard
-                            </Link>
-                            .
-                          </p>
-                        ) : (
-                          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
-                            {offer.tourStatus === 'draft'
-                              ? 'Your guided tour is still a draft: only you see it on the share page. Publish it so buyers get it too, in '
-                              : 'You have no guided tour yet. Create and publish one in '}
-                            <Link href="/messages/wizard" className="font-medium underline underline-offset-2">
-                              Messages → Wizard
-                            </Link>
-                            .
-                          </p>
-                        )
-                      ) : null}
-                      <div className="space-y-2">
-                        <Label htmlFor="offer-agent">AI agent</Label>
-                        {offer.agents.length ? (
-                          <Select value={modes.agentId} onValueChange={(agentId) => setModes({ ...modes, agentId })}>
-                            <SelectTrigger id="offer-agent" className="w-full">
-                              <SelectValue placeholder="Pick an agent" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {offer.agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>
-                                  {agent.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            No AI agents yet.{' '}
-                            <Link href="/ai-agents" className="underline underline-offset-2">
-                              Create one in AI Agents
-                            </Link>
-                            .
-                          </p>
-                        )}
-                      </div>
+                    <div className="mt-4">
+                      <AiPanelPicker
+                        offerId={offer.id}
+                        picks={modes}
+                        onChange={(picks) => setModes({ ...modes, ...picks })}
+                        agents={offer.agents}
+                        tour={offer.tour}
+                      />
                     </div>
                   ) : null}
                   {kind === 'LIVE_HOST' && on ? (
@@ -527,12 +456,14 @@ export function OfferSettings({ offer }: Props) {
                           The Live link shows a countdown to this time. People who save a seat land in your pipeline.
                         </p>
                       </div>
-                      <Link
-                        href={`/live-project/${offer.id}`}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium underline-offset-2 hover:underline"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" /> Open your host room
-                      </Link>
+                      {offer.slug ? (
+                        <Link
+                          href={`/live/${offer.slug}/room`}
+                          className="inline-flex items-center gap-1.5 text-sm font-medium underline-offset-2 hover:underline"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Open your host room
+                        </Link>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

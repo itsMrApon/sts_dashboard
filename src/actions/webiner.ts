@@ -4,6 +4,7 @@
  import { onAuthenticateUser } from "./auth"
  import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
  import { prismaClient } from "@/lib/prismaClient"
+ import { ensureOfferTourQuietly } from '@/lib/wizard/wizardRepo'
  import { CtaTypeEnum, OfferPriceKind, WebinarKind, WebinarStatusEnum } from "@prisma/client"
  import { buildOfferSlug, orderModesFromVariants, parseLiveKitAgentValue } from '@/lib/offers/offerModel'
  import {
@@ -152,6 +153,9 @@ export const createProject = async(
         },
       })
 
+      // Every product gets its own wizard profile (Messages → Wizard), separate from the others.
+      await ensureOfferTourQuietly({ webinarId: webinar.id, userId: presenterId })
+
       // Phase 2 unified add flow: if a workspace is selected, attach created project/webinar
       // to the workspace's publish profile so Messages/Publish can discover it immediately.
       if (workspaceId) {
@@ -184,6 +188,7 @@ export const createProject = async(
         status : 201,
         message : 'Project created successfully',
         webinarId: webinar.id,
+        slug: webinar.slug,
         webinarLink: `/webinar/${webinar.id}`,
       }
   } catch (error) {
@@ -275,15 +280,18 @@ export const changeProjectStatus = async (
   status: WebinarStatusEnum
 ) => {
   try {
-    const webinar = await prismaClient.webinar.update({
-      where: { id: webinarId },
+    // Only the presenter may start or end their own session.
+    const auth = await onAuthenticateUser()
+    if (!auth.user) return { status: 401, success: false, message: 'Sign in to change this session' }
+    const updated = await prismaClient.webinar.updateMany({
+      where: { id: webinarId, presenterId: auth.user.id },
       data: { webinarStatus: status },
     })
+    if (updated.count === 0) return { status: 404, success: false, message: 'Session not found' }
     return {
       status: 200,
       success: true,
       message: 'project status changed successfully',
-      data: webinar,
     }
   } catch (error) {
     console.error('Error changing webinar status:', error)

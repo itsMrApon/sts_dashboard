@@ -7,21 +7,17 @@ import { resolveUserGeminiApiKey } from '@/lib/leads/resolveUserLlmKey'
 import { recordProviderUsageLater } from '@/lib/usage/providerUsage'
 
 /**
- * Resolve Serper key: per-user encrypted key first, then env fallback.
+ * The creator's own Serper key from Lead settings (encrypted). No server .env fallback.
  */
 export async function resolveSerperApiKey(
   userId?: string | null,
 ): Promise<string | null> {
-  if (userId) {
-    const settings = await prismaClient.callIntelSettings.findUnique({
-      where: { userId },
-      select: { serperApiKeyEnc: true },
-    })
-    const fromUser = decryptToken(settings?.serperApiKeyEnc)
-    if (fromUser?.trim()) return fromUser.trim()
-  }
-  const fromEnv = process.env.SERPER_API_KEY?.trim()
-  return fromEnv || null
+  if (!userId) return null
+  const settings = await prismaClient.callIntelSettings.findUnique({
+    where: { userId },
+    select: { serperApiKeyEnc: true },
+  })
+  return decryptToken(settings?.serperApiKeyEnc)?.trim() || null
 }
 
 export type WebsiteEnrichmentSnapshot = {
@@ -246,11 +242,10 @@ export async function webResearchLead(options: {
     options.serperApiKey?.trim() ||
     (await resolveSerperApiKey(options.userId)) ||
     null
-  // Prefer explicit key, else Config Agent key for this user, else env
+  // Explicit key, else this creator's Config Agent key (never the platform's GOOGLE_API_KEY)
   const apiKey =
     options.geminiApiKey?.trim() ||
     (options.userId ? await resolveUserGeminiApiKey(options.userId) : null) ||
-    process.env.GOOGLE_API_KEY?.trim() ||
     ''
 
   const systemPrompt =

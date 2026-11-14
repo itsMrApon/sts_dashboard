@@ -25,7 +25,8 @@ import {
 import { BusinessProductsCard } from '../../_components/BusinessProductsCard'
 import type { SectionProps } from './BusinessConfigurator'
 
-const CARD = 'space-y-4 rounded-2xl border border-border bg-card/60 p-5'
+// Sits inside the Business page's section card, so it's a lighter inner panel.
+const CARD = 'space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4'
 const SELECT = 'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm'
 
 function Counter({ value, max }: { value: string; max: number }) {

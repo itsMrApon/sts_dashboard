@@ -206,9 +206,7 @@ export function ProviderKeySheet({
                     <code className="font-mono text-sm tracking-wide">{status.masked}</code>
                   </div>
                   <p className="mt-1.5 text-[11px] text-muted-foreground">
-                    {status.source === 'database'
-                      ? `Saved here, encrypted.${verifiedAgo ? ` Verified ${verifiedAgo}.` : ' Not verified yet.'}`
-                      : `Coming from ${provider.envVar} in the server .env. Save a key here to override it.`}
+                    {`Saved here, encrypted.${verifiedAgo ? ` Verified ${verifiedAgo}.` : ' Not verified yet.'}`}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={retest} disabled={busy !== null}>
@@ -242,14 +240,13 @@ export function ProviderKeySheet({
                   </div>
                   {confirmRemove ? (
                     <p className="mt-2 text-[11px] text-muted-foreground">
-                      Agents fall back to {provider.envVar} from the server .env, or stop working if it is not set.
+                      Anything that uses {provider.name} stops working until you add a key again.
                     </p>
                   ) : null}
                 </>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No key saved and no <code className="font-mono">{provider.envVar}</code> on the server. Anything
-                  that uses {provider.name} will fail until you add one.
+                  No key saved. Anything that uses {provider.name} will fail until you add your own key below.
                 </p>
               )}
             </div>

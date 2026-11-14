@@ -1,6 +1,42 @@
 /** Shared (client + server) types, defaults and sanitizers for the website services. */
+import { isWizardShape, isWizardThemeId, type WizardShape, type WizardThemeId } from '@/lib/wizard/types'
 
 export type WebServiceId = 'chat' | 'speak' | 'form' | 'wizard'
+
+/** Brand colour for hosted pages and the SDK (`accent` in the payload). */
+export const ACCENTS = [
+  { id: 'violet', label: 'Violet', hex: '#8b5cf6' },
+  { id: 'blue', label: 'Blue', hex: '#3b82f6' },
+  { id: 'emerald', label: 'Emerald', hex: '#10b981' },
+  { id: 'amber', label: 'Amber', hex: '#f59e0b' },
+  { id: 'rose', label: 'Rose', hex: '#f43f5e' },
+  { id: 'slate', label: 'Slate', hex: '#64748b' },
+] as const
+export type AccentId = (typeof ACCENTS)[number]['id']
+export const accentHex = (id: AccentId): string => ACCENTS.find((accent) => accent.id === id)?.hex ?? ACCENTS[0].hex
+
+/** How the AI talks (chat + voice). Turned into instructions on top of the agent's own prompt. */
+export const TONES = [
+  { id: 'friendly', label: 'Friendly', hint: 'Warm and helpful' },
+  { id: 'professional', label: 'Professional', hint: 'Polished and precise' },
+  { id: 'casual', label: 'Casual', hint: 'Relaxed, like a friend' },
+  { id: 'enthusiastic', label: 'Enthusiastic', hint: 'Upbeat and energetic' },
+] as const
+export type Tone = (typeof TONES)[number]['id']
+
+export const REPLY_LENGTHS = [
+  { id: 'short', label: 'Short', hint: '1–2 sentences' },
+  { id: 'balanced', label: 'Balanced', hint: 'A short paragraph' },
+  { id: 'detailed', label: 'Detailed', hint: 'Full explanations' },
+] as const
+export type ReplyLength = (typeof REPLY_LENGTHS)[number]['id']
+
+export const REPLY_LANGUAGES = [
+  { id: 'auto', label: 'Match the visitor' },
+  { id: 'en', label: 'English' },
+  { id: 'bn', label: 'বাংলা (Bangla)' },
+] as const
+export type ReplyLanguage = (typeof REPLY_LANGUAGES)[number]['id']
 
 export type ChatServiceConfig = {
   greeting: string
@@ -8,10 +44,35 @@ export type ChatServiceConfig = {
   maxMessageLength: number
   /** Return product / CTA links with replies so the site can render buttons. */
   includeLinks: boolean
+  /** Name shown on the chat header. Empty = the agent's name. */
+  assistantName: string
+  tone: Tone
+  replyLength: ReplyLength
+  replyLanguage: ReplyLanguage
+  inputPlaceholder: string
+  /** Shown to visitors when the AI can't answer (no key, provider down). */
+  fallbackMessage: string
+  /** Show the business's WhatsApp / Messenger / phone so visitors can reach a person. */
+  showHumanHandoff: boolean
+  accent: AccentId
 }
+
+export const END_WARNINGS = [0, 30, 60] as const
+export type EndWarningSeconds = (typeof END_WARNINGS)[number]
 
 export type SpeakServiceConfig = {
   maxCallMinutes: number
+  /** Name the voice AI introduces itself with. Empty = the agent's own prompt decides. */
+  assistantName: string
+  tone: Tone
+  replyLength: ReplyLength
+  /** The orb on the hosted call page. */
+  orbTheme: WizardThemeId
+  orbShape: WizardShape
+  callButtonLabel: string
+  /** Warn the caller this many seconds before the call limit (0 = no warning). */
+  endWarningSeconds: EndWarningSeconds
+  showHumanHandoff: boolean
 }
 
 export type FormFieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select'
@@ -22,7 +83,12 @@ export type FormField = {
   type: FormFieldType
   required: boolean
   options: string[]
+  placeholder: string
+  /** Small text under the field. */
+  helpText: string
 }
+
+export type FormLayout = 'single' | 'double'
 
 export type FormServiceConfig = {
   title: string
@@ -33,6 +99,15 @@ export type FormServiceConfig = {
   successMessage: string
   /** Empty = the business owner's account email. */
   notifyEmail: string
+  accent: AccentId
+  /** Two columns puts short fields side by side (long text and dropdowns stay full width). */
+  layout: FormLayout
+  /** Send visitors here after a successful submit (https only). Empty = show the success message. */
+  redirectUrl: string
+  /** Hidden trap field that bots fill in; those submissions are dropped. */
+  spamProtection: boolean
+  /** After submitting, offer "Chat with us" (when Chat AI is on). */
+  showChatLink: boolean
 }
 
 export type ServiceState<T> = { enabled: boolean; config: T }
@@ -65,6 +140,12 @@ export const SERVICE_LIMITS = {
   successMessage: 300,
   email: 200,
   fieldValue: 2000,
+  assistantName: 40,
+  placeholder: 80,
+  helpText: 160,
+  fallbackMessage: 300,
+  buttonLabel: 40,
+  url: 500,
 } as const
 
 export const FORM_FIELD_TYPES: { id: FormFieldType; label: string }[] = [
@@ -80,9 +161,27 @@ export const DEFAULT_CHAT_CONFIG: ChatServiceConfig = {
   suggestions: ['What services do you offer?', 'How much does it cost?', 'How can I contact you?'],
   maxMessageLength: 1000,
   includeLinks: true,
+  assistantName: '',
+  tone: 'friendly',
+  replyLength: 'balanced',
+  replyLanguage: 'auto',
+  inputPlaceholder: 'Type your message…',
+  fallbackMessage: "Sorry, I can't answer right now. Please try again in a moment.",
+  showHumanHandoff: true,
+  accent: 'violet',
 }
 
-export const DEFAULT_SPEAK_CONFIG: SpeakServiceConfig = { maxCallMinutes: 5 }
+export const DEFAULT_SPEAK_CONFIG: SpeakServiceConfig = {
+  maxCallMinutes: 5,
+  assistantName: '',
+  tone: 'friendly',
+  replyLength: 'short',
+  orbTheme: 'aurora',
+  orbShape: 'circle',
+  callButtonLabel: 'Talk to us',
+  endWarningSeconds: 30,
+  showHumanHandoff: true,
+}
 
 export function fieldId(): string {
   return Math.random().toString(36).slice(2, 10)
@@ -92,14 +191,27 @@ export const DEFAULT_FORM_CONFIG: FormServiceConfig = {
   title: 'Request a callback',
   description: "Leave your details and we'll get back to you shortly.",
   fields: [
-    { id: 'name', label: 'Name', type: 'text', required: false, options: [] },
-    { id: 'phone', label: 'Phone', type: 'phone', required: true, options: [] },
-    { id: 'note', label: 'How can we help?', type: 'textarea', required: false, options: [] },
+    { id: 'name', label: 'Name', type: 'text', required: false, options: [], placeholder: 'Your name', helpText: '' },
+    { id: 'phone', label: 'Phone', type: 'phone', required: true, options: [], placeholder: '', helpText: '' },
+    {
+      id: 'note',
+      label: 'How can we help?',
+      type: 'textarea',
+      required: false,
+      options: [],
+      placeholder: 'A few words about what you need',
+      helpText: '',
+    },
   ],
   consentText: 'I agree to be contacted about my request.',
   submitLabel: 'Send',
   successMessage: "Thanks! We'll be in touch soon.",
   notifyEmail: '',
+  accent: 'violet',
+  layout: 'single',
+  redirectUrl: '',
+  spamProtection: true,
+  showChatLink: true,
 }
 
 function text(value: unknown, max: number, fallback = ''): string {
@@ -113,6 +225,28 @@ function int(value: unknown, min: number, max: number, fallback: number): number
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+function oneOf<T extends string | number>(value: unknown, allowed: readonly { id: T }[] | readonly T[], fallback: T): T {
+  const ids = (allowed as readonly unknown[]).map((item) => (typeof item === 'object' && item ? (item as { id: T }).id : item))
+  return ids.includes(value) ? (value as T) : fallback
+}
+
+function bool(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+/** Absolute https link (or a same-site path), or empty. */
+function safeLink(value: unknown): string {
+  const link = text(value, SERVICE_LIMITS.url)
+  if (!link) return ''
+  if (link.startsWith('/') && !link.startsWith('//')) return link
+  try {
+    const url = new URL(link)
+    return url.protocol === 'https:' ? url.toString() : ''
+  } catch {
+    return ''
+  }
 }
 
 /** All sanitizers preserve Bangla Unicode — only trim + length clamp. */
@@ -133,7 +267,15 @@ export function sanitizeChatConfig(raw: unknown): ChatServiceConfig {
       SERVICE_LIMITS.maxMessageLengthMax,
       DEFAULT_CHAT_CONFIG.maxMessageLength,
     ),
-    includeLinks: typeof input.includeLinks === 'boolean' ? input.includeLinks : DEFAULT_CHAT_CONFIG.includeLinks,
+    includeLinks: bool(input.includeLinks, DEFAULT_CHAT_CONFIG.includeLinks),
+    assistantName: text(input.assistantName, SERVICE_LIMITS.assistantName),
+    tone: oneOf(input.tone, TONES, DEFAULT_CHAT_CONFIG.tone),
+    replyLength: oneOf(input.replyLength, REPLY_LENGTHS, DEFAULT_CHAT_CONFIG.replyLength),
+    replyLanguage: oneOf(input.replyLanguage, REPLY_LANGUAGES, DEFAULT_CHAT_CONFIG.replyLanguage),
+    inputPlaceholder: text(input.inputPlaceholder, SERVICE_LIMITS.placeholder) || DEFAULT_CHAT_CONFIG.inputPlaceholder,
+    fallbackMessage: text(input.fallbackMessage, SERVICE_LIMITS.fallbackMessage) || DEFAULT_CHAT_CONFIG.fallbackMessage,
+    showHumanHandoff: bool(input.showHumanHandoff, DEFAULT_CHAT_CONFIG.showHumanHandoff),
+    accent: oneOf(input.accent, ACCENTS, DEFAULT_CHAT_CONFIG.accent),
   }
 }
 
@@ -146,6 +288,14 @@ export function sanitizeSpeakConfig(raw: unknown): SpeakServiceConfig {
       SERVICE_LIMITS.maxCallMinutesMax,
       DEFAULT_SPEAK_CONFIG.maxCallMinutes,
     ),
+    assistantName: text(input.assistantName, SERVICE_LIMITS.assistantName),
+    tone: oneOf(input.tone, TONES, DEFAULT_SPEAK_CONFIG.tone),
+    replyLength: oneOf(input.replyLength, REPLY_LENGTHS, DEFAULT_SPEAK_CONFIG.replyLength),
+    orbTheme: isWizardThemeId(input.orbTheme) ? input.orbTheme : DEFAULT_SPEAK_CONFIG.orbTheme,
+    orbShape: isWizardShape(input.orbShape) ? input.orbShape : DEFAULT_SPEAK_CONFIG.orbShape,
+    callButtonLabel: text(input.callButtonLabel, SERVICE_LIMITS.buttonLabel) || DEFAULT_SPEAK_CONFIG.callButtonLabel,
+    endWarningSeconds: oneOf(input.endWarningSeconds, END_WARNINGS, DEFAULT_SPEAK_CONFIG.endWarningSeconds),
+    showHumanHandoff: bool(input.showHumanHandoff, DEFAULT_SPEAK_CONFIG.showHumanHandoff),
   }
 }
 
@@ -178,6 +328,8 @@ export function sanitizeFormConfig(raw: unknown): FormServiceConfig {
               .filter(Boolean)
               .slice(0, SERVICE_LIMITS.maxOptions)
           : [],
+      placeholder: text(field.placeholder, SERVICE_LIMITS.placeholder),
+      helpText: text(field.helpText, SERVICE_LIMITS.helpText),
     })
   }
   const notifyEmail = text(input.notifyEmail, SERVICE_LIMITS.email)
@@ -191,8 +343,16 @@ export function sanitizeFormConfig(raw: unknown): FormServiceConfig {
     submitLabel: text(input.submitLabel, SERVICE_LIMITS.submitLabel) || DEFAULT_FORM_CONFIG.submitLabel,
     successMessage: text(input.successMessage, SERVICE_LIMITS.successMessage) || DEFAULT_FORM_CONFIG.successMessage,
     notifyEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail) ? notifyEmail : '',
+    accent: oneOf(input.accent, ACCENTS, DEFAULT_FORM_CONFIG.accent),
+    layout: input.layout === 'double' ? 'double' : 'single',
+    redirectUrl: safeLink(input.redirectUrl),
+    spamProtection: bool(input.spamProtection, DEFAULT_FORM_CONFIG.spamProtection),
+    showChatLink: bool(input.showChatLink, DEFAULT_FORM_CONFIG.showChatLink),
   }
 }
+
+/** Name of the hidden trap field (spam protection). Real visitors never see or fill it. */
+export const FORM_HONEYPOT_FIELD = 'company_website'
 
 export type FormValues = Record<string, string>
 

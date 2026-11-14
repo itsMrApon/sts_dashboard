@@ -4,15 +4,9 @@ function baseUrl(connector: PartnerConnectorRuntime): string {
   return connector.mcpUrl.replace(/\/mcp\/?$/, '').replace(/\/$/, '')
 }
 
+/** The creator's own connector secret only — platform env keys would be sent to their URL. */
 function authHeaders(connector: PartnerConnectorRuntime): Record<string, string> {
-  const secret =
-    connector.authSecret?.trim() ||
-    (() => {
-      const key = process.env.ERPNEXT_API_KEY?.trim()
-      const sec = process.env.ERPNEXT_API_SECRET?.trim()
-      if (key && sec) return `${key}:${sec}`
-      return ''
-    })()
+  const secret = connector.authSecret?.trim() || ''
 
   if (!secret) return {}
 

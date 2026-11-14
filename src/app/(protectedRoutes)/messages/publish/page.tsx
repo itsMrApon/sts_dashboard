@@ -45,6 +45,8 @@ export default async function BusinessPage() {
     >
       <BusinessConfigurator
         businessName={business.name}
+        roomName={business.roomName}
+        publicHref={`/business/${encodeURIComponent(business.roomName)}`}
         initialContent={content}
         initialStatus={workspace?.contextStatus ?? 'DRAFT'}
         publishedAt={workspace?.publishedAt?.toISOString() ?? null}

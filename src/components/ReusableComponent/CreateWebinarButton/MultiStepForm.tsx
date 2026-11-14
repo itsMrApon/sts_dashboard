@@ -18,7 +18,7 @@ type Step = {
 
 type Props = {
   steps: Step[]
-  onComplete: (id: string) => void
+  onComplete: (id: string, slug: string | null) => void
   tenantId?: string
 }
 
@@ -62,7 +62,7 @@ const MultiStepForm = ({ steps, onComplete, tenantId }: Props) => {
         const result = await createProject(formData, { tenantId })
         if (result.status === 201 && result.webinarId){
           toast.success('Your webinar has been created successfully.')
-          onComplete(result.webinarId)
+          onComplete(result.webinarId, result.slug ?? null)
         } else {
             toast.error(
               result.message || 'Failed to create webinar, please try again later.'

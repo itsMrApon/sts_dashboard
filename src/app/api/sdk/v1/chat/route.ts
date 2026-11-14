@@ -1,6 +1,7 @@
 import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { generateRoomChatReply } from '@/lib/services/chatReply'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
+import { chatStyleInstruction } from '@/lib/services/persona'
 import { guardSdkRequest, sdkJson, sdkOptions, serviceDisabled } from '@/lib/sdk/sdkGuard'
 
 export async function OPTIONS(request: Request) {
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       roomName: guard.business.roomName,
       message,
       sessionId: `sdk-${guard.claims.sid}`,
+      extraInstruction: chatStyleInstruction(chat.config),
     })
     if (!result.ok) {
       return sdkJson({ error: result.error, code: result.code ?? 'CHAT_FAILED' }, guard.corsHeaders, { status: result.status })

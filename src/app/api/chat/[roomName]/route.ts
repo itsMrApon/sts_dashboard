@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { embedOptions, guardEmbedRequest, jsonWithCors } from '@/lib/embed/embedRouteGuard'
 import { generateRoomChatReply } from '@/lib/services/chatReply'
+import { getBusinessByRoomName } from '@/lib/business/creatorBusiness'
+import { getBusinessServices } from '@/lib/services/serviceConfig'
+import { chatStyleInstruction } from '@/lib/services/persona'
 
 type RouteContext = { params: Promise<{ roomName: string }> }
 
@@ -30,7 +33,10 @@ export async function POST(req: Request, routeContext: RouteContext) {
     })
     if (!guard.ok) return guard.response
 
-    const result = await generateRoomChatReply({ roomName, message, sessionId })
+    // A business room answers in the style set in Messages → Chat AI.
+    const business = await getBusinessByRoomName(roomName)
+    const style = business ? chatStyleInstruction((await getBusinessServices(business.workspaceId)).chat.config) : undefined
+    const result = await generateRoomChatReply({ roomName, message, sessionId, extraInstruction: style })
     if (!result.ok) {
       return jsonWithCors({ error: result.error, code: result.code }, guard.corsHeaders, { status: result.status })
     }

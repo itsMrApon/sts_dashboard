@@ -5,8 +5,13 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api(.*)',
-  '/live-project(.*)',
-  '/live-product(.*)',
+  // Public services, keyed by the business room: /chat, /speak, /form, /business.
+  '/speak/:roomName',
+  '/form/:roomName',
+  '/business/:roomName',
+  // Live link: waiting room and the live session room.
+  '/live/:slug',
+  '/live/:slug/room',
   // Buyer share links. Not '/o(.*)': that would also make /onboarding public.
   '/o/:slug',
   '/o/:slug/opengraph-image(.*)',

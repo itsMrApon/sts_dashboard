@@ -34,7 +34,15 @@ export async function fetchLiveKitConnectionDetails(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`LiveKit connection failed: ${res.status} ${text}`);
+    // Surface the server's own message (e.g. "Add your Deepgram API key…") instead of raw JSON.
+    let message = `LiveKit connection failed: ${res.status} ${text}`;
+    try {
+      const body = JSON.parse(text) as { error?: unknown };
+      if (typeof body.error === 'string' && body.error.trim()) message = body.error;
+    } catch {
+      // non-JSON body: keep the raw text
+    }
+    throw new Error(message);
   }
 
   return res.json();

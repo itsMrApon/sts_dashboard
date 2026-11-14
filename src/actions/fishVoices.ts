@@ -22,22 +22,19 @@ function safeDecrypt(value: string | null | undefined): string | null {
   }
 }
 
-function getEnvFishKey(): string | null {
-  return process.env.FISH_API_KEY?.trim() || null
-}
-
+/** The signed-in creator's own Fish Audio key; never the platform's FISH_API_KEY. */
 async function resolveFishApiKey(): Promise<string | null> {
   const { userId: clerkId } = await auth()
-  if (!clerkId) return getEnvFishKey()
+  if (!clerkId) return null
 
   const user = await prismaClient.user.findUnique({
     where: { clerkId },
     select: { id: true },
   })
-  if (!user) return getEnvFishKey()
+  if (!user) return null
 
   const row = await getUserVoiceCredentialByUserId(user.id)
-  return safeDecrypt(row?.fishApiKey) || getEnvFishKey()
+  return safeDecrypt(row?.fishApiKey)?.trim() || null
 }
 
 type FishModelEntity = {
@@ -128,8 +125,7 @@ export async function listFishVoices(options?: {
     if (!apiKey) {
       return {
         success: false,
-        error:
-          'Fish Audio API key is missing. Save it in Config Agent, then refresh voices.',
+        error: 'Add your Fish Audio API key in AI Agents → Config.',
       }
     }
 

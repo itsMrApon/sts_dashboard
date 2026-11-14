@@ -104,11 +104,11 @@ export function LiveWaitingRoom({ offer, contact: initialContact, registered: in
   const join = useCallback(async () => {
     setBusy('join')
     try {
-      if (await saveSeat()) router.push(`/live-project/${offer.id}`)
+      if (await saveSeat()) router.push(`/live/${offer.slug}/room`)
     } finally {
       setBusy(null)
     }
-  }, [offer.id, router, saveSeat])
+  }, [offer.slug, router, saveSeat])
 
   // Keep the status fresh so the doors open on their own when the creator goes live.
   useEffect(() => {

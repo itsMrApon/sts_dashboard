@@ -13,7 +13,7 @@ export default async function MessagesPage() {
   const { business } = await loadMessagesContext()
   const [services, wizard, workspace, agents] = await Promise.all([
     getBusinessServices(business.workspaceId),
-    prismaClient.voiceWizard.findFirst({ where: { userId: business.userId }, select: { isPublished: true } }),
+    prismaClient.voiceWizard.findFirst({ where: { userId: business.userId, webinarId: null }, select: { isPublished: true } }),
     prismaClient.workspace.findUnique({ where: { id: business.workspaceId }, select: { contextStatus: true } }),
     listSelectableAgents(),
   ])

@@ -10,7 +10,8 @@
 #                  (http://localhost:3000/api only works when the app runs on the same machine
 #                   with network_mode: host)
 #   SAAS_API_KEY   same value as the app's SAAS_API_KEY
-#   DEEPGRAM_API_KEY / GOOGLE_API_KEY ...  optional fallbacks; the app normally sends keys per room
+# No provider keys (Deepgram, Gemini, Fish…): each creator's own keys arrive per call from
+# AI Agents → Config. The worker never falls back to keys in its own env.
 services:
   voice-agent:
     build: .

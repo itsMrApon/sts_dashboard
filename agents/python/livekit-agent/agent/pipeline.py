@@ -4,8 +4,10 @@ Two engine modes:
   * pipeline: STT (hears) -> LLM (thinks) -> TTS (speaks), each provider chosen independently.
   * realtime: one speech-to-speech model (OpenAI Realtime, Gemini Live, Grok Voice).
 
-Every provider key is read per room from tenant_env (then the worker's own .env), and passed
-explicitly to each plugin, so concurrent rooms never share or leak each other's keys.
+Every provider key is read per room from tenant_env only (the creator's own keys from
+AI Agents -> Config) and passed explicitly to each plugin, so concurrent rooms never share or
+leak each other's keys. The worker's own env is never used as a fallback: platform keys must
+not pay for creators' calls.
 """
 
 from __future__ import annotations
@@ -21,8 +23,6 @@ from .config import RoomConfig
 
 logger = logging.getLogger(__name__)
 
-# Process env captured at import, before anything can mutate os.environ.
-_BASE_ENV = dict(os.environ)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -66,13 +66,9 @@ def _key(config: RoomConfig, provider: str) -> str:
         value = tenant_env.get(name)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    for name in names:
-        value = _BASE_ENV.get(name)
-        if value and value.strip():
-            return value.strip()
     raise ValueError(
-        f"{PROVIDER_LABELS[provider]} selected but {names[0]} is missing. "
-        "Save it on AI Agents -> Config, or set it in the worker .env."
+        f"{PROVIDER_LABELS[provider]} selected but the creator has no {PROVIDER_LABELS[provider]} key. "
+        "They need to add it in AI Agents -> Config."
     )
 
 

@@ -135,7 +135,8 @@ export async function draftBusinessSection(
   const business = await myBusiness()
   if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
   const brief = SECTION_BRIEFS[section]
-  if (!brief) return { ok: false, error: 'AI fill is not available for this section' }
+  // "Look" holds design choices, not copy: nothing for the AI to write.
+  if (!brief || section === 'look') return { ok: false, error: 'AI fill is not available for this section' }
 
   let apiKey: string | null = null
   try {

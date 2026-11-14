@@ -19,6 +19,9 @@ type Message = {
 
 const MODEL_FALLBACK = DEFAULT_LLM_MODEL
 
+/** Same wording as missingKeyMessage('google') in lib/credentials/providerKeys. */
+export const GEMINI_KEY_MISSING_MESSAGE = 'Add your Gemini API key in AI Agents → Config.'
+
 export type GenerateReplyResult =
   | { ok: true; text: string }
   | { ok: false; error: string; code: 'NO_API_KEY' | 'INVALID_API_KEY' | 'QUOTA_EXCEEDED' | 'MODEL_ERROR' | 'UNKNOWN' }
@@ -168,14 +171,10 @@ export async function generateReply(options: {
     usageSurface,
   } = options
 
-  const apiKey = apiKeyFromCaller?.trim() || process.env.GOOGLE_API_KEY?.trim()
+  // Creators bring their own key; the server's GOOGLE_API_KEY is never used for their traffic.
+  const apiKey = apiKeyFromCaller?.trim()
   if (!apiKey) {
-    return {
-      ok: false,
-      error:
-        'Gemini API key is missing. Add it in Config Agent (/ai-agents/config), or set GOOGLE_API_KEY in .env.',
-      code: 'NO_API_KEY',
-    }
+    return { ok: false, error: GEMINI_KEY_MISSING_MESSAGE, code: 'NO_API_KEY' }
   }
 
   try {
@@ -247,14 +246,10 @@ export async function generateReplyWithTools(options: {
     usageSurface,
   } = options
 
-  const apiKey = apiKeyFromCaller?.trim() || process.env.GOOGLE_API_KEY?.trim()
+  // Creators bring their own key; the server's GOOGLE_API_KEY is never used for their traffic.
+  const apiKey = apiKeyFromCaller?.trim()
   if (!apiKey) {
-    return {
-      ok: false,
-      error:
-        'Gemini API key is missing. Add it in Config Agent (/ai-agents/config), or set GOOGLE_API_KEY in .env.',
-      code: 'NO_API_KEY',
-    }
+    return { ok: false, error: GEMINI_KEY_MISSING_MESSAGE, code: 'NO_API_KEY' }
   }
 
   if (tools.length === 0) {

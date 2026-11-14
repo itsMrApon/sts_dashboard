@@ -164,7 +164,7 @@ export function configProviderById(id: ConfigCredentialProvider): ConfigProvider
   return found
 }
 
-export type ProviderKeySource = 'database' | 'env' | 'none'
+export type ProviderKeySource = 'database' | 'none'
 
 /** Client-safe status for one provider key (never contains the key itself). */
 export type ProviderKeyStatus = {

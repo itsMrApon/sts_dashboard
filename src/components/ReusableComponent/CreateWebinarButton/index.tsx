@@ -108,11 +108,11 @@ const CreateWebinarButton = ({
       component: <AdditionalInfostep />,
     },
   ]  
-  const handleComplete = (webinarid: string) => {
+  const handleComplete = (_webinarId: string, slug: string | null) => {
     setComplete(true)
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || ''
     const selectedVariants = sanitizeVariants(formData.basicInfo.selectedVariants)
-    setProjectLinks(buildVariantLinks(webinarid, selectedVariants, baseUrl))
+    setProjectLinks(slug ? buildVariantLinks(slug, selectedVariants, baseUrl) : [])
   }
   const handleCreateNew = () => {
     resetForm()

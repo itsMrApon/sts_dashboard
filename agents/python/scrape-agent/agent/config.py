@@ -14,8 +14,6 @@ def env(name: str, default: str = "") -> str:
 
 
 SCRAPE_AGENT_API_KEY = env("SCRAPE_AGENT_API_KEY")
-GOOGLE_API_KEY = env("GOOGLE_API_KEY")
-OPENAI_API_KEY = env("OPENAI_API_KEY")
 SCRAPE_LLM_MODEL = env("SCRAPE_LLM_MODEL", "google_genai/gemini-2.5-flash")
 HOST = env("HOST", "0.0.0.0")
 PORT = int(env("PORT", "8100") or "8100")

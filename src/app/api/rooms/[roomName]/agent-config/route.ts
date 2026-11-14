@@ -3,21 +3,17 @@ import { getAgentConfigByRoom } from '@/lib/livekit/livekitVoiceAgent';
 import { prismaClient } from '@/lib/prismaClient';
 import { aiAgentPrompt } from '@/lib/data';
 import { buildAgentContext } from '@/lib/messages/buildAgentContext';
-import { decryptToken } from '@/lib/messages/encrypt';
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo';
 import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId';
 import { resolveAgentEngine } from '@/lib/agents/engineSettings';
 import { parseOfferRoomName } from '@/lib/offers/offerAi';
 import { buildOfferBrief } from '@/lib/offers/offerAiBrief';
 import { loadPublicOffer } from '@/lib/offers/publicOffer';
-
-function safeDecrypt(value: string | null | undefined): string | null {
-  try {
-    return decryptToken(value);
-  } catch {
-    return null;
-  }
-}
+import { ALL_KEY_PROVIDERS, PROVIDER_ENV_NAMES, savedKeyFor } from '@/lib/credentials/providerKeys';
+import { baseAgentRoomName } from '@/lib/credentials/voiceKeyCheck';
+import { getBusinessByRoomName } from '@/lib/business/creatorBusiness';
+import { getBusinessServices } from '@/lib/services/serviceConfig';
+import { speakStyleInstruction } from '@/lib/services/persona';
 
 export async function GET(
   req: Request,
@@ -30,9 +26,7 @@ export async function GET(
     // Example: room-apon-7eom6m-v2 (per-call LiveKit room) -> room-apon-7eom6m
     // Offer share-page calls: <agentRoom>__offer__<slug>__<random>
     const offerRoom = parseOfferRoomName(roomName);
-    const baseRoomName = offerRoom
-      ? offerRoom.baseRoomName
-      : roomName.split('__voice__')[0].replace(/-v\d+$/u, '');
+    const baseRoomName = baseAgentRoomName(roomName);
     const authHeader = req.headers.get('authorization');
     const expected = process.env.SAAS_API_KEY;
     if (expected && authHeader !== `Bearer ${expected}`) {
@@ -54,33 +48,12 @@ export async function GET(
         ? await getUserVoiceCredentialByUserId(userId)
         : null;
 
+      // Only the creator's own saved keys reach the worker — never the platform's .env keys.
       const tenantEnv: Record<string, string> = {};
-      const googleApiKey = safeDecrypt(userCredential?.googleApiKey) || process.env.GOOGLE_API_KEY || null;
-      const deepgramApiKey = safeDecrypt(userCredential?.deepgramApiKey) || process.env.DEEPGRAM_API_KEY || null;
-      const openaiApiKey = safeDecrypt(userCredential?.openaiApiKey) || process.env.OPENAI_API_KEY || null;
-      const anthropicApiKey = safeDecrypt(userCredential?.anthropicApiKey) || process.env.ANTHROPIC_API_KEY || null;
-      const fishApiKey = safeDecrypt(userCredential?.fishApiKey) || process.env.FISH_API_KEY || null;
-      const deepseekApiKey =
-        safeDecrypt(userCredential?.deepseekApiKey) || process.env.DEEPSEEK_API_KEY || null;
-      const kimiApiKey =
-        safeDecrypt(userCredential?.kimiApiKey) ||
-        process.env.MOONSHOT_API_KEY ||
-        process.env.KIMI_API_KEY ||
-        null;
-      const openrouterApiKey =
-        safeDecrypt(userCredential?.openrouterApiKey) || process.env.OPENROUTER_API_KEY || null;
-      if (googleApiKey) tenantEnv.GOOGLE_API_KEY = googleApiKey;
-      if (openrouterApiKey) tenantEnv.OPENROUTER_API_KEY = openrouterApiKey;
-      const xaiApiKey = safeDecrypt(userCredential?.xaiApiKey) || process.env.XAI_API_KEY || null;
-      if (xaiApiKey) tenantEnv.XAI_API_KEY = xaiApiKey;
-      if (deepgramApiKey) tenantEnv.DEEPGRAM_API_KEY = deepgramApiKey;
-      if (openaiApiKey) tenantEnv.OPENAI_API_KEY = openaiApiKey;
-      if (anthropicApiKey) tenantEnv.ANTHROPIC_API_KEY = anthropicApiKey;
-      if (fishApiKey) tenantEnv.FISH_API_KEY = fishApiKey;
-      if (deepseekApiKey) tenantEnv.DEEPSEEK_API_KEY = deepseekApiKey;
-      if (kimiApiKey) {
-        tenantEnv.MOONSHOT_API_KEY = kimiApiKey;
-        tenantEnv.KIMI_API_KEY = kimiApiKey;
+      for (const provider of ALL_KEY_PROVIDERS) {
+        const key = savedKeyFor(userCredential, provider);
+        if (!key) continue;
+        for (const envName of PROVIDER_ENV_NAMES[provider]) tenantEnv[envName] = key;
       }
 
       const linkedProject = await prismaClient.webinar.findFirst({
@@ -91,7 +64,12 @@ export async function GET(
       // Only brief the agent on an offer it actually sells (the slug comes from the room name).
       const offer = offerRoom ? await loadPublicOffer(offerRoom.offerSlug) : null;
       const offerForAgent = offer?.live && offer.agentRoomName === baseRoomName ? offer : null;
-      const baseInstructions = context.systemInstruction || livekitAgent.systemPrompt || aiAgentPrompt;
+      const agentInstructions = context.systemInstruction || livekitAgent.systemPrompt || aiAgentPrompt;
+      // Business calls (Speak AI) use the voice style set in Messages → Speak AI.
+      const business = offerForAgent ? null : await getBusinessByRoomName(baseRoomName);
+      const baseInstructions = business
+        ? `${agentInstructions}\n\n${speakStyleInstruction((await getBusinessServices(business.workspaceId)).speak.config)}`
+        : agentInstructions;
       const config = {
         // Offer calls keep the full room name so their transcript can be matched to the buyer.
         room_name: offerForAgent ? roomName : livekitAgent.roomName,

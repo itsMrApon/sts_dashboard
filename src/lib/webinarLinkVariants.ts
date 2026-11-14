@@ -59,19 +59,20 @@ export const hasBookCallVariant = (variants: WebinarLinkVariant[]) =>
 export const hasBuyNowVariant = (variants: WebinarLinkVariant[]) =>
   variants.some((variant) => VARIANT_META[variant].ctaType === 'BUY_NOW')
 
-export const buildVariantPath = (id: string, variant: WebinarLinkVariant) => {
-  const meta = VARIANT_META[variant]
-  const base = meta.kind === 'product' ? `/live-product/${id}` : `/live-project/${id}`
-  return `${base}?variant=${variant}`
-}
+/** Public page for a project variant: products use the Share link, live projects the Live link. */
+export const buildVariantPath = (slug: string, variant: WebinarLinkVariant) =>
+  VARIANT_META[variant].kind === 'product' ? `/o/${slug}` : `/live/${slug}`
 
-export const buildVariantLinks = (id: string, variants: WebinarLinkVariant[], baseUrl = '') => {
+export const buildVariantLinks = (slug: string, variants: WebinarLinkVariant[], baseUrl = '') => {
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
-  return variants.map((variant) => ({
-    variant,
-    label: VARIANT_META[variant].label,
-    url: `${normalizedBaseUrl}${buildVariantPath(id, variant)}`,
-  }))
+  const seen = new Set<string>()
+  // Several variants can share one page now (e.g. Book a call + Buy now both open /o/<slug>).
+  return variants.flatMap((variant) => {
+    const url = `${normalizedBaseUrl}${buildVariantPath(slug, variant)}`
+    if (seen.has(url)) return []
+    seen.add(url)
+    return [{ variant, label: VARIANT_META[variant].label, url }]
+  })
 }
 
 export const resolveVariantFromParam = (variantParam?: string | null) => {

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { buildAgentContext } from '@/lib/messages/buildAgentContext'
 import { prismaClient } from '@/lib/prismaClient'
-import { createOrGetStream1to1Call, getTokenForGuest, getTokenForHost } from '@/actions/streamIo'
+import { createOrGetStream1to1Call, getTokenForGuest } from '@/actions/streamIo'
+import { avatarFor, mintLiveRoomToken } from '@/lib/stream/liveTokens'
 
 function extractWebinarIdFromUrl(url: string): string | null {
   const trimmed = url.trim().replace(/\/+$/, '')
@@ -85,11 +86,12 @@ export async function POST(req: Request) {
 
     // IMPORTANT: create/getOrCreate requires both users to exist.
     // We upsert users before create/getOrCreate to avoid Stream error "users don't exist".
-    await getTokenForHost(
-      webinar.presenterId,
-      webinar.presenter?.name ?? 'Host',
-      webinar.presenter?.profileImage ?? '',
-    )
+    // Server-only helper: the getTokenForHost server action is restricted to the signed-in host.
+    await mintLiveRoomToken({
+      id: webinar.presenterId,
+      name: webinar.presenter?.name ?? 'Host',
+      image: webinar.presenter?.profileImage || avatarFor(webinar.presenter?.name ?? 'Host'),
+    })
     const attendeeToken = await getTokenForGuest(attendeeUserId, attendeeName)
 
     await createOrGetStream1to1Call({

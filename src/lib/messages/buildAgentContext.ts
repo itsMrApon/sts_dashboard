@@ -40,6 +40,12 @@ type TenantCompactProfile = {
   }
 }
 
+/** Public page of a project/product: Live link for live projects, Share link for products. */
+function publicOfferUrl(appUrl: string, webinar: { kind: string; slug: string | null }): string | null {
+  if (!webinar.slug) return null
+  return webinar.kind === 'PROJECT' ? `${appUrl}/live/${webinar.slug}` : `${appUrl}/o/${webinar.slug}`
+}
+
 export async function buildAgentContext(
   roomName: string,
   options?: { preloadedAgent?: LiveKitAgent | null; mode?: 'full' | 'homePreview' | 'embedBootstrap' },
@@ -68,6 +74,7 @@ export async function buildAgentContext(
             webinar: {
               select: {
                 id: true,
+                slug: true,
                 title: true,
                 description: true,
                 kind: true,
@@ -171,10 +178,8 @@ export async function buildAgentContext(
 
     for (const bp of business.products) {
       const w = bp.webinar
-      const url =
-        w.kind === 'PROJECT'
-          ? `${appUrl}/live-project/${w.id}`
-          : `${appUrl}/live-product/${w.id}`
+      const url = publicOfferUrl(appUrl, w)
+      if (!url) continue
 
       productLinks.push({
         name: w.title,
@@ -195,14 +200,11 @@ export async function buildAgentContext(
     const webinar = await timeAsync('messages.buildAgentContext.webinar.findUnique', () =>
       prismaClient.webinar.findUnique({
         where: { id: webinarId },
-        select: { id: true, kind: true, ctaType: true, ctaUrl: true },
+        select: { id: true, slug: true, kind: true, ctaType: true, ctaUrl: true },
       }),
     )
     if (webinar) {
-      roomJoinLink =
-        webinar.kind === 'PROJECT'
-          ? `${appUrl}/live-project/${webinar.id}`
-          : `${appUrl}/live-product/${webinar.id}`
+      roomJoinLink = publicOfferUrl(appUrl, webinar)
       if (webinar.ctaType === 'BUY_NOW' && webinar.ctaUrl) {
         buyNowLink = webinar.ctaUrl
       }
@@ -218,14 +220,11 @@ export async function buildAgentContext(
   if (mode === 'full' && business && business.products.length > 0) {
     const productSections = business.products.map((bp) => {
       const w = bp.webinar
-      const url =
-        w.kind === 'PROJECT'
-          ? `${appUrl}/live-project/${w.id}`
-          : `${appUrl}/live-product/${w.id}`
+      const url = publicOfferUrl(appUrl, w)
       const lines = [
         `- **${w.title}**${bp.isPrimary ? ' (Featured)' : ''}`,
         w.description ? `  ${w.description}` : '',
-        `  Link: ${url}`,
+        url ? `  Link: ${url}` : '',
         w.ctaType === 'BUY_NOW' && w.ctaUrl ? `  Buy: ${w.ctaUrl}` : '',
         w.couponEnabled && w.couponCode ? `  Coupon: ${w.couponCode}` : '',
       ]

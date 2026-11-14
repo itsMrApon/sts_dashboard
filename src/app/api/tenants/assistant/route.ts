@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { onAuthenticateUser } from '@/actions/auth'
 import { generateReplyWithTools, summarizeToolResults } from '@/lib/messages/geminiText'
+import { resolveUserGeminiApiKey } from '@/lib/leads/resolveUserLlmKey'
 import { loadServiceContext } from '@/lib/tenants/loadServiceContext'
 import {
   getConnectorLabel,
@@ -176,6 +177,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
   }
 
+  // The workspace owner's own Gemini key (Config Agent); never the platform's.
+  const geminiApiKey = await resolveUserGeminiApiKey(auth.user.id)
+
   const partnerKinds = services
     .map(normalizePartnerKind)
     .filter(
@@ -261,6 +265,7 @@ export async function POST(req: Request) {
       history: history.filter((m) => m.role === 'user' || m.role === 'assistant'),
       systemPrompt,
       toolResults: results,
+      apiKey: geminiApiKey,
       accountUserId: auth.user.id,
       usageSurface: 'tenants',
     })
@@ -317,6 +322,7 @@ export async function POST(req: Request) {
     history: history.filter((m) => m.role === 'user' || m.role === 'assistant'),
     systemPrompt,
     tools: toolDecls,
+    apiKey: geminiApiKey,
     accountUserId: auth.user.id,
     usageSurface: 'tenants',
   })
@@ -421,6 +427,7 @@ export async function POST(req: Request) {
     history: history.filter((m) => m.role === 'user' || m.role === 'assistant'),
     systemPrompt,
     toolResults: readResults,
+    apiKey: geminiApiKey,
     accountUserId: auth.user.id,
     usageSurface: 'tenants',
   })

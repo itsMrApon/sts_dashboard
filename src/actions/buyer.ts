@@ -12,6 +12,7 @@ import { startOfferCheckout } from '@/lib/offers/offerOrders'
 import { createOfferVoiceSession, loadOfferChatHistory, replyToOfferChat } from '@/lib/offers/offerAi'
 import { registerContactOnOffer } from '@/lib/offers/offerAttendance'
 import type { ConnectionDetails } from '@/lib/livekit/livekitVoiceAgent'
+import { checkVoiceKeysForRoom, voiceKeyErrorMessage } from '@/lib/credentials/voiceKeyCheck'
 import type { BuyerContactView, OfferChatMessage } from '@/lib/offers/publicOfferTypes'
 
 /**
@@ -209,6 +210,10 @@ export async function startOfferVoice(input: { slug: string }): Promise<Result<{
   const contact = await buyerContact(offer.creatorUserId)
   if (!contact) return { ok: false, error: 'Enter your email or WhatsApp first' }
   if (!offer.agentRoomName) return { ok: false, error: 'Voice is not set up for this offer' }
+
+  // Creators run voice on their own keys; stop here instead of opening a room no agent can serve.
+  const keys = await checkVoiceKeysForRoom(offer.agentRoomName)
+  if (!keys.ok) return { ok: false, error: await voiceKeyErrorMessage(keys) }
 
   const quota = await consumeDailyQuota(`offer-voice:${offer.agentRoomName}`, EMBED_DAILY_QUOTAS.voice)
   if (!quota.ok) return { ok: false, error: 'Voice is busy today. Please try chat instead.' }

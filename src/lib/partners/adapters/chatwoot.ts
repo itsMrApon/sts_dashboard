@@ -34,9 +34,12 @@ function baseUrl(connector: PartnerConnectorRuntime): string {
     .replace(/\/$/, '')
 }
 
+/**
+ * The creator's own connector secret only. Never fall back to platform env tokens: they would be
+ * sent to whatever Chatwoot URL the creator configured.
+ */
 function resolveAuth(connector: PartnerConnectorRuntime): ChatwootAuth {
-  const secret = connector.authSecret?.trim() || process.env.CHATWOOT_API_ACCESS_TOKEN?.trim() || ''
-  const envAccount = process.env.CHATWOOT_ACCOUNT_ID?.trim() || ''
+  const secret = connector.authSecret?.trim() || ''
 
   if (!secret) {
     throw new Error(
@@ -54,13 +57,7 @@ function resolveAuth(connector: PartnerConnectorRuntime): ChatwootAuth {
     }
   }
 
-  if (envAccount && secret) {
-    return { accountId: envAccount, token: secret }
-  }
-
-  throw new Error(
-    'Chatwoot auth must be "accountId:api_access_token" (e.g. 1:xyz…). Or set CHATWOOT_ACCOUNT_ID + token.',
-  )
+  throw new Error('Chatwoot auth must be "accountId:api_access_token" (e.g. 1:xyz…).')
 }
 
 async function chatwootFetch(

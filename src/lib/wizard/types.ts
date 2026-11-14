@@ -166,6 +166,46 @@ export function sanitizeSteps(raw: unknown): VoiceWizardStep[] {
 }
 
 /** Data the public tour player needs (serializable). */
+/** How the tour plays. Stored on VoiceWizard.settings. */
+export type WizardSettings = {
+  /** Hosted page opens on the guide's intro screen (off: straight to the first step). */
+  showIntro: boolean
+  /** Move to the next step on its own after the narration (off: visitor taps Next). */
+  autoAdvance: boolean
+  /** Pause between steps when auto-advancing, in milliseconds. */
+  pauseMs: number
+  showProgress: boolean
+  /** "Talk to …" button at the end (needs Chat AI). */
+  showTalkButton: boolean
+}
+
+export const WIZARD_PAUSES = [
+  { ms: 400, label: 'Quick' },
+  { ms: 700, label: 'Natural' },
+  { ms: 1500, label: 'Relaxed' },
+] as const
+
+export const DEFAULT_WIZARD_SETTINGS: WizardSettings = {
+  showIntro: true,
+  autoAdvance: true,
+  pauseMs: 700,
+  showProgress: true,
+  showTalkButton: true,
+}
+
+export function sanitizeWizardSettings(raw: unknown): WizardSettings {
+  const input = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>
+  const flag = (key: keyof WizardSettings) =>
+    typeof input[key] === 'boolean' ? (input[key] as boolean) : (DEFAULT_WIZARD_SETTINGS[key] as boolean)
+  return {
+    showIntro: flag('showIntro'),
+    autoAdvance: flag('autoAdvance'),
+    pauseMs: WIZARD_PAUSES.some((pause) => pause.ms === input.pauseMs) ? (input.pauseMs as number) : DEFAULT_WIZARD_SETTINGS.pauseMs,
+    showProgress: flag('showProgress'),
+    showTalkButton: flag('showTalkButton'),
+  }
+}
+
 export type PublicWizardStep = VoiceWizardStep & {
   /** Content hash for cache-busting the audio URL; null when the browser voice is used. */
   audioVersion: string | null
@@ -182,4 +222,5 @@ export type PublicWizard = {
   steps: PublicWizardStep[]
   chatUrl: string | null
   isPublished: boolean
+  settings: WizardSettings
 }

@@ -4,12 +4,10 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Orb } from '@/components/ui/orb'
 import { HOME_AI_CHAT_OUTER_CLASS } from './homeAiSupportPreview.constants'
+import { DEFAULT_SPEAK_CONFIG } from '@/lib/services/types'
 
-const ChatClient = dynamic(
-  () =>
-    import('@/app/(publicRoutes)/chat/[roomName]/_components/ChatClient').then(
-      (m) => m.ChatClient,
-    ),
+const SpeakRoom = dynamic(
+  () => import('@/app/(publicRoutes)/speak/[roomName]/_components/SpeakRoom').then((m) => m.SpeakRoom),
   {
     ssr: false,
     loading: () => (
@@ -58,14 +56,14 @@ export function HomeAiSupportPreview(props: HomeAiSupportPreviewProps) {
 
   return (
     <div className={HOME_AI_CHAT_OUTER_CLASS}>
-      <ChatClient
+      <SpeakRoom
         roomName={roomName}
         agentName={agentName}
         businessName={businessName}
         firstMessage={firstMessage}
+        config={DEFAULT_SPEAK_CONFIG}
         socialAccounts={socialAccounts}
-        embedMode
-        defaultTab="voice"
+        embedded
       />
     </div>
   )

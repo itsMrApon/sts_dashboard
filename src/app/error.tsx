@@ -7,6 +7,8 @@ import {
   isDatabaseConnectivityError,
 } from '@/lib/prismaErrors'
 
+const IS_DEV = process.env.NODE_ENV === 'development'
+
 export default function Error({
   error,
   reset,
@@ -14,7 +16,8 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const isConnectivity = isDatabaseConnectivityError(error)
+  const isConnectivity =
+    isDatabaseConnectivityError(error) || error.message === CONNECTION_LOST_MESSAGE
 
   useEffect(() => {
     if (isConnectivity) {
@@ -25,7 +28,7 @@ export default function Error({
       return
     }
     // Avoid console.error(error) — Next.js surfaces Error objects as a red overlay.
-    console.warn('[app/error]', error.message)
+    console.warn('[app/error]', error.message, error.digest ?? '')
   }, [error, isConnectivity])
 
   return (
@@ -36,8 +39,14 @@ export default function Error({
       <p className="max-w-md text-sm text-muted-foreground">
         {isConnectivity
           ? CONNECTION_LOST_MESSAGE
-          : error.message || 'An unexpected error occurred.'}
+          : // Raw messages (e.g. "Cannot read properties of undefined") help in dev only.
+            IS_DEV && error.message
+            ? error.message
+            : 'An unexpected error occurred. Please try again.'}
       </p>
+      {error.digest ? (
+        <p className="text-xs text-muted-foreground">Reference: {error.digest}</p>
+      ) : null}
       <button
         type="button"
         onClick={() => reset()}

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { setBusinessProducts } from '@/actions/services'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Project = { id: string; title: string; kind: 'PROJECT' | 'PRODUCT' }
 
@@ -20,11 +21,11 @@ export function BusinessProductsCard({ projects, linkedIds }: { projects: Projec
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
 
   const save = () =>
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const result = await setBusinessProducts(selected)
       if (result.ok) toast.success('Products updated')
       else toast.error(result.error)
-    })
+    }))
 
   return (
     <section className="space-y-3 rounded-2xl border border-border bg-card/60 p-5">

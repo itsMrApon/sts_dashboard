@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createOffer } from '@/actions/offers'
 import type { OfferKindInput } from '@/lib/offers/offerTypes'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Tile = { title: string; description: string; icon: LucideIcon }
 
@@ -80,14 +81,14 @@ export default function AddServiceDialog() {
   }
 
   const create = () =>
-    startCreating(async () => {
+    startCreating(guardAction(async () => {
       if (!offerKind) return
       const result = await createOffer({ kind: offerKind, title })
       if (!result.ok) return void toast.error(result.error)
       setOpen(false)
       reset()
       router.push(`/projects/${result.id}`)
-    })
+    }))
 
   return (
     <Dialog

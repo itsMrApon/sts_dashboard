@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { guardAction } from '@/lib/clientActionErrors'
 
 export function OnboardingForm({ defaultName }: { defaultName: string }) {
   const router = useRouter()
@@ -23,7 +24,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
       toast.error('Enter your business name')
       return
     }
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const result = await createMyBusiness({ name, description })
       if (!result.ok) {
         toast.error(result.error)
@@ -31,7 +32,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
       }
       router.replace('/messages')
       router.refresh()
-    })
+    }))
   }
 
   return (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
 import { signMcpToken } from '@/lib/mcpAuth'
+import { readJsonObject, withRouteErrors } from '@/lib/http/routeErrors'
 
 const DEFAULT_SCOPES = [
   'tenant.core.compact.read',
@@ -13,19 +14,14 @@ const DEFAULT_SCOPES = [
   'tenant.room.merged.read',
 ] as const
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteErrors('api/mcp/handshake', async function POST(request: NextRequest) {
   const auth = await onAuthenticateUser()
   if (!auth.user) {
     return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 })
   }
 
-  const body = (await request.json()) as {
-    tenantId?: string
-    domain?: string
-    scopes?: string[]
-  }
-
-  if (!body.tenantId || !body.domain) {
+  const body = await readJsonObject<{ tenantId: string; domain: string; scopes: string[] }>(request)
+  if (!body?.tenantId || !body.domain) {
     return NextResponse.json({ error: 'tenantId and domain are required' }, { status: 400 })
   }
 
@@ -60,5 +56,5 @@ export async function POST(request: NextRequest) {
     tenantId: tenant.id,
     scopes,
   })
-}
+})
 

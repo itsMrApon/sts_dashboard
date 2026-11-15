@@ -38,6 +38,7 @@ import type {
 } from '@/lib/usage/configProviders'
 import { cn } from '@/lib/utils'
 import { capabilityLabel, ProviderTile, StatusPill, relativeTime } from './providerUi'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type CheckState = { check: ProviderKeyCheck; subject: 'candidate' | 'current' } | null
 
@@ -117,13 +118,13 @@ export function ProviderKeySheet({
 
   const run = (kind: NonNullable<typeof busy>, task: () => Promise<void>) => {
     setBusy(kind)
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       try {
         await task()
       } finally {
         setBusy(null)
       }
-    })
+    }))
   }
 
   const testCandidate = () =>

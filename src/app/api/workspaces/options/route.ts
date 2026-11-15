@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { onAuthenticateUser } from '@/actions/auth'
 import { getWorkspaces } from '@/actions/workspaces'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 
-export async function GET() {
+export const GET = withRouteErrors('api/workspaces/options', async function GET() {
   const auth = await onAuthenticateUser()
   if (!auth.user) {
     return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 })
@@ -19,4 +20,4 @@ export async function GET() {
       publishName: workspace.publishProfile?.name ?? null,
     })),
   )
-}
+})

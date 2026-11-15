@@ -20,6 +20,7 @@ import {
   type SpeakServiceConfig,
 } from '@/lib/services/types'
 import { WIZARD_SHAPES, WIZARD_THEMES, resolveTheme, type WizardThemeId } from '@/lib/wizard/types'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type VoiceSettings = { language: 'en' | 'bn'; firstMessage: string }
 
@@ -63,7 +64,7 @@ export function SpeakConfigurator({
   const palette = resolveTheme(config.orbTheme)
 
   const save = () =>
-    startSaving(async () => {
+    startSaving(guardAction(async () => {
       const result = await saveSpeakService({ enabled, config, ...voice })
       if (!result.ok) {
         toast.error(result.error)
@@ -72,7 +73,7 @@ export function SpeakConfigurator({
       setConfig(result.config)
       setSaved(JSON.stringify({ enabled, config: result.config, voice }))
       toast.success('Speak AI saved. New calls use these settings.')
-    })
+    }))
 
   /** Quick local preview of the first line (browser voice); live calls use your AI engine's voice. */
   const previewFirstLine = () => {

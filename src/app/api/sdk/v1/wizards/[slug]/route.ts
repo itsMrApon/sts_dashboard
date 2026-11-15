@@ -1,16 +1,16 @@
 import { prismaClient } from '@/lib/prismaClient'
 import { EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { getPublicWizard } from '@/lib/wizard/wizardRepo'
-import { guardSdkRequest, sdkJson, sdkOptions } from '@/lib/sdk/sdkGuard'
-
+import { guardSdkRequest, sdkJson, sdkOptions, SDK_ROUTE_ERROR_CORS } from '@/lib/sdk/sdkGuard'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 type RouteContext = { params: Promise<{ slug: string }> }
 
-export async function OPTIONS(request: Request) {
+export const OPTIONS = withRouteErrors('api/sdk/v1/wizards/[slug]', async function OPTIONS(request: Request) {
   return sdkOptions(request)
-}
+}, SDK_ROUTE_ERROR_CORS)
 
 /** Published tour for this business. Audio URLs are plain GETs (an <audio> element can't send headers). */
-export async function GET(request: Request, context: RouteContext) {
+export const GET = withRouteErrors('api/sdk/v1/wizards/[slug]', async function GET(request: Request, context: RouteContext) {
   const guard = await guardSdkRequest(request, { scope: 'read', perIp: EMBED_RATE_LIMITS.read })
   if (!guard.ok) return guard.response
 
@@ -46,4 +46,4 @@ export async function GET(request: Request, context: RouteContext) {
     },
     guard.corsHeaders,
   )
-}
+}, SDK_ROUTE_ERROR_CORS)

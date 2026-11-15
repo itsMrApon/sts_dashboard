@@ -37,6 +37,7 @@ import {
   type ServiceState,
 } from '@/lib/services/types'
 import { cn } from '@/lib/utils'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Submission = { id: string; source: string; createdAt: string; fields: Record<string, string> }
 
@@ -105,7 +106,7 @@ export function FormConfigurator({
     })
 
   const save = () =>
-    startSaving(async () => {
+    startSaving(guardAction(async () => {
       const result = await saveFormService({ enabled, config })
       if (!result.ok) {
         toast.error(result.error)
@@ -114,14 +115,14 @@ export function FormConfigurator({
       setConfig(result.config)
       setSaved(JSON.stringify({ enabled, config: result.config }))
       toast.success('Form saved')
-    })
+    }))
 
   const testSubmit = () => {
     if (dirty) {
       toast.error('Save the form first. Test submissions use the saved version.')
       return
     }
-    startSubmitting(async () => {
+    startSubmitting(guardAction(async () => {
       const result = await submitFormPreview({ values, consent })
       if (!result.ok) {
         setResultMessage(result.error)
@@ -131,7 +132,7 @@ export function FormConfigurator({
       setValues({})
       setConsent(false)
       router.refresh()
-    })
+    }))
   }
 
   const preview = (

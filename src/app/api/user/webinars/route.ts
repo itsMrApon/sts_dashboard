@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prismaClient } from '@/lib/prismaClient'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 
-export async function GET() {
+export const GET = withRouteErrors('api/user/webinars', async function GET() {
   const { userId } = await auth()
   if (!userId) {
     return NextResponse.json([], { status: 401 })
@@ -23,4 +24,4 @@ export async function GET() {
   })
 
   return NextResponse.json(webinars, { status: 200 })
-}
+})

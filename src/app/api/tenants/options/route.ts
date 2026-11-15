@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { onAuthenticateUser } from '@/actions/auth'
 import { getTenants } from '@/actions/tenants'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 
-export async function GET() {
+export const GET = withRouteErrors('api/tenants/options', async function GET() {
   const auth = await onAuthenticateUser()
   if (!auth.user) {
     return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 })
@@ -19,4 +20,4 @@ export async function GET() {
       publishName: workspace.publishProfile?.name ?? null,
     })),
   )
-}
+})

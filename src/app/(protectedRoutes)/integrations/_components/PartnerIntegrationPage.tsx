@@ -23,6 +23,7 @@ import {
   buildIntegrationAiPrompts,
   type IntegrationPromptStage,
 } from '@/lib/partners/integrationPrompts'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type ConnectorRow = {
   id: string
@@ -131,7 +132,7 @@ export function PartnerIntegrationPage({
       toast.error('Create a Messages room first, then connect this partner.')
       return
     }
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const result = await createInboundConnector({
         tenantId: workspaceId,
         kind: guide.kind,
@@ -146,21 +147,21 @@ export function PartnerIntegrationPage({
       }
       toast.success(`${guide.label} connected`)
       router.refresh()
-    })
+    }))
   }
 
   const handleToggle = (enabled: boolean) => {
     if (!connector) return
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       await toggleInboundConnector(connector.id, enabled)
       router.refresh()
-    })
+    }))
   }
 
   const handleDelete = () => {
     if (!connector) return
     if (!confirm(`Remove ${connector.label}?`)) return
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const result = await deleteInboundConnector(connector.id)
       if (!result.success) {
         toast.error(result.error || 'Failed to remove')
@@ -168,7 +169,7 @@ export function PartnerIntegrationPage({
       }
       toast.success('Connector removed')
       router.refresh()
-    })
+    }))
   }
 
   const features: FeatureCard[] = [

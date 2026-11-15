@@ -27,6 +27,7 @@ import { ACCENTS } from '@/lib/services/types'
 import { AdvancedSection, FooterSection, KeyDatesSection, SeoSection, ServicesSection, SocialSection } from './sections'
 import { LookSection } from './LookSection'
 import { SectionPreview } from './previews'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Status = 'DRAFT' | 'PUBLISHED' | 'STALE'
 
@@ -112,7 +113,7 @@ export function BusinessConfigurator({
   )
 
   const save = (thenPublish = false) =>
-    startSaving(async () => {
+    startSaving(guardAction(async () => {
       const result = await saveBusinessSite(content)
       if (!result.ok) {
         toast.error(result.error)
@@ -123,10 +124,10 @@ export function BusinessConfigurator({
       setStatus(result.status)
       if (thenPublish) publish()
       else toast.success('Saved — publish when you are ready')
-    })
+    }))
 
   const publish = () =>
-    startPublishing(async () => {
+    startPublishing(guardAction(async () => {
       const result = await publishBusinessSite()
       if (!result.ok) {
         toast.error(result.error)
@@ -135,10 +136,10 @@ export function BusinessConfigurator({
       setStatus('PUBLISHED')
       toast.success('Live — your website, SDK and AI now use this content')
       router.refresh()
-    })
+    }))
 
   const aiFill = () =>
-    startDrafting(async () => {
+    startDrafting(guardAction(async () => {
       const result = await draftBusinessSection(section, content)
       if (!result.ok) {
         toast.error(result.error)
@@ -146,7 +147,7 @@ export function BusinessConfigurator({
       }
       setContent((current) => ({ ...current, ...result.patch }))
       toast.success(`${active.label} drafted — review it, then Save`)
-    })
+    }))
 
   const sectionProps: SectionProps = { content, businessName, onChange: setContent }
 

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Sparkle } from 'lucide-react'
 import { toast } from 'sonner'
 import { setBusinessAgent } from '@/actions/business'
+import { guardAction } from '@/lib/clientActionErrors'
 
 /** Which /ai-agents agent powers Chat AI, Speak AI, Form and Wizard. */
 export function BusinessAgentPicker({
@@ -21,7 +22,7 @@ export function BusinessAgentPicker({
 
   const change = (agentId: string) => {
     setValue(agentId)
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const result = await setBusinessAgent(agentId)
       if (!result.ok) {
         toast.error(result.error)
@@ -30,7 +31,7 @@ export function BusinessAgentPicker({
       }
       toast.success('All services now use this agent')
       router.refresh()
-    })
+    }))
   }
 
   return (

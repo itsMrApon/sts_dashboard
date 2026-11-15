@@ -1,5 +1,6 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { prismaClient } from '@/lib/prismaClient'
+import { isUuid } from '@/lib/uuid'
 
 type Props = {
   params: Promise<{
@@ -10,6 +11,7 @@ type Props = {
 /** Old "chat" entry for a project: the live chat now lives in the host room (/live/[slug]/room). */
 export default async function ProjectChatPage({ params }: Props) {
   const { projectId } = await params
+  if (!isUuid(projectId)) notFound()
   const project = await prismaClient.webinar.findUnique({ where: { id: projectId }, select: { slug: true } })
   redirect(project?.slug ? `/live/${project.slug}/room` : `/projects/${projectId}`)
 }

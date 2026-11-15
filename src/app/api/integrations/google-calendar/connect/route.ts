@@ -5,10 +5,11 @@ import {
   buildGoogleCalendarAuthUrl,
   resolveGoogleOAuthCredentials,
 } from '@/lib/leads/googleCalendar'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteErrors('api/integrations/google-calendar/connect', async function GET(req: NextRequest) {
   const { userId: clerkId } = await auth()
   if (!clerkId) {
     return NextResponse.redirect(new URL('/sign-in', req.url))
@@ -40,4 +41,4 @@ export async function GET(req: NextRequest) {
     clientId: oauth.clientId,
   })
   return NextResponse.redirect(url)
-}
+})

@@ -91,3 +91,11 @@ export function serviceDisabled(corsHeaders: HeadersInit, service: string) {
     { status: 403 },
   )
 }
+
+/** `withRouteErrors` options for SDK routes: same CORS rules as `sdkError`, for any handler signature. */
+export const SDK_ROUTE_ERROR_CORS = {
+  corsHeaders: async (...[request]: [Request, ...unknown[]]): Promise<HeadersInit> => ({
+    ...embedCorsHeadersForError(request),
+    ...(await sdkCorsHeaders(request)),
+  }),
+}

@@ -38,6 +38,7 @@ import {
 } from '@/lib/usage/configProviders'
 import { cn } from '@/lib/utils'
 import { ProviderTile, TONE_DOT, keyTone } from './providerUi'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type EngineDraft = AgentEngine & { voiceLabel: string | null }
 type StatusMap = Record<ConfigCredentialProvider, ProviderKeyStatus>
@@ -307,7 +308,7 @@ export function EngineComposer({
   const llmModels = llmModelsForProvider(draft.llmProvider)
 
   const save = () =>
-    startSaving(async () => {
+    startSaving(guardAction(async () => {
       const result = await saveAgentEngineSettings(draft)
       if (!result.ok) {
         toast.error(result.error)
@@ -321,7 +322,7 @@ export function EngineComposer({
       toast.success(
         `AI engine saved. ${result.agentsUpdated} agent${result.agentsUpdated === 1 ? '' : 's'} use it on the next call.`,
       )
-    })
+    }))
 
   return (
     <section

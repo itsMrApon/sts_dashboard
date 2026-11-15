@@ -33,6 +33,7 @@ import {
   type OfferSettingsView,
   type OrderModesInput,
 } from '@/lib/offers/offerTypes'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Props = { offer: OfferSettingsView }
 
@@ -124,7 +125,7 @@ export function OfferSettings({ offer }: Props) {
   const detailsDirty = JSON.stringify(details) !== JSON.stringify(initialDetails)
 
   const saveDetails = () =>
-    startDetails(async () => {
+    startDetails(guardAction(async () => {
       const result = await saveOfferDetails({
         id: offer.id,
         title: details.title,
@@ -133,7 +134,7 @@ export function OfferSettings({ offer }: Props) {
       if (!result.ok) return void toast.error(result.error)
       toast.success('Details saved')
       router.refresh()
-    })
+    }))
 
   // --- Pricing ---------------------------------------------------------------
   const initialPricing = useMemo(
@@ -156,7 +157,7 @@ export function OfferSettings({ offer }: Props) {
   const depositCents = toCents(pricing.deposit)
 
   const savePricing = () =>
-    startPricing(async () => {
+    startPricing(guardAction(async () => {
       const payload: OfferPricingInput = {
         currency: 'usd',
         billing: pricing.billing,
@@ -172,7 +173,7 @@ export function OfferSettings({ offer }: Props) {
       if (!result.ok) return void toast.error(result.error)
       toast.success('Price saved')
       router.refresh()
-    })
+    }))
 
   // --- Ways to order -----------------------------------------------------------
   const initialModes = useMemo(
@@ -195,7 +196,7 @@ export function OfferSettings({ offer }: Props) {
   const modesDirty = JSON.stringify(modes) !== JSON.stringify(initialModes)
 
   const saveModes = () =>
-    startModes(async () => {
+    startModes(guardAction(async () => {
       const result = await saveOfferOrderModes({
         id: offer.id,
         modes: modes.modes,
@@ -207,7 +208,7 @@ export function OfferSettings({ offer }: Props) {
       if (!result.ok) return void toast.error(result.error)
       toast.success('Ways to order saved')
       router.refresh()
-    })
+    }))
 
   // --- Business ----------------------------------------------------------------
   const [onBusiness, setOnBusiness] = useState(offer.onBusiness)
@@ -215,7 +216,7 @@ export function OfferSettings({ offer }: Props) {
   const toggleBusiness = (enabled: boolean) => {
     // Flip immediately; updates inside a transition only show once the server call finishes.
     setOnBusiness(enabled)
-    startBusiness(async () => {
+    startBusiness(guardAction(async () => {
       const result = await setOfferOnBusiness({ id: offer.id, enabled })
       if (!result.ok) {
         setOnBusiness(!enabled)
@@ -223,7 +224,7 @@ export function OfferSettings({ offer }: Props) {
       }
       toast.success(enabled ? 'Added to your business' : 'Removed from your business')
       router.refresh()
-    })
+    }))
   }
 
   // --- Share ---------------------------------------------------------------------

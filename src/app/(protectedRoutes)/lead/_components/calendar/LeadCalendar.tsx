@@ -39,6 +39,7 @@ import {
 } from '@/actions/callIntel'
 import { cn } from '@/lib/utils'
 import type { OutboundStatus } from '../LeadList'
+import { guardAction } from '@/lib/clientActionErrors'
 
 export type LeadCalendarMonth = {
   month: string
@@ -697,7 +698,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                                 (order.indexOf(selected.outboundStatus!) + 1) %
                                   order.length
                               ]!
-                            startTransition(async () => {
+                            startTransition(guardAction(async () => {
                               const res = await setLeadOutboundStatus(
                                 selected.leadId!,
                                 next,
@@ -710,7 +711,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                                 })
                                 router.refresh()
                               } else toast.error(res.error || 'Failed')
-                            })
+                            }))
                           }}
                         >
                           Cycle status
@@ -750,7 +751,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
               disabled={pending || !slotLeadId || !meetStart}
               onClick={() => {
                 if (!slotLeadId) return
-                startTransition(async () => {
+                startTransition(guardAction(async () => {
                   const res = await scheduleLeadGoogleMeet({
                     leadId: slotLeadId,
                     startIso: new Date(meetStart).toISOString(),
@@ -778,7 +779,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                         : undefined,
                     })
                   }
-                })
+                }))
               }}
             >
               Schedule
@@ -823,7 +824,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
               disabled={pending || !slotLeadId || !noteText.trim()}
               onClick={() => {
                 if (!slotLeadId) return
-                startTransition(async () => {
+                startTransition(guardAction(async () => {
                   const res = await addLeadActivity({
                     leadId: slotLeadId,
                     type: followUpAt ? 'FOLLOW_UP' : 'NOTE',
@@ -837,7 +838,7 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                     setNoteOpen(false)
                     router.refresh()
                   } else toast.error(res.error || 'Failed')
-                })
+                }))
               }}
             >
               Save

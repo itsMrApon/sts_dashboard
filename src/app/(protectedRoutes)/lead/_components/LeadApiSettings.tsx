@@ -34,6 +34,7 @@ import {
   saveSerperApiKey,
 } from '@/actions/callIntel'
 import type { LeadConnectionSettings } from '@/lib/leads/leadConnectionSettings'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Props = LeadConnectionSettings & {
   /** Inside the Lead settings panel: no outer card or title (the panel has its own). */
@@ -58,7 +59,7 @@ export function LeadApiSettings(props: Props) {
     action: () => Promise<{ ok: boolean; error?: string }>,
     okMsg: string,
   ) {
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       try {
         const res = await action()
         if (res.ok) {
@@ -68,7 +69,7 @@ export function LeadApiSettings(props: Props) {
       } catch {
         toast.error('Connection lost. Try again.')
       }
-    })
+    }))
   }
 
   return (
@@ -197,7 +198,7 @@ export function LeadApiSettings(props: Props) {
                   !googleClientSecret.trim()
                 }
                 onClick={() => {
-                  startTransition(async () => {
+                  startTransition(guardAction(async () => {
                     try {
                       const res = await saveGoogleOAuthApp({
                         clientId: googleClientId,
@@ -220,7 +221,7 @@ export function LeadApiSettings(props: Props) {
                     } catch {
                       toast.error('Connection lost. Try again.')
                     }
-                  })
+                  }))
                 }}
               >
                 Save OAuth
@@ -292,7 +293,7 @@ export function LeadApiSettings(props: Props) {
                     <Button
                       disabled={pending}
                       onClick={() => {
-                        startTransition(async () => {
+                        startTransition(guardAction(async () => {
                           try {
                             const res = await saveCalendarEventFilter({
                               calendarFilterMode: filterMode,
@@ -308,7 +309,7 @@ export function LeadApiSettings(props: Props) {
                           } catch {
                             toast.error('Connection lost. Try again.')
                           }
-                        })
+                        }))
                       }}
                     >
                       Save

@@ -24,6 +24,7 @@ import {
 } from '@/lib/business/siteContent'
 import { BusinessProductsCard } from '../../_components/BusinessProductsCard'
 import type { SectionProps } from './BusinessConfigurator'
+import { guardAction } from '@/lib/clientActionErrors'
 
 // Sits inside the Business page's section card, so it's a lighter inner panel.
 const CARD = 'space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4'
@@ -475,7 +476,7 @@ export function AdvancedSection({
   const exportJson = JSON.stringify(content, null, 2)
 
   const importServices = (file: File) =>
-    startImporting(async () => {
+    startImporting(guardAction(async () => {
       const result = await importServicesFile(await file.text())
       if (!result.ok) {
         toast.error(result.error)
@@ -484,7 +485,7 @@ export function AdvancedSection({
       const merged = sanitizeSiteContent({ ...content, services: [...content.services, ...result.services] }, businessName)
       onChange(merged)
       toast.success(`Imported ${result.services.length} services — review, then Save`)
-    })
+    }))
 
   const applySnapshot = (text: string) => {
     try {

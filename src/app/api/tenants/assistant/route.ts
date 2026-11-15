@@ -30,6 +30,7 @@ import {
   type PartnerToolBundle,
 } from '@/lib/partners/toolRegistry'
 import type { PendingProposalTool } from '@/lib/partners/types'
+import { readJsonObject, withRouteErrors } from '@/lib/http/routeErrors'
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -138,13 +139,16 @@ async function runReadTools(
   return results
 }
 
-export async function POST(req: Request) {
+export const POST = withRouteErrors('api/tenants/assistant', async function POST(req: Request) {
   const auth = await onAuthenticateUser()
   if (!auth.user) {
     return NextResponse.json({ error: 'UNAUTHENTICATED' }, { status: 401 })
   }
 
-  const body = (await req.json()) as AssistantBody
+  const body = await readJsonObject<AssistantBody>(req)
+  if (!body) {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const workspaceId =
     (typeof body.workspaceId === 'string' ? body.workspaceId.trim() : '') ||
     (typeof body.tenantId === 'string' ? body.tenantId.trim() : '')
@@ -460,4 +464,4 @@ export async function POST(req: Request) {
     pendingProposal: null,
     toolResults: readResults,
   })
-}
+})

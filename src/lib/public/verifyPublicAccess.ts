@@ -1,5 +1,6 @@
 import type { RoomEmbedConfig } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
+import { isUuid } from '@/lib/uuid'
 import {
   getSiteKeyFromRequest,
   verifySiteKeyAgainstConfig,
@@ -12,6 +13,8 @@ export type PublicAccessResult =
 export async function findEmbedConfigForWorkspace(
   workspaceId: string,
 ): Promise<RoomEmbedConfig | null> {
+  // workspaceId comes straight from the public URL; a malformed one is "not found", not a 500.
+  if (!isUuid(workspaceId)) return null
   try {
     const direct = await prismaClient.roomEmbedConfig.findFirst({
       where: { workspaceId, enabled: true },

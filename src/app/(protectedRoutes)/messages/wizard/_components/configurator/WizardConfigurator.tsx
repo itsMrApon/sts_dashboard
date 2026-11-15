@@ -48,6 +48,7 @@ import {
   type WizardShape,
   type WizardThemeId,
 } from '@/lib/wizard/types'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type EditableWizard = {
   slug: string
@@ -145,7 +146,7 @@ export function WizardConfigurator({ initialWizard, roomName }: Props) {
   }
 
   const save = () => {
-    startSaving(async () => {
+    startSaving(guardAction(async () => {
       const result = await updateVoiceWizard(wizard.slug, {
         name: wizard.name,
         guideName: wizard.guideName,
@@ -166,11 +167,11 @@ export function WizardConfigurator({ initialWizard, roomName }: Props) {
       setSavedSteps(new Map(result.steps.map((s) => [s.id, spokenText(s)])))
       toast.success(wizard.isPublished ? 'Saved — live page updated' : 'Saved')
       router.refresh()
-    })
+    }))
   }
 
   const draftWithAi = () => {
-    startDrafting(async () => {
+    startDrafting(guardAction(async () => {
       const result = await draftVoiceWizardSteps({
         slug: wizard.slug,
         name: wizard.name,
@@ -185,7 +186,7 @@ export function WizardConfigurator({ initialWizard, roomName }: Props) {
       setSelectedStepId(result.steps[0]?.id ?? null)
       if (result.source === 'ai') toast.success('Draft ready — review it, then Save')
       else toast.info('Used the built-in template', { description: result.note })
-    })
+    }))
   }
 
   const togglePublished = (published: boolean) => {
@@ -193,7 +194,7 @@ export function WizardConfigurator({ initialWizard, roomName }: Props) {
       toast.error('Save your changes before publishing')
       return
     }
-    startPublishing(async () => {
+    startPublishing(guardAction(async () => {
       const result = await setVoiceWizardPublished(wizard.slug, published)
       if (!result.ok) {
         toast.error(result.error)
@@ -210,7 +211,7 @@ export function WizardConfigurator({ initialWizard, roomName }: Props) {
         toast.success(published ? 'Wizard is live' : 'Wizard unpublished')
       }
       router.refresh()
-    })
+    }))
   }
 
   const stopPreview = useCallback(() => {

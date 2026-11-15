@@ -3,10 +3,11 @@ import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
 import { verifyRoomOwnership } from '@/lib/messages/verifyRoomOwnership'
 import { generateSiteKey, hashSiteKey } from '@/lib/embed/siteKey'
+import { readJsonObject, withRouteErrors } from '@/lib/http/routeErrors'
 
-export async function POST(request: NextRequest) {
-  const body = (await request.json()) as { roomName?: string }
-  const roomName = body.roomName?.trim()
+export const POST = withRouteErrors('api/embed/v1/config/rotate-key', async function POST(request: NextRequest) {
+  const body = await readJsonObject<{ roomName: string }>(request)
+  const roomName = typeof body?.roomName === 'string' ? body.roomName.trim() : ''
   if (!roomName) {
     return NextResponse.json({ error: 'roomName is required' }, { status: 400 })
   }
@@ -48,4 +49,4 @@ export async function POST(request: NextRequest) {
     rotatedAt: updated.rotatedAt,
     siteKeyShownOnce: true,
   })
-}
+})

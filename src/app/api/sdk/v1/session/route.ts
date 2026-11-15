@@ -5,14 +5,14 @@ import { EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { hashSiteKey } from '@/lib/embed/siteKey'
 import { getSiteKeyFromRequest } from '@/lib/embed/verifySiteKeyAccess'
 import { buildSdkSessionPayload } from '@/lib/sdk/sdkPayload'
-import { sdkError, sdkJson, sdkOptions } from '@/lib/sdk/sdkGuard'
-
-export async function OPTIONS(request: Request) {
+import { sdkError, sdkJson, sdkOptions, SDK_ROUTE_ERROR_CORS } from '@/lib/sdk/sdkGuard'
+import { withRouteErrors } from '@/lib/http/routeErrors'
+export const OPTIONS = withRouteErrors('api/sdk/v1/session', async function OPTIONS(request: Request) {
   return sdkOptions(request)
-}
+}, SDK_ROUTE_ERROR_CORS)
 
 /** Site key + allowlisted Origin → short-lived session + the business's enabled services. */
-export async function POST(request: Request) {
+export const POST = withRouteErrors('api/sdk/v1/session', async function POST(request: Request) {
   const siteKey = getSiteKeyFromRequest(request)
   if (!siteKey) return sdkError(request, 401, 'SITE_KEY_REQUIRED', 'X-Sts-Site-Key header is required.')
 
@@ -35,4 +35,4 @@ export async function POST(request: Request) {
     { session: sessionPayload(issued.session), ...(await buildSdkSessionPayload(business)) },
     issued.corsHeaders,
   )
-}
+}, SDK_ROUTE_ERROR_CORS)

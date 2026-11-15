@@ -14,6 +14,7 @@ import {
 import type { AgentLanguage } from '@/lib/agents/engineOptions'
 import { diffTokens, keptRatio, tokenizeLines, tokenizeWords, type DiffSegment } from '@/lib/text/textDiff'
 import { cn } from '@/lib/utils'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Proposal = { text: string; base: string; label: string; usedCalls: number }
 
@@ -111,7 +112,7 @@ export function AgentAiEditor({
       ? (quickActions.find((action) => action.id === quickAction)?.label ?? 'AI edit')
       : trimmed
     setRunningAction(quickAction ?? 'custom')
-    startGenerating(async () => {
+    startGenerating(guardAction(async () => {
       const result = await editLiveKitAgentTextWithAi({
         agentId,
         field,
@@ -127,7 +128,7 @@ export function AgentAiEditor({
         return
       }
       setProposal({ text: result.text, base, label, usedCalls: result.usedCalls })
-    })
+    }))
   }
 
   const accept = () => {

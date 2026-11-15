@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyMcpToken } from '@/lib/mcpAuth'
 import { prismaClient } from '@/lib/prismaClient'
 import { buildAgentContext } from '@/lib/messages/buildAgentContext'
+import { readJsonObject, withRouteErrors } from '@/lib/http/routeErrors'
 
 type JsonRpcRequest = {
   jsonrpc: '2.0'
@@ -34,8 +35,11 @@ const toError = (id: JsonRpcRequest['id'], code: number, message: string) => ({
   error: { code, message },
 })
 
-export async function POST(request: NextRequest) {
-  const body = (await request.json()) as JsonRpcRequest
+export const POST = withRouteErrors('api/mcp/jsonrpc', async function POST(request: NextRequest) {
+  const body = await readJsonObject<JsonRpcRequest>(request)
+  if (!body) {
+    return NextResponse.json(toError(null, -32700, 'Parse error'), { status: 400 })
+  }
   const id = body.id ?? null
   const authHeader = request.headers.get('authorization') || ''
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
@@ -214,5 +218,5 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(toError(id, -32601, 'Method not found'), { status: 404 })
-}
+})
 

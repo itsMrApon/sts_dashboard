@@ -4,6 +4,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import { verifyRoomOwnership } from '@/lib/messages/verifyRoomOwnership'
 import { normalizeOrigins } from '@/lib/embed/origin'
 import { generateSiteKey, hashSiteKey } from '@/lib/embed/siteKey'
+import { readJsonObject, withRouteErrors } from '@/lib/http/routeErrors'
 
 async function requireRoomOwner(roomName: string) {
   const auth = await onAuthenticateUser()
@@ -65,14 +66,14 @@ async function requireRoomOwner(roomName: string) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteErrors('api/embed/v1/config', async function GET(request: NextRequest) {
   const roomName = request.nextUrl.searchParams.get('roomName')?.trim()
   if (!roomName) {
     return NextResponse.json({ error: 'roomName is required' }, { status: 400 })
   }
 
   const gate = await requireRoomOwner(roomName)
-  if ('error' in gate) return gate.error
+  if (gate.error) return gate.error
 
   const config = await prismaClient.roomEmbedConfig.findUnique({
     where: { roomName },
@@ -101,22 +102,21 @@ export async function GET(request: NextRequest) {
     rotatedAt: config.rotatedAt,
     updatedAt: config.updatedAt,
   })
-}
+})
 
-export async function PUT(request: NextRequest) {
-  const body = (await request.json()) as {
-    roomName?: string
-    allowedOrigins?: string[]
-    enabled?: boolean
+export const PUT = withRouteErrors('api/embed/v1/config', async function PUT(request: NextRequest) {
+  const body = await readJsonObject<{ roomName: string; allowedOrigins: string[]; enabled: boolean }>(request)
+  if (!body) {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const roomName = body.roomName?.trim()
+  const roomName = typeof body.roomName === 'string' ? body.roomName.trim() : ''
   if (!roomName) {
     return NextResponse.json({ error: 'roomName is required' }, { status: 400 })
   }
 
   const gate = await requireRoomOwner(roomName)
-  if ('error' in gate) return gate.error
+  if (gate.error) return gate.error
 
   const allowedOrigins = normalizeOrigins(Array.isArray(body.allowedOrigins) ? body.allowedOrigins : [])
   const enabled = body.enabled !== false
@@ -175,4 +175,4 @@ export async function PUT(request: NextRequest) {
     siteKey,
     siteKeyShownOnce: true,
   })
-}
+})

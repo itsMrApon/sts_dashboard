@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { prismaClient } from '@/lib/prismaClient'
 import { ChannelStatus } from '@prisma/client'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 
-export async function GET() {
+export const GET = withRouteErrors('api/user/outreach-channels', async function GET() {
   const { userId: clerkId } = await auth()
   if (!clerkId) {
     return NextResponse.json({ platforms: [], channels: [] }, { status: 401 })
@@ -28,4 +29,4 @@ export async function GET() {
     platforms: uniquePlatforms,
     channels,
   }, { status: 200 })
-}
+})

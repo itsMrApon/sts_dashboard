@@ -7,6 +7,7 @@ import { SORTED_ISO2, dialForIso2 } from '@/lib/phoneCountryCodes'
 import { FORM_HONEYPOT_FIELD, accentHex, type FormField, type FormServiceConfig } from '@/lib/services/types'
 import { cn } from '@/lib/utils'
 import { ServiceCard } from '../../../_components/PublicServiceShell'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Props = {
   roomName: string
@@ -59,7 +60,7 @@ export function FormRoom({ roomName, config, defaultCountry, chatHref }: Props) 
     }
     // Spam trap: only bots fill the hidden field; the server drops those quietly.
     if (config.spamProtection && trap) payload[FORM_HONEYPOT_FIELD] = trap
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const result = await submitHostedForm({ roomName, values: payload, consent })
       if (!result.ok) {
         setError({ message: result.error, fieldId: result.fieldId })
@@ -70,7 +71,7 @@ export function FormRoom({ roomName, config, defaultCountry, chatHref }: Props) 
         return
       }
       setDone(result.message)
-    })
+    }))
   }
 
   if (done) {

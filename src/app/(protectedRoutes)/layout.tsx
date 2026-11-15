@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import Header from '@/components/ReusableComponent/LayoutComponent/Header'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
+import { CONNECTION_LOST_MESSAGE } from '@/lib/prismaErrors'
 
 type Props = {
   children: React.ReactNode
@@ -22,6 +23,13 @@ const Layout = async ({ children }: Props) => {
     onAuthenticateUser(),
   )
 
+  // A failed lookup (DB down) is not "signed out": redirecting would bounce a signed-in user
+  // between /sign-in and here. Throw so the error boundary offers a retry instead.
+  if (userExists.status === 500) {
+    throw new Error(
+      userExists.error === 'DATABASE_UNAVAILABLE' ? CONNECTION_LOST_MESSAGE : 'Could not load your account.',
+    )
+  }
   if (!userExists.user) {
     redirect('/sign-in')
   }

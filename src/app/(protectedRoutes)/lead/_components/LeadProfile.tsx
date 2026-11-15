@@ -49,6 +49,7 @@ import { ScoreEmptyState, ScoreResultPanel } from './ScoreResultPanel'
 import { MeetingChat } from './MeetingChat'
 import { LeadProfileSidebar } from './LeadProfileSidebar'
 import type { LeadProfileData } from './leadProfileTypes'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type AgentOption = { id: string; name: string; systemPrompt: string | null }
 
@@ -204,7 +205,7 @@ export function LeadProfile(props: Props) {
     }>,
     okMsg: string,
   ) {
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       try {
         const res = await action()
         if (res.ok) {
@@ -219,7 +220,7 @@ export function LeadProfile(props: Props) {
       } catch {
         toast.error('Connection lost. Check your internet and try again.')
       }
-    })
+    }))
   }
 
   function MeetingPicker() {

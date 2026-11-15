@@ -15,6 +15,7 @@ import type { PublicWizard } from '@/lib/wizard/types'
 import { OrderPicker } from './OrderPicker'
 import { LeadForm } from './LeadForm'
 import { OfferAiRoom } from './OfferAiRoom'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type Props = {
   offer: PublicOfferView
@@ -64,10 +65,10 @@ export function OfferLanding({ offer, contact: initialContact, source, orderStat
   const greeting = contact?.name || contact?.email || contact?.phone || ''
 
   const notMe = () =>
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       await forgetBuyer({ slug: offer.slug })
       setContact(null)
-    })
+    }))
 
   if (contact && aiServices.length && !paid) {
     return (

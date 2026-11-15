@@ -35,6 +35,7 @@ import {
 } from '@/actions/callIntel'
 import { cn } from '@/lib/utils'
 import type { MeetingScoreDetail } from '@/lib/leads/scoreTypes'
+import { guardAction } from '@/lib/clientActionErrors'
 
 export type OutboundStatus = 'NEW' | 'ON_PROCESS' | 'DONE'
 
@@ -227,7 +228,7 @@ export function LeadList(props: Props) {
     action: () => Promise<{ ok: boolean; error?: string }>,
     okMsg: string,
   ) {
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       try {
         const res = await action()
         if (res.ok) toast.success(okMsg)
@@ -235,7 +236,7 @@ export function LeadList(props: Props) {
       } catch {
         toast.error('Connection lost. Check your internet and try again.')
       }
-    })
+    }))
   }
 
   function syncBusiness() {
@@ -253,7 +254,7 @@ export function LeadList(props: Props) {
       toast.error('Set location and type in Find first')
       return
     }
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       try {
         const res = await syncBusinessLeads()
         if (res.ok) {
@@ -268,11 +269,11 @@ export function LeadList(props: Props) {
       } catch {
         toast.error('Connection lost. Check your internet and try again.')
       }
-    })
+    }))
   }
 
   function saveSearchAndPull() {
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       try {
         const saved = await saveBusinessLeadPrefs({
           location: businessLocation,
@@ -309,19 +310,19 @@ export function LeadList(props: Props) {
       } catch {
         toast.error('Connection lost. Check your internet and try again.')
       }
-    })
+    }))
   }
 
   function cycleOutbound(lead: LeadListRow) {
     const order: OutboundStatus[] = ['NEW', 'ON_PROCESS', 'DONE']
     const next = order[(order.indexOf(lead.outboundStatus) + 1) % order.length]!
-    startTransition(async () => {
+    startTransition(guardAction(async () => {
       const res = await setLeadOutboundStatus(lead.id, next)
       if (res.ok) {
         toast.success(`Marked ${OUTBOUND_LABEL[next]}`)
         router.refresh()
       } else toast.error(res.error || 'Failed')
-    })
+    }))
   }
 
   return (

@@ -41,6 +41,7 @@ import {
   type ServiceState,
 } from '@/lib/services/types'
 import { cn } from '@/lib/utils'
+import { guardAction } from '@/lib/clientActionErrors'
 
 type PreviewMessage = { role: 'user' | 'assistant'; content: string }
 
@@ -85,7 +86,7 @@ export function ChatConfigurator({
   const displayName = config.assistantName || agentName
 
   const save = () =>
-    startSaving(async () => {
+    startSaving(guardAction(async () => {
       const result = await saveChatService({ enabled, config })
       if (!result.ok) {
         toast.error(result.error)
@@ -94,7 +95,7 @@ export function ChatConfigurator({
       setConfig(result.config)
       setSaved(JSON.stringify({ enabled, config: result.config }))
       toast.success('Chat AI saved')
-    })
+    }))
 
   const addSuggestion = () => {
     const value = newSuggestion.trim()

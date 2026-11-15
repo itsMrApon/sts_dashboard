@@ -6,11 +6,17 @@ import {
   jsonWithCors,
   PUBLIC_RATE_LIMITS,
 } from '@/lib/public/publicRouteGuard'
-import { publicOptionsForWorkspace } from '@/lib/public/cors'
+import { publicCorsHeadersForWorkspace, publicOptionsForWorkspace } from '@/lib/public/cors'
+import { withRouteErrors } from '@/lib/http/routeErrors'
 
 type RouteParams = { params: Promise<{ workspaceId: string }> }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
+const ERROR_CORS = {
+  corsHeaders: async (request: Request, { params }: RouteParams) =>
+    publicCorsHeadersForWorkspace(request, (await params).workspaceId),
+}
+
+export const GET = withRouteErrors('api/public/v1/workspaces/[workspaceId]/profile', async function GET(request: NextRequest, { params }: RouteParams) {
   const { workspaceId } = await params
   const guard = await guardPublicRequest(request, workspaceId, {
     key: `public:profile:${workspaceId}:${clientIp(request)}`,
@@ -39,9 +45,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     },
     guard.corsHeaders,
   )
-}
+}, ERROR_CORS)
 
-export async function OPTIONS(request: NextRequest, { params }: RouteParams) {
+export const OPTIONS = withRouteErrors('api/public/v1/workspaces/[workspaceId]/profile', async function OPTIONS(request: NextRequest, { params }: RouteParams) {
   const { workspaceId } = await params
   return publicOptionsForWorkspace(request, workspaceId)
-}
+}, ERROR_CORS)

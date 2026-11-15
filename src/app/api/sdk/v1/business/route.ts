@@ -3,17 +3,17 @@ import { prismaClient } from '@/lib/prismaClient'
 import { siteContentFromLegacy } from '@/lib/business/siteContent'
 import { accentHex } from '@/lib/services/types'
 import { loadPublishedWorkspaceProfile } from '@/lib/public/loadBusinessProfile'
-import { guardSdkRequest, sdkJson, sdkOptions } from '@/lib/sdk/sdkGuard'
-
-export async function OPTIONS(request: Request) {
+import { guardSdkRequest, sdkJson, sdkOptions, SDK_ROUTE_ERROR_CORS } from '@/lib/sdk/sdkGuard'
+import { withRouteErrors } from '@/lib/http/routeErrors'
+export const OPTIONS = withRouteErrors('api/sdk/v1/business', async function OPTIONS(request: Request) {
   return sdkOptions(request)
-}
+}, SDK_ROUTE_ERROR_CORS)
 
 /**
  * Business details for the website: name, description, the published profile, and the published
  * site content (SEO, services, key dates, socials, footer, look) from Messages → Business.
  */
-export async function GET(request: Request) {
+export const GET = withRouteErrors('api/sdk/v1/business', async function GET(request: Request) {
   const guard = await guardSdkRequest(request, { scope: 'read', perIp: EMBED_RATE_LIMITS.read })
   if (!guard.ok) return guard.response
 
@@ -58,4 +58,4 @@ export async function GET(request: Request) {
     },
     guard.corsHeaders,
   )
-}
+}, SDK_ROUTE_ERROR_CORS)

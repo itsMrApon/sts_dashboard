@@ -31,7 +31,6 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { values?: unknown; consent?: unknown } | null
   try {
     const result = await submitBusinessForm({
-      workspaceId: guard.business.workspaceId,
       ownerUserId: guard.business.userId,
       businessName: guard.business.name,
       config: form.config,
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
       source: 'sdk',
     })
     if (!result.ok) {
-      return sdkJson({ error: result.error, code: 'INVALID_FORM', fieldId: result.fieldId ?? null }, guard.corsHeaders, {
+      return sdkJson({ error: result.error, code: result.code, fieldId: result.fieldId ?? null }, guard.corsHeaders, {
         status: result.status,
       })
     }

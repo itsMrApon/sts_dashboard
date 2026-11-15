@@ -1,37 +1,24 @@
-import { prismaClient } from '@/lib/prismaClient'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
+import { isSmtpConfigured } from '@/lib/services/formSubmit'
 import { loadMessagesContext } from '../_lib/messagesContext'
 import { MessagesShell } from '../_components/MessagesShell'
 import { FormConfigurator } from './_components/FormConfigurator'
 
 export default async function FormServicePage() {
   const { business, user } = await loadMessagesContext()
-  const [services, submissions] = await Promise.all([
-    getBusinessServices(business.workspaceId),
-    prismaClient.formSubmission.findMany({
-      where: { workspaceId: business.workspaceId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: { id: true, fields: true, source: true, createdAt: true },
-    }),
-  ])
+  const services = await getBusinessServices(business.workspaceId)
 
   return (
     <MessagesShell
       businessName={business.name}
       title="Form"
-      description="A callback / lead form. Your designer styles it; submissions land here and in your inbox."
+      description="A one-question-at-a-time form. Every answer is emailed to you; nothing is stored."
     >
       <FormConfigurator
         roomName={business.roomName}
         initial={services.form}
         ownerEmail={user.email ?? ''}
-        submissions={submissions.map((row) => ({
-          id: row.id,
-          source: row.source,
-          createdAt: row.createdAt.toISOString(),
-          fields: (row.fields ?? {}) as Record<string, string>,
-        }))}
+        emailReady={isSmtpConfigured()}
       />
     </MessagesShell>
   )

@@ -4,7 +4,8 @@ export type StsOptions = {
     /** Publishable site key (sts_pk_live_…). Safe in the browser; only works on your allowed website. */
     siteKey: string;
 };
-export type FormFieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select';
+/** `select` is a multiple-choice question; `multiple` says whether several answers are allowed. */
+export type FormFieldType = 'text' | 'textarea' | 'email' | 'phone' | 'number' | 'url' | 'date' | 'select' | 'yesno' | 'rating';
 /** Brand colour picked in the dashboard, as a hex string (e.g. "#8b5cf6"). */
 export type StsAccent = string;
 export type StsFormField = {
@@ -13,9 +14,15 @@ export type StsFormField = {
     type: FormFieldType;
     required: boolean;
     options: string[];
+    /** `select` only: several choices may be picked (send them as a string array). */
+    multiple: boolean;
+    /** `rating` only: 5 = 1–5 stars, 10 = a 0–10 scale. Send the score as a string. */
+    scale: 5 | 10;
     placeholder: string;
     helpText: string;
 };
+/** One answer: a string, or a string array for a multi-answer `select` question. */
+export type StsFormAnswer = string | string[];
 export type StsForm = {
     title: string;
     description: string;
@@ -24,7 +31,8 @@ export type StsForm = {
     submitLabel: string;
     successMessage: string;
     accent: StsAccent;
-    layout: 'single' | 'double';
+    /** Background of the hosted form; use it as a hint for your own design. */
+    theme: 'light' | 'dark';
     /** Send the visitor here after a successful submit, when set. */
     redirectUrl: string | null;
 };

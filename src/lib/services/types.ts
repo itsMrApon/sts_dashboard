@@ -75,20 +75,39 @@ export type SpeakServiceConfig = {
   showHumanHandoff: boolean
 }
 
-export type FormFieldType = 'text' | 'email' | 'phone' | 'textarea' | 'select'
+/** `select` is the multiple-choice question (A/B/C cards); the id is kept so saved forms still load. */
+export type FormFieldType =
+  | 'text'
+  | 'textarea'
+  | 'email'
+  | 'phone'
+  | 'number'
+  | 'url'
+  | 'date'
+  | 'select'
+  | 'yesno'
+  | 'rating'
+
+export type RatingScale = 5 | 10
 
 export type FormField = {
   id: string
+  /** The question, shown large on its own screen. */
   label: string
   type: FormFieldType
   required: boolean
+  /** Choices for `select`. */
   options: string[]
+  /** `select` only: visitors may pick several choices. */
+  multiple: boolean
+  /** `rating` only: 5 = 1–5 stars, 10 = a 0–10 scale. */
+  scale: RatingScale
   placeholder: string
-  /** Small text under the field. */
+  /** Small text under the question. */
   helpText: string
 }
 
-export type FormLayout = 'single' | 'double'
+export type FormTheme = 'light' | 'dark'
 
 export type FormServiceConfig = {
   title: string
@@ -100,8 +119,8 @@ export type FormServiceConfig = {
   /** Empty = the business owner's account email. */
   notifyEmail: string
   accent: AccentId
-  /** Two columns puts short fields side by side (long text and dropdowns stay full width). */
-  layout: FormLayout
+  /** Background of the full-screen hosted form. */
+  theme: FormTheme
   /** Send visitors here after a successful submit (https only). Empty = show the success message. */
   redirectUrl: string
   /** Hidden trap field that bots fill in; those submissions are dropped. */
@@ -149,12 +168,33 @@ export const SERVICE_LIMITS = {
 } as const
 
 export const FORM_FIELD_TYPES: { id: FormFieldType; label: string }[] = [
-  { id: 'text', label: 'Text' },
+  { id: 'text', label: 'Short text' },
+  { id: 'textarea', label: 'Long text' },
   { id: 'email', label: 'Email' },
   { id: 'phone', label: 'Phone' },
-  { id: 'textarea', label: 'Long text' },
-  { id: 'select', label: 'Dropdown' },
+  { id: 'select', label: 'Multiple choice' },
+  { id: 'yesno', label: 'Yes / No' },
+  { id: 'rating', label: 'Rating' },
+  { id: 'date', label: 'Date' },
+  { id: 'number', label: 'Number' },
+  { id: 'url', label: 'Website' },
 ]
+
+/** A blank question with every property set (new fields in the editor, AI drafts). */
+export function newFormField(partial: Partial<FormField> = {}): FormField {
+  return {
+    id: fieldId(),
+    label: 'New question',
+    type: 'text',
+    required: false,
+    options: [],
+    multiple: false,
+    scale: 5,
+    placeholder: '',
+    helpText: '',
+    ...partial,
+  }
+}
 
 export const DEFAULT_CHAT_CONFIG: ChatServiceConfig = {
   greeting: 'Hi! How can I help you today?',
@@ -191,14 +231,36 @@ export const DEFAULT_FORM_CONFIG: FormServiceConfig = {
   title: 'Request a callback',
   description: "Leave your details and we'll get back to you shortly.",
   fields: [
-    { id: 'name', label: 'Name', type: 'text', required: false, options: [], placeholder: 'Your name', helpText: '' },
-    { id: 'phone', label: 'Phone', type: 'phone', required: true, options: [], placeholder: '', helpText: '' },
+    {
+      id: 'name',
+      label: "What's your name?",
+      type: 'text',
+      required: false,
+      options: [],
+      multiple: false,
+      scale: 5,
+      placeholder: 'Type your answer here…',
+      helpText: '',
+    },
+    {
+      id: 'phone',
+      label: "What's the best number to reach you?",
+      type: 'phone',
+      required: true,
+      options: [],
+      multiple: false,
+      scale: 5,
+      placeholder: '',
+      helpText: '',
+    },
     {
       id: 'note',
       label: 'How can we help?',
       type: 'textarea',
       required: false,
       options: [],
+      multiple: false,
+      scale: 5,
       placeholder: 'A few words about what you need',
       helpText: '',
     },
@@ -208,7 +270,7 @@ export const DEFAULT_FORM_CONFIG: FormServiceConfig = {
   successMessage: "Thanks! We'll be in touch soon.",
   notifyEmail: '',
   accent: 'violet',
-  layout: 'single',
+  theme: 'light',
   redirectUrl: '',
   spamProtection: true,
   showChatLink: true,
@@ -303,6 +365,7 @@ function isFieldType(value: unknown): value is FormFieldType {
   return FORM_FIELD_TYPES.some((type) => type.id === value)
 }
 
+
 export function sanitizeFormConfig(raw: unknown): FormServiceConfig {
   const input = record(raw)
   const seen = new Set<string>()
@@ -316,18 +379,22 @@ export function sanitizeFormConfig(raw: unknown): FormServiceConfig {
     const label = text(field.label, SERVICE_LIMITS.fieldLabel)
     if (!label) continue
     const type = isFieldType(field.type) ? field.type : 'text'
+    const options =
+      type === 'select' && Array.isArray(field.options)
+        ? [...new Set(field.options.map((option) => text(option, SERVICE_LIMITS.option)).filter(Boolean))].slice(
+            0,
+            SERVICE_LIMITS.maxOptions,
+          )
+        : []
     fields.push({
       id,
       label,
-      type,
+      // A choice question needs choices; without any it falls back to short text.
+      type: type === 'select' && options.length === 0 ? 'text' : type,
       required: Boolean(field.required),
-      options:
-        type === 'select' && Array.isArray(field.options)
-          ? field.options
-              .map((option) => text(option, SERVICE_LIMITS.option))
-              .filter(Boolean)
-              .slice(0, SERVICE_LIMITS.maxOptions)
-          : [],
+      options,
+      multiple: type === 'select' && field.multiple === true,
+      scale: field.scale === 10 ? 10 : 5,
       placeholder: text(field.placeholder, SERVICE_LIMITS.placeholder),
       helpText: text(field.helpText, SERVICE_LIMITS.helpText),
     })
@@ -342,9 +409,9 @@ export function sanitizeFormConfig(raw: unknown): FormServiceConfig {
     consentText: 'consentText' in input ? text(input.consentText, SERVICE_LIMITS.consent) : DEFAULT_FORM_CONFIG.consentText,
     submitLabel: text(input.submitLabel, SERVICE_LIMITS.submitLabel) || DEFAULT_FORM_CONFIG.submitLabel,
     successMessage: text(input.successMessage, SERVICE_LIMITS.successMessage) || DEFAULT_FORM_CONFIG.successMessage,
-    notifyEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail) ? notifyEmail : '',
+    notifyEmail: EMAIL_RE.test(notifyEmail) ? notifyEmail : '',
     accent: oneOf(input.accent, ACCENTS, DEFAULT_FORM_CONFIG.accent),
-    layout: input.layout === 'double' ? 'double' : 'single',
+    theme: input.theme === 'dark' ? 'dark' : 'light',
     redirectUrl: safeLink(input.redirectUrl),
     spamProtection: bool(input.spamProtection, DEFAULT_FORM_CONFIG.spamProtection),
     showChatLink: bool(input.showChatLink, DEFAULT_FORM_CONFIG.showChatLink),
@@ -354,7 +421,82 @@ export function sanitizeFormConfig(raw: unknown): FormServiceConfig {
 /** Name of the hidden trap field (spam protection). Real visitors never see or fill it. */
 export const FORM_HONEYPOT_FIELD = 'company_website'
 
+/** Cleaned answers, one string per question (several choices joined with ", "). */
 export type FormValues = Record<string, string>
+
+/** What a visitor sends: a string per question, or a list for multi-answer choice questions. */
+export type FormAnswer = string | string[]
+export type FormAnswers = Record<string, FormAnswer>
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_RE = /^[+\d][\d\s()-]{5,}$/
+const NUMBER_RE = /^-?\d+([.,]\d+)?$/
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Adds https:// to a bare domain ("acme.com") and checks it is a real web address. */
+function normalizeWebsite(value: string): string | null {
+  const candidate = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  try {
+    const url = new URL(candidate)
+    return url.hostname.includes('.') ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+/** True for a filled-in answer ('' and [] count as empty). */
+export function hasAnswer(answer: FormAnswer | undefined): boolean {
+  return Array.isArray(answer) ? answer.length > 0 : Boolean(answer?.trim())
+}
+
+/**
+ * Checks one answer against its question. Used by the step-by-step form (before moving on)
+ * and by the server, so both give the same message. Bangla text is kept as typed.
+ */
+export function validateFieldAnswer(
+  field: FormField,
+  raw: unknown,
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  const list = Array.isArray(raw) ? raw : null
+  const value = list ? '' : text(raw, SERVICE_LIMITS.fieldValue)
+  if (!(list ? list.length : value)) {
+    return field.required ? { ok: false, error: 'Please fill this in' } : { ok: true, value: null }
+  }
+
+  switch (field.type) {
+    case 'email':
+      return EMAIL_RE.test(value) ? { ok: true, value } : { ok: false, error: 'Enter a valid email, like name@example.com' }
+    case 'phone':
+      return PHONE_RE.test(value) ? { ok: true, value } : { ok: false, error: 'Enter a valid phone number' }
+    case 'number':
+      return NUMBER_RE.test(value) ? { ok: true, value } : { ok: false, error: 'Enter a number' }
+    case 'url': {
+      const website = normalizeWebsite(value)
+      return website ? { ok: true, value: website } : { ok: false, error: 'Enter a website, like example.com' }
+    }
+    case 'date':
+      return DATE_RE.test(value) && !Number.isNaN(Date.parse(value))
+        ? { ok: true, value }
+        : { ok: false, error: 'Pick a date' }
+    case 'yesno':
+      return value === 'Yes' || value === 'No' ? { ok: true, value } : { ok: false, error: 'Choose Yes or No' }
+    case 'rating': {
+      const score = Number(value)
+      const min = field.scale === 10 ? 0 : 1
+      return Number.isInteger(score) && score >= min && score <= field.scale
+        ? { ok: true, value: `${score} / ${field.scale}` }
+        : { ok: false, error: 'Pick a rating' }
+    }
+    case 'select': {
+      const picked = (list ?? [value]).map((item) => text(item, SERVICE_LIMITS.option))
+      if (!field.multiple && picked.length > 1) return { ok: false, error: 'Choose one option' }
+      if (picked.some((item) => !field.options.includes(item))) return { ok: false, error: 'Choose one of the options' }
+      return { ok: true, value: [...new Set(picked)].join(', ') }
+    }
+    default:
+      return { ok: true, value }
+  }
+}
 
 /** Validates visitor input against the form schema. Returns cleaned values or the first error. */
 export function validateFormValues(
@@ -365,23 +507,11 @@ export function validateFormValues(
   const input = record(raw)
   const values: FormValues = {}
   for (const field of config.fields) {
-    const value = text(input[field.id], SERVICE_LIMITS.fieldValue)
-    if (!value) {
-      if (field.required) return { ok: false, error: `${field.label} is required`, fieldId: field.id }
-      continue
-    }
-    if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-      return { ok: false, error: `${field.label} must be a valid email`, fieldId: field.id }
-    }
-    if (field.type === 'phone' && !/^[+\d][\d\s()-]{5,}$/.test(value)) {
-      return { ok: false, error: `${field.label} must be a valid phone number`, fieldId: field.id }
-    }
-    if (field.type === 'select' && field.options.length && !field.options.includes(value)) {
-      return { ok: false, error: `Choose a valid ${field.label}`, fieldId: field.id }
-    }
-    values[field.id] = value
+    const checked = validateFieldAnswer(field, input[field.id])
+    if (!checked.ok) return { ok: false, error: `${field.label}: ${checked.error}`, fieldId: field.id }
+    if (checked.value) values[field.id] = checked.value
   }
   if (config.consentText && !consentGiven) return { ok: false, error: 'Please accept the consent checkbox' }
-  if (Object.keys(values).length === 0) return { ok: false, error: 'Fill in at least one field' }
+  if (Object.keys(values).length === 0) return { ok: false, error: 'Answer at least one question' }
   return { ok: true, values }
 }

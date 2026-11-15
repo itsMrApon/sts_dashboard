@@ -5,6 +5,7 @@ import { clientIp } from '@/lib/embed/clientIp'
 import { checkRateLimit, consumeDailyQuota, EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { loadPublicBusiness, serviceAccess } from '@/lib/public/publicService'
 import { submitBusinessForm } from '@/lib/services/formSubmit'
+import type { FormAnswers } from '@/lib/services/types'
 
 type FormResult = { ok: true; message: string } | { ok: false; error: string; fieldId?: string }
 
@@ -13,7 +14,7 @@ const TOO_MANY = 'Too many submissions. Please try again later.'
 /** Submit on the hosted Form page (/form/[roomName]). Same limits as the website SDK form. */
 export async function submitHostedForm(input: {
   roomName: string
-  values: Record<string, string>
+  values: FormAnswers
   consent: boolean
 }): Promise<FormResult> {
   const roomName = typeof input.roomName === 'string' ? input.roomName.slice(0, 255) : ''
@@ -33,7 +34,6 @@ export async function submitHostedForm(input: {
 
   try {
     const result = await submitBusinessForm({
-      workspaceId: loaded.business.workspaceId,
       ownerUserId: loaded.business.userId,
       businessName: loaded.business.name,
       config: loaded.services.form.config,

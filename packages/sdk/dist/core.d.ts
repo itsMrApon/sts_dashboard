@@ -1,4 +1,4 @@
-import { type StsBusiness, type StsChatReply, type StsForm, type StsOptions, type StsSessionInfo, type StsSpeakConnection, type StsWizard } from './types.js';
+import { type StsBusiness, type StsChatReply, type StsForm, type StsFormAnswer, type StsOptions, type StsSessionInfo, type StsSpeakConnection, type StsWizard } from './types.js';
 /**
  * Framework-agnostic STS-AI client. One instance per site.
  * Handles the site-key → session exchange and refreshes the session before it expires.
@@ -16,7 +16,7 @@ export declare function createSts(options: StsOptions): {
     };
     form: {
         schema(): Promise<StsForm>;
-        submit(values: Record<string, string>, consent: boolean): Promise<string>;
+        submit(values: Record<string, StsFormAnswer>, consent: boolean): Promise<string>;
     };
     wizard: {
         load(slug: string): Promise<StsWizard>;

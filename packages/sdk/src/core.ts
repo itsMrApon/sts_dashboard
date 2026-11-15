@@ -3,6 +3,7 @@ import {
   type StsBusiness,
   type StsChatReply,
   type StsForm,
+  type StsFormAnswer,
   type StsOptions,
   type StsSessionInfo,
   type StsSpeakConnection,
@@ -98,7 +99,7 @@ export function createSts(options: StsOptions) {
       async schema(): Promise<StsForm> {
         return (await request<{ form: StsForm }>('/api/sdk/v1/form')).form
       },
-      async submit(values: Record<string, string>, consent: boolean): Promise<string> {
+      async submit(values: Record<string, StsFormAnswer>, consent: boolean): Promise<string> {
         const body = await request<{ message: string }>('/api/sdk/v1/form', {
           method: 'POST',
           body: JSON.stringify({ values, consent }),

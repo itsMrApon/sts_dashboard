@@ -1,86 +1,77 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMemo, useState, useTransition } from 'react'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   BellRing,
   ClipboardList,
   FileText,
-  Inbox,
   ListChecks,
   Loader2,
   Palette,
   PartyPopper,
   Plus,
+  RotateCcw,
+  Sparkles,
   Trash2,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { deleteFormSubmission, saveFormService, submitFormPreview } from '@/actions/services'
+import { draftFormWithAI, saveFormService, submitFormPreview } from '@/actions/services'
+import { FormFlow } from '@/components/services/form/FormFlow'
 import { ServiceStudio } from '@/components/services/studio/ServiceStudio'
 import { AccentPicker, ChoiceCards, Field, StudioSection, ToggleRow } from '@/components/services/studio/StudioPrimitives'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { guardAction } from '@/lib/clientActionErrors'
 import { SERVICE_SNIPPETS } from '@/lib/services/snippets'
 import {
   ACCENTS,
   FORM_FIELD_TYPES,
   SERVICE_LIMITS,
   accentHex,
-  fieldId,
+  newFormField,
   type FormField,
   type FormFieldType,
   type FormServiceConfig,
   type ServiceState,
 } from '@/lib/services/types'
-import { cn } from '@/lib/utils'
-import { guardAction } from '@/lib/clientActionErrors'
-
-type Submission = { id: string; source: string; createdAt: string; fields: Record<string, string> }
 
 const SELECT_CLASS = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm'
 const SECTIONS = [
   { id: 'content', label: 'Content' },
-  { id: 'fields', label: 'Fields' },
+  { id: 'questions', label: 'Questions' },
   { id: 'after', label: 'After submit' },
   { id: 'delivery', label: 'Delivery & spam' },
   { id: 'look', label: 'Look' },
-  { id: 'submissions', label: 'Submissions' },
 ]
 
-/** Long text and dropdowns always take the full row in the two-column layout. */
-const isWide = (field: FormField) => field.type === 'textarea' || field.type === 'select'
-
-function inputTypeFor(type: FormFieldType) {
-  if (type === 'email') return 'email'
-  if (type === 'phone') return 'tel'
-  return 'text'
-}
+/** Question types where a placeholder shows (choice-style questions have none). */
+const TYPED_ANSWER: FormFieldType[] = ['text', 'textarea', 'email', 'phone', 'number', 'url']
 
 export function FormConfigurator({
   roomName,
   initial,
   ownerEmail,
-  submissions,
+  emailReady,
 }: {
   roomName: string
   initial: ServiceState<FormServiceConfig>
   ownerEmail: string
-  submissions: Submission[]
+  /** SMTP is configured on the server. Without it no submission can be delivered. */
+  emailReady: boolean
 }) {
-  const router = useRouter()
   const [enabled, setEnabled] = useState(initial.enabled)
   const [config, setConfig] = useState(initial.config)
   const [saved, setSaved] = useState(() => JSON.stringify(initial))
   const [isSaving, startSaving] = useTransition()
-
-  const [values, setValues] = useState<Record<string, string>>({})
-  const [consent, setConsent] = useState(false)
-  const [isSubmitting, startSubmitting] = useTransition()
-  const [resultMessage, setResultMessage] = useState<string | null>(null)
+  const [isDrafting, startDrafting] = useTransition()
+  // Remounts the preview (back to question 1, answers cleared).
+  const [previewKey, setPreviewKey] = useState(0)
 
   const dirty = JSON.stringify({ enabled, config }) !== saved
   const savedEnabled = (JSON.parse(saved) as { enabled: boolean }).enabled
@@ -88,6 +79,12 @@ export function FormConfigurator({
   const patch = (partial: Partial<FormServiceConfig>) => setConfig((current) => ({ ...current, ...partial }))
   const patchField = (id: string, partial: Partial<FormField>) =>
     patch({ fields: config.fields.map((field) => (field.id === id ? { ...field, ...partial } : field)) })
+
+  // Blank choices being typed stay in the editor but not in the preview.
+  const previewConfig = useMemo(
+    () => ({ ...config, fields: config.fields.map((field) => ({ ...field, options: field.options.filter((option) => option.trim()) })) }),
+    [config],
+  )
 
   const moveField = (index: number, direction: -1 | 1) => {
     const target = index + direction
@@ -97,120 +94,60 @@ export function FormConfigurator({
     patch({ fields })
   }
 
-  const addField = () =>
-    patch({
-      fields: [
-        ...config.fields,
-        { id: fieldId(), label: 'New field', type: 'text', required: false, options: [], placeholder: '', helpText: '' },
-      ],
+  const changeType = (field: FormField, type: FormFieldType) =>
+    patchField(field.id, {
+      type,
+      // A new choice question starts with two choices to edit.
+      options: type === 'select' && field.options.length === 0 ? ['Option 1', 'Option 2'] : field.options,
     })
 
   const save = () =>
-    startSaving(guardAction(async () => {
-      const result = await saveFormService({ enabled, config })
-      if (!result.ok) {
-        toast.error(result.error)
-        return
-      }
-      setConfig(result.config)
-      setSaved(JSON.stringify({ enabled, config: result.config }))
-      toast.success('Form saved')
-    }))
+    startSaving(
+      guardAction(async () => {
+        const result = await saveFormService({ enabled, config })
+        if (!result.ok) {
+          toast.error(result.error)
+          return
+        }
+        setConfig(result.config)
+        setSaved(JSON.stringify({ enabled, config: result.config }))
+        toast.success('Form saved')
+      }),
+    )
 
-  const testSubmit = () => {
-    if (dirty) {
-      toast.error('Save the form first. Test submissions use the saved version.')
-      return
-    }
-    startSubmitting(guardAction(async () => {
-      const result = await submitFormPreview({ values, consent })
-      if (!result.ok) {
-        setResultMessage(result.error)
-        return
-      }
-      setResultMessage(result.message + (result.emailed ? '' : ' (email not sent: SMTP is not configured)'))
-      setValues({})
-      setConsent(false)
-      router.refresh()
-    }))
-  }
+  const buildWithAI = () =>
+    startDrafting(
+      guardAction(async () => {
+        const result = await draftFormWithAI()
+        if (!result.ok) {
+          toast.error(result.error)
+          return
+        }
+        patch(result.draft)
+        setPreviewKey((key) => key + 1)
+        toast.success('Draft ready. Review the questions, then save.')
+      }),
+    )
 
   const preview = (
-    <form
-      className="max-h-[640px] space-y-4 overflow-y-auto p-5"
-      onSubmit={(event) => {
-        event.preventDefault()
-        testSubmit()
+    <FormFlow
+      key={previewKey}
+      frame="embedded"
+      config={previewConfig}
+      defaultCountry="US"
+      followRedirect={false}
+      onSubmit={async (values, consent) => {
+        if (dirty) return { ok: false, error: 'Save the form first. Test sends use the saved version.' }
+        return submitFormPreview({ values, consent })
       }}
-    >
-      <div>
-        <p className="text-base font-semibold">{config.title}</p>
-        {config.description ? <p className="mt-0.5 text-sm text-muted-foreground">{config.description}</p> : null}
-      </div>
-      <div className={cn('grid gap-3', config.layout === 'double' && 'sm:grid-cols-2')}>
-        {config.fields.map((field) => (
-          <div key={field.id} className={cn('space-y-1', config.layout === 'double' && isWide(field) && 'sm:col-span-2')}>
-            <label htmlFor={`preview-${field.id}`} className="text-xs font-medium">
-              {field.label}
-              {field.required ? <span className="text-destructive"> *</span> : null}
-            </label>
-            {field.type === 'textarea' ? (
-              <Textarea
-                id={`preview-${field.id}`}
-                rows={2}
-                placeholder={field.placeholder}
-                value={values[field.id] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [field.id]: e.target.value }))}
-              />
-            ) : field.type === 'select' ? (
-              <select
-                id={`preview-${field.id}`}
-                className={`${SELECT_CLASS} w-full`}
-                value={values[field.id] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [field.id]: e.target.value }))}
-              >
-                <option value="">{field.placeholder || 'Choose…'}</option>
-                {field.options.map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-            ) : (
-              <Input
-                id={`preview-${field.id}`}
-                type={inputTypeFor(field.type)}
-                placeholder={field.placeholder}
-                value={values[field.id] ?? ''}
-                onChange={(e) => setValues((v) => ({ ...v, [field.id]: e.target.value }))}
-              />
-            )}
-            {field.helpText ? <p className="text-[11px] text-muted-foreground">{field.helpText}</p> : null}
-          </div>
-        ))}
-      </div>
-      {config.consentText ? (
-        <label className="flex items-start gap-2 text-xs text-muted-foreground">
-          <input type="checkbox" className="mt-0.5" style={{ accentColor: accent }} checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          {config.consentText}
-        </label>
-      ) : null}
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="flex h-10 w-full items-center justify-center gap-2 rounded-full text-sm font-medium text-white disabled:opacity-60"
-        style={{ backgroundColor: accent }}
-      >
-        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {config.submitLabel} (test)
-      </button>
-      {resultMessage ? <p className="text-center text-xs text-muted-foreground">{resultMessage}</p> : null}
-    </form>
+    />
   )
 
   return (
     <ServiceStudio
       name="Form"
       icon={ClipboardList}
-      tagline="A callback and lead form. Submissions land here and in your inbox."
+      tagline="A one-question-at-a-time form. Every answer is emailed to you."
       status={{ live: savedEnabled, label: savedEnabled ? 'Live' : 'Off' }}
       toggle={{ label: 'On website', checked: enabled, onChange: setEnabled }}
       publicHref={`/form/${encodeURIComponent(roomName)}`}
@@ -220,6 +157,12 @@ export function FormConfigurator({
       sections={SECTIONS}
       preview={preview}
       previewTitle="form · live preview"
+      previewActions={
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setPreviewKey((key) => key + 1)}>
+          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+          Restart
+        </Button>
+      }
       integrate={{
         serviceName: 'Form',
         roomName,
@@ -233,17 +176,27 @@ export function FormConfigurator({
         id="content"
         icon={FileText}
         title="Content"
-        description="The heading, the line under it and the button."
+        description="Shown above the first question, plus the button on the last one."
         summary={[
           { label: 'title', value: config.title },
           { label: 'button', value: config.submitLabel },
         ]}
+        action={
+          <Button size="sm" onClick={buildWithAI} disabled={isDrafting}>
+            {isDrafting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
+            Build with AI
+          </Button>
+        }
       >
+        <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <strong className="text-foreground">Build with AI</strong> writes the title, intro and questions from your business
+          details, services and AI agent prompt. It replaces the current questions; nothing is saved until you press Save.
+        </p>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Title" htmlFor="form-title" counter={`${config.title.length}/${SERVICE_LIMITS.formTitle}`}>
             <Input id="form-title" value={config.title} maxLength={SERVICE_LIMITS.formTitle} onChange={(e) => patch({ title: e.target.value })} />
           </Field>
-          <Field label="Button label" htmlFor="form-submit">
+          <Field label="Last button" htmlFor="form-submit" hint="Earlier questions use “OK”.">
             <Input
               id="form-submit"
               value={config.submitLabel}
@@ -252,7 +205,7 @@ export function FormConfigurator({
             />
           </Field>
         </div>
-        <Field label="Description" htmlFor="form-description" counter={`${config.description.length}/${SERVICE_LIMITS.formDescription}`}>
+        <Field label="Intro" htmlFor="form-description" counter={`${config.description.length}/${SERVICE_LIMITS.formDescription}`}>
           <Textarea
             id="form-description"
             rows={2}
@@ -264,19 +217,24 @@ export function FormConfigurator({
       </StudioSection>
 
       <StudioSection
-        id="fields"
+        id="questions"
         icon={ListChecks}
         accent="sky"
-        title="Fields"
-        description="What you ask for. Phone fields get a country-code picker on the hosted page."
+        title="Questions"
+        description="One question per screen, in this order. Phone questions get a country-code picker."
         summary={[
-          { label: 'fields', value: `${config.fields.length} of ${SERVICE_LIMITS.maxFields}` },
+          { label: 'questions', value: `${config.fields.length} of ${SERVICE_LIMITS.maxFields}` },
           { label: 'required', value: config.fields.filter((field) => field.required).map((field) => field.label).join(', ') || 'none' },
         ]}
         action={
-          <Button variant="outline" size="sm" disabled={config.fields.length >= SERVICE_LIMITS.maxFields} onClick={addField}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={config.fields.length >= SERVICE_LIMITS.maxFields}
+            onClick={() => patch({ fields: [...config.fields, newFormField()] })}
+          >
             <Plus className="mr-1.5 h-4 w-4" />
-            Add field
+            Add question
           </Button>
         }
       >
@@ -284,21 +242,24 @@ export function FormConfigurator({
           {config.fields.map((field, index) => (
             <li key={field.id} className="space-y-3 rounded-xl border border-border/70 bg-muted/20 p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border font-mono text-[10px] text-muted-foreground">
+                <span
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] text-white"
+                  style={{ backgroundColor: accent }}
+                >
                   {index + 1}
                 </span>
                 <Input
-                  className="min-w-[160px] flex-1"
+                  className="min-w-[180px] flex-1"
                   value={field.label}
                   maxLength={SERVICE_LIMITS.fieldLabel}
                   onChange={(e) => patchField(field.id, { label: e.target.value })}
-                  aria-label={`Field ${index + 1} label`}
+                  aria-label={`Question ${index + 1}`}
                 />
                 <select
                   className={SELECT_CLASS}
                   value={field.type}
-                  onChange={(e) => patchField(field.id, { type: e.target.value as FormFieldType })}
-                  aria-label={`Field ${index + 1} type`}
+                  onChange={(e) => changeType(field, e.target.value as FormFieldType)}
+                  aria-label={`Question ${index + 1} type`}
                 >
                   {FORM_FIELD_TYPES.map((type) => (
                     <option key={type.id} value={type.id}>
@@ -330,38 +291,46 @@ export function FormConfigurator({
                     className="h-7 w-7 text-destructive"
                     disabled={config.fields.length <= 1}
                     onClick={() => patch({ fields: config.fields.filter((item) => item.id !== field.id) })}
-                    aria-label="Remove field"
+                    aria-label="Remove question"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Input
-                  value={field.placeholder}
-                  maxLength={SERVICE_LIMITS.placeholder}
-                  onChange={(e) => patchField(field.id, { placeholder: e.target.value })}
-                  placeholder={field.type === 'select' ? 'First option text, e.g. Choose a service' : 'Placeholder (optional)'}
-                  aria-label={`Field ${index + 1} placeholder`}
-                />
+
+              <div className={TYPED_ANSWER.includes(field.type) ? 'grid gap-2 sm:grid-cols-2' : undefined}>
+                {TYPED_ANSWER.includes(field.type) ? (
+                  <Input
+                    value={field.placeholder}
+                    maxLength={SERVICE_LIMITS.placeholder}
+                    onChange={(e) => patchField(field.id, { placeholder: e.target.value })}
+                    placeholder="Placeholder (optional)"
+                    aria-label={`Question ${index + 1} placeholder`}
+                  />
+                ) : null}
                 <Input
                   value={field.helpText}
                   maxLength={SERVICE_LIMITS.helpText}
                   onChange={(e) => patchField(field.id, { helpText: e.target.value })}
-                  placeholder="Help text under the field (optional)"
-                  aria-label={`Field ${index + 1} help text`}
+                  placeholder="Description under the question (optional)"
+                  aria-label={`Question ${index + 1} description`}
                 />
               </div>
+
               {field.type === 'select' ? (
-                <Input
-                  value={field.options.join(', ')}
-                  onChange={(e) =>
-                    patchField(field.id, {
-                      options: e.target.value.split(',').map((option) => option.trim()).filter(Boolean),
-                    })
-                  }
-                  placeholder="Options, comma separated"
-                  aria-label={`Field ${index + 1} options`}
+                <ChoicesEditor field={field} accent={accent} onChange={(partial) => patchField(field.id, partial)} />
+              ) : null}
+
+              {field.type === 'rating' ? (
+                <ChoiceCards
+                  ariaLabel={`Question ${index + 1} rating scale`}
+                  columns={2}
+                  value={String(field.scale) as '5' | '10'}
+                  options={[
+                    { id: '5', label: '1–5 stars' },
+                    { id: '10', label: '0–10 scale' },
+                  ]}
+                  onChange={(scale) => patchField(field.id, { scale: scale === '10' ? 10 : 5 })}
                 />
               ) : null}
             </li>
@@ -376,11 +345,11 @@ export function FormConfigurator({
         title="After submit"
         description="What visitors see once they send the form."
         summary={[
-          { label: 'then', value: config.redirectUrl ? `go to ${config.redirectUrl}` : 'show success message' },
+          { label: 'then', value: config.redirectUrl ? `go to ${config.redirectUrl}` : 'show thank-you message' },
           { label: 'chat link', value: config.showChatLink ? 'on' : 'off' },
         ]}
       >
-        <Field label="Success message" htmlFor="form-success" counter={`${config.successMessage.length}/${SERVICE_LIMITS.successMessage}`}>
+        <Field label="Thank-you message" htmlFor="form-success" counter={`${config.successMessage.length}/${SERVICE_LIMITS.successMessage}`}>
           <Input
             id="form-success"
             value={config.successMessage}
@@ -404,7 +373,7 @@ export function FormConfigurator({
         </Field>
         <ToggleRow
           label="Offer “Chat with us” after sending"
-          hint="Shown on the success screen when Chat AI is on."
+          hint="Shown on the thank-you screen when Chat AI is on."
           checked={config.showChatLink}
           onChange={(showChatLink) => patch({ showChatLink })}
         />
@@ -415,14 +384,24 @@ export function FormConfigurator({
         icon={BellRing}
         accent="amber"
         title="Delivery & spam"
-        description="Where submissions go, the consent box, and protection from bots."
+        description="Answers are emailed to you and not stored anywhere else."
         summary={[
           { label: 'email to', value: config.notifyEmail || ownerEmail || 'your account email' },
           { label: 'consent', value: config.consentText ? 'required' : 'none' },
           { label: 'spam trap', value: config.spamProtection ? 'on' : 'off' },
         ]}
       >
-        <Field label="Send submissions to" htmlFor="form-email" hint="Empty uses your account email.">
+        {!emailReady ? (
+          <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+            <span>
+              Email (SMTP) isn&apos;t set up on the server, so submissions can&apos;t be delivered and visitors will see an
+              error. Add <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> and <code>SMTP_FROM</code> to the
+              environment.
+            </span>
+          </p>
+        ) : null}
+        <Field label="Send answers to" htmlFor="form-email" hint="Empty uses your account email. Replying goes to the visitor when they gave an email.">
           <Input
             id="form-email"
             type="email"
@@ -432,7 +411,7 @@ export function FormConfigurator({
             placeholder={ownerEmail || 'your@email.com'}
           />
         </Field>
-        <Field label="Consent checkbox" htmlFor="form-consent" hint="Leave empty for no checkbox.">
+        <Field label="Consent checkbox" htmlFor="form-consent" hint="Shown on the last question. Leave empty for no checkbox.">
           <Textarea
             id="form-consent"
             rows={2}
@@ -454,74 +433,91 @@ export function FormConfigurator({
         icon={Palette}
         accent="rose"
         title="Look"
-        description="Colour and layout on the hosted form. The SDK passes both to your designer."
+        description="The hosted form fills the whole screen. The SDK passes these to your designer."
         summary={[
           { label: 'accent', value: `${ACCENTS.find((item) => item.id === config.accent)?.label} ${accent}` },
-          { label: 'layout', value: config.layout === 'double' ? 'two columns' : 'one column' },
+          { label: 'background', value: config.theme },
         ]}
       >
-        <Field label="Accent colour">
-          <AccentPicker value={config.accent} onChange={(value) => patch({ accent: value })} />
-        </Field>
-        <Field label="Layout">
+        <Field label="Background">
           <ChoiceCards
-            ariaLabel="Layout"
+            ariaLabel="Background"
             columns={2}
-            value={config.layout}
+            value={config.theme}
             options={[
-              { id: 'single', label: 'One column', hint: 'Best on phones and short forms' },
-              { id: 'double', label: 'Two columns', hint: 'Short fields side by side on wide screens' },
+              { id: 'light', label: 'Light', hint: 'Clean off-white page' },
+              { id: 'dark', label: 'Dark', hint: 'Near-black page' },
             ]}
-            onChange={(layout) => patch({ layout })}
+            onChange={(theme) => patch({ theme })}
           />
         </Field>
-      </StudioSection>
-
-      <StudioSection
-        id="submissions"
-        icon={Inbox}
-        accent="sky"
-        title="Submissions"
-        description="The latest 50, newest first. Test sends from the preview are marked “preview”."
-        summary={[{ label: 'shown', value: String(submissions.length) }]}
-      >
-        {submissions.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            No submissions yet. Try the preview on the right.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded-xl border border-border/70">
-            {submissions.map((submission) => (
-              <li key={submission.id} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
-                <div className="min-w-0 space-y-0.5">
-                  {Object.entries(submission.fields).map(([key, value]) => (
-                    <p key={key} className="truncate">
-                      <span className="text-muted-foreground">{config.fields.find((field) => field.id === key)?.label ?? key}:</span>{' '}
-                      {value}
-                    </p>
-                  ))}
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    {new Date(submission.createdAt).toLocaleString()} · {submission.source}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-destructive"
-                  aria-label="Delete submission"
-                  onClick={async () => {
-                    const result = await deleteFormSubmission(submission.id)
-                    if (result.ok) router.refresh()
-                    else toast.error(result.error)
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <Field label="Accent colour" hint="Buttons, progress bar and selected answers.">
+          <AccentPicker value={config.accent} onChange={(value) => patch({ accent: value })} />
+        </Field>
       </StudioSection>
     </ServiceStudio>
+  )
+}
+
+const LETTERS = 'ABCDEFGHIJKL'
+
+/** The choices of a multiple-choice question, one row each (A, B, C…). */
+function ChoicesEditor({
+  field,
+  accent,
+  onChange,
+}: {
+  field: FormField
+  accent: string
+  onChange: (partial: Partial<FormField>) => void
+}) {
+  const setOption = (index: number, value: string) =>
+    onChange({ options: field.options.map((option, i) => (i === index ? value : option)) })
+
+  return (
+    <div className="space-y-2">
+      {field.options.map((option, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <span
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded border text-[11px] font-semibold"
+            style={{ borderColor: `${accent}80`, color: accent }}
+          >
+            {LETTERS[index]}
+          </span>
+          <Input
+            value={option}
+            maxLength={SERVICE_LIMITS.option}
+            onChange={(e) => setOption(index, e.target.value)}
+            placeholder={`Choice ${index + 1}`}
+            aria-label={`Choice ${LETTERS[index]}`}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            disabled={field.options.length <= 1}
+            onClick={() => onChange({ options: field.options.filter((_, i) => i !== index) })}
+            aria-label={`Remove choice ${LETTERS[index]}`}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={field.options.length >= SERVICE_LIMITS.maxOptions}
+          onClick={() => onChange({ options: [...field.options, ''] })}
+        >
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add choice
+        </Button>
+        <label className="flex items-center gap-1.5 text-xs">
+          <Switch checked={field.multiple} onCheckedChange={(multiple) => onChange({ multiple })} />
+          Allow several answers
+        </label>
+      </div>
+    </div>
   )
 }

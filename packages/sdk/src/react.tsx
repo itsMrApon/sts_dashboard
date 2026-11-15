@@ -6,6 +6,7 @@ import {
   type StsBusiness,
   type StsChatLinks,
   type StsForm,
+  type StsFormAnswer,
   type StsSessionInfo,
   type StsWizard,
   type StsWizardStep,
@@ -166,7 +167,7 @@ export function useStsSpeak() {
 export function useStsForm() {
   const client = useSts()
   const [form, setForm] = useState<StsForm | null>(null)
-  const [values, setValues] = useState<Record<string, string>>({})
+  const [values, setValues] = useState<Record<string, StsFormAnswer>>({})
   const [consent, setConsent] = useState(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'submitting' | 'success' | 'error' | 'unavailable'>('loading')
   const [message, setMessage] = useState<string | null>(null)
@@ -191,7 +192,7 @@ export function useStsForm() {
     }
   }, [client])
 
-  const setValue = useCallback((fieldId: string, value: string) => {
+  const setValue = useCallback((fieldId: string, value: StsFormAnswer) => {
     setValues((current) => ({ ...current, [fieldId]: value }))
   }, [])
 

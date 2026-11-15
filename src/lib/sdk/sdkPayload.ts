@@ -45,7 +45,7 @@ export async function buildSdkSessionPayload(business: CreatorBusiness) {
             submitLabel: services.form.config.submitLabel,
             successMessage: services.form.config.successMessage,
             accent: accentHex(services.form.config.accent),
-            layout: services.form.config.layout,
+            theme: services.form.config.theme,
             redirectUrl: services.form.config.redirectUrl || null,
           }
         : null,

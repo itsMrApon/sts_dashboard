@@ -55,7 +55,7 @@ export function CallbackForm() {
   }
 
   return (
-    <form data-layout={form.layout} style={{ ['--accent' as string]: form.accent }}
+    <form data-theme={form.theme} style={{ ['--accent' as string]: form.accent }}
           onSubmit={(e) => { e.preventDefault(); submit() }}>
       <h3>{form.title}</h3>
       {form.fields.map((f) => (

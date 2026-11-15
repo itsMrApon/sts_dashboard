@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { type StsClient } from './core.js';
-import { type StsBusiness, type StsChatLinks, type StsForm, type StsSessionInfo, type StsWizard, type StsWizardStep } from './types.js';
+import { type StsBusiness, type StsChatLinks, type StsForm, type StsFormAnswer, type StsSessionInfo, type StsWizard, type StsWizardStep } from './types.js';
 /** Wrap your site once. Every hook below talks to your STS-AI business through this client. */
 export declare function StsProvider({ apiBase, siteKey, children }: {
     apiBase: string;
@@ -42,8 +42,8 @@ export declare function useStsSpeak(): {
 };
 export declare function useStsForm(): {
     form: StsForm | null;
-    values: Record<string, string>;
-    setValue: (fieldId: string, value: string) => void;
+    values: Record<string, StsFormAnswer>;
+    setValue: (fieldId: string, value: StsFormAnswer) => void;
     consent: boolean;
     setConsent: import("react").Dispatch<import("react").SetStateAction<boolean>>;
     submit: () => Promise<void>;

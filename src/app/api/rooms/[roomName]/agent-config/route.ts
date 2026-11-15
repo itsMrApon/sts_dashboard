@@ -38,7 +38,14 @@ export async function GET(
     });
 
     if (livekitAgent) {
-      const context = await buildAgentContext(baseRoomName);
+      // Only brief the agent on an offer it actually sells (the slug comes from the room name).
+      const offer = offerRoom ? await loadPublicOffer(offerRoom.offerSlug) : null;
+      const offerForAgent = offer?.live && offer.agentRoomName === baseRoomName ? offer : null;
+      // Business calls (Voice AI) are run by the voice assistant picked in Services, in its style.
+      const business = offerForAgent ? null : await getBusinessByRoomName(baseRoomName);
+      const speak = business ? (await getBusinessServices(business.workspaceId)).speak : null;
+      const voiceAssistant = speak?.agent ?? null;
+      const context = await buildAgentContext(baseRoomName, { persona: voiceAssistant });
 
       const userId = await resolveRoomOwnerUserId(livekitAgent.id, baseRoomName);
       // LLM + voice are account-wide (AI Agents → Config); legacy agent columns are the fallback.
@@ -61,15 +68,9 @@ export async function GET(
         select: { id: true },
       })
 
-      // Only brief the agent on an offer it actually sells (the slug comes from the room name).
-      const offer = offerRoom ? await loadPublicOffer(offerRoom.offerSlug) : null;
-      const offerForAgent = offer?.live && offer.agentRoomName === baseRoomName ? offer : null;
-      const agentInstructions = context.systemInstruction || livekitAgent.systemPrompt || aiAgentPrompt;
-      // Business calls (Speak AI) use the voice style set in Messages → Speak AI.
-      const business = offerForAgent ? null : await getBusinessByRoomName(baseRoomName);
-      const baseInstructions = business
-        ? `${agentInstructions}\n\n${speakStyleInstruction((await getBusinessServices(business.workspaceId)).speak.config)}`
-        : agentInstructions;
+      const agentInstructions =
+        context.systemInstruction || voiceAssistant?.systemPrompt || livekitAgent.systemPrompt || aiAgentPrompt;
+      const baseInstructions = speak ? `${agentInstructions}\n\n${speakStyleInstruction(speak.config)}` : agentInstructions;
       const config = {
         // Offer calls keep the full room name so their transcript can be matched to the buyer.
         room_name: offerForAgent ? roomName : livekitAgent.roomName,
@@ -88,7 +89,7 @@ export async function GET(
         // Turns on the agent's show_order_button tool (it messages the buyer's page).
         offer_slug: offerForAgent?.slug ?? null,
         offer_title: offerForAgent?.title ?? null,
-        language: livekitAgent.language || 'en',
+        language: voiceAssistant?.language || livekitAgent.language || 'en',
         voice_provider: engine.voiceProvider,
         voice_model: engine.voiceModel,
         llm_model: engine.llmModel,
@@ -97,12 +98,14 @@ export async function GET(
         stt_provider: engine.sttProvider,
         stt_model: engine.sttModel,
         voice_style: engine.voiceStyle,
+        // Voice AI pace set on the voice assistant (1 = normal).
+        speaking_speed: speak?.config.speakingSpeed ?? 1,
         realtime_provider: engine.realtimeProvider,
         realtime_model: engine.realtimeModel,
         realtime_voice: engine.realtimeVoice,
         enabled_mcp_servers: [] as string[],
         tenant_env: tenantEnv,
-        first_message: livekitAgent.firstMessage || null,
+        first_message: (voiceAssistant ? voiceAssistant.firstMessage : livekitAgent.firstMessage) || null,
         user_id: userId,
         transcript_ingest_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/transcripts/ingest`,
         transcript_api_key: process.env.N8N_API_KEY || '',

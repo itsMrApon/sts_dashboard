@@ -11,7 +11,7 @@ export const OPTIONS = withRouteErrors('api/sdk/v1/business', async function OPT
 
 /**
  * Business details for the website: name, description, the published profile, and the published
- * site content (SEO, services, key dates, socials, footer, look) from Messages → Business.
+ * site content (SEO, services, key dates, socials, footer, look) from Services → Business.
  */
 export const GET = withRouteErrors('api/sdk/v1/business', async function GET(request: Request) {
   const guard = await guardSdkRequest(request, { scope: 'read', perIp: EMBED_RATE_LIMITS.read })

@@ -183,4 +183,4 @@ export type ProviderKeyCheck = {
 }
 
 export const LLM_SURFACES = ['messages', 'leads', 'projects', 'tenants'] as const
-export const VOICE_PROVIDERS = ['fish', 'vapi', 'deepgram', 'livekit'] as const
+export const VOICE_PROVIDERS = ['fish', 'deepgram', 'livekit'] as const

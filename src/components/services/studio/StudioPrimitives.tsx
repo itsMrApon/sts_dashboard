@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import { Check, type LucideIcon } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -33,6 +33,17 @@ const ACCENT_GLOW: Record<StudioAccent, string> = {
 
 export type SummaryLine = { label: string; value: string }
 
+/**
+ * card: bordered cards with a summary panel (AI Agents). glass: the borderless showcase look
+ * used beside a live page (Services) — soft translucent panels, no summary.
+ */
+type Surface = 'card' | 'glass'
+const SurfaceContext = createContext<Surface>('card')
+
+export function StudioSurface({ value, children }: { value: Surface; children: ReactNode }) {
+  return <SurfaceContext.Provider value={value}>{children}</SurfaceContext.Provider>
+}
+
 /** One settings card: icon + title + description, the fields, and an optional summary panel. */
 export function StudioSection({
   id,
@@ -49,13 +60,35 @@ export function StudioSection({
   icon: LucideIcon
   accent?: StudioAccent
   title: string
-  description: string
+  description?: string
   summary?: SummaryLine[]
   summaryLabel?: string
   /** Top-right button (e.g. "Draft with AI"). */
   action?: ReactNode
   children: ReactNode
 }) {
+  const surface = useContext(SurfaceContext)
+
+  if (surface === 'glass') {
+    return (
+      <section
+        id={`studio-${id}`}
+        aria-labelledby={`studio-${id}-title`}
+        className="scroll-mt-32 space-y-5 rounded-2xl border border-white/5 bg-zinc-900/40 p-6 backdrop-blur-sm"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 id={`studio-${id}-title`} className={cn('flex items-center gap-2 text-sm font-medium', ACCENT_ICON[accent])}>
+            <Icon className="h-4 w-4" aria-hidden />
+            <span className="text-foreground">{title}</span>
+          </h2>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
+        {description ? <p className="-mt-3 text-sm text-muted-foreground">{description}</p> : null}
+        <div className="space-y-5">{children}</div>
+      </section>
+    )
+  }
+
   return (
     <section
       id={`studio-${id}`}
@@ -67,8 +100,8 @@ export function StudioSection({
     >
       <div className="flex flex-col @3xl:flex-row">
         <div className="min-w-0 flex-1 p-5 sm:p-6">
-          <div className="mb-5 flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-3">
+          <div className={cn('mb-5 flex justify-between gap-3', description ? 'items-start' : 'items-center')}>
+            <div className={cn('flex min-w-0 gap-3', description ? 'items-start' : 'items-center')}>
               <span className={cn('shrink-0 rounded-lg border border-border/60 bg-muted/60 p-2', ACCENT_ICON[accent])}>
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
@@ -76,7 +109,7 @@ export function StudioSection({
                 <h2 id={`studio-${id}-title`} className="text-base font-medium leading-tight">
                   {title}
                 </h2>
-                <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
               </div>
             </div>
             {action ? <div className="shrink-0">{action}</div> : null}

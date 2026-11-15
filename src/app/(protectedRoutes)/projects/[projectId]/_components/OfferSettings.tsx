@@ -488,7 +488,7 @@ export function OfferSettings({ offer }: Props) {
                   aria-label="Show on my business"
                 />
               ) : (
-                <Link href="/messages/publish" className="shrink-0 text-sm underline underline-offset-2">
+                <Link href="/services/publish" className="shrink-0 text-sm underline underline-offset-2">
                   Set up business
                 </Link>
               )}

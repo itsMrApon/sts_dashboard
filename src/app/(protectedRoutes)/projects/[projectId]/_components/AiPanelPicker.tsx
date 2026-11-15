@@ -39,8 +39,8 @@ export function AiPanelPicker({ offerId, picks, onChange, agents, tour }: Props)
       ...picks,
       aiServices: on ? [...picks.aiServices, service] : picks.aiServices.filter((item) => item !== service),
     })
-  // The product's own wizard profile in Messages → Wizard.
-  const tourHref = `/messages/wizard?product=${offerId}#tour-steps`
+  // The product's own wizard profile in Services → Wizard.
+  const tourHref = `/services/wizard?product=${offerId}#tour-steps`
 
   return (
     <div className="space-y-4">

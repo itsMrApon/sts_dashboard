@@ -132,10 +132,10 @@ export async function createPublishProfileQuick(data: {
       },
     })
 
-    revalidatePath('/messages')
+    revalidatePath('/services')
     revalidatePath('/integrations')
-    revalidatePath('/messages/publish')
-    revalidatePath('/messages/publish')
+    revalidatePath('/services/publish')
+    revalidatePath('/services/publish')
     return { ok: true, data: { id: business.id } }
   } catch (error) {
     console.error('createPublishProfileQuick error', error)
@@ -222,9 +222,9 @@ export async function createPublishProfile(data: {
       })
     }
 
-    revalidatePath('/messages')
+    revalidatePath('/services')
     if (primaryRoomName) {
-      revalidatePath(`/messages/${primaryRoomName}`)
+      revalidatePath(`/services/${primaryRoomName}`)
     }
     return { ok: true, data: { id: business.id, primaryRoomName } }
   } catch (error) {
@@ -320,10 +320,10 @@ export async function updatePublishProfile(
           ...(data.tenantId ? { workspaceId: data.tenantId } : {}),
         },
       })
-      revalidatePath(`/messages/${primaryRoomName}`)
+      revalidatePath(`/services/${primaryRoomName}`)
     }
 
-    revalidatePath('/messages')
+    revalidatePath('/services')
     return { ok: true }
   } catch (error) {
     console.error('updatePublishProfile error', error)
@@ -359,7 +359,7 @@ export async function setHomeFeaturedRoom(roomName: string): Promise<ActionResul
   if (!link) {
     return {
       ok: false,
-      error: 'Link this room to a publish profile first (Messages → New room).',
+      error: 'Link this room to a publish profile first (Services → New room).',
     }
   }
 
@@ -384,8 +384,8 @@ export async function setHomeFeaturedRoom(roomName: string): Promise<ActionResul
     ])
 
     revalidatePath('/home')
-    revalidatePath('/messages')
-    revalidatePath(`/messages/${roomName}`)
+    revalidatePath('/services')
+    revalidatePath(`/services/${roomName}`)
     return { ok: true }
   } catch (error) {
     console.error('setHomeFeaturedRoom error', error)
@@ -678,10 +678,10 @@ export async function deletePublishProfile(publishProfileId: string): Promise<Ac
       where: { id: publishProfileId, userId: user.id },
     })
 
-    revalidatePath('/messages')
+    revalidatePath('/services')
     revalidatePath('/integrations')
-    revalidatePath('/messages/publish')
-    revalidatePath('/messages/publish')
+    revalidatePath('/services/publish')
+    revalidatePath('/services/publish')
     return { ok: true }
   } catch (error) {
     console.error('deletePublishProfile error', error)

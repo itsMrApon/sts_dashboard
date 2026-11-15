@@ -34,7 +34,7 @@ export function PartnersIntro({ workspaceId, connectedPartners = [] }: Props) {
   const headerAction = !workspaceId ? (
     <p className="text-muted-foreground text-sm">
       Partners attach to your Messages room.{' '}
-      <Link href="/messages" className="font-medium text-primary underline">
+      <Link href="/services" className="font-medium text-primary underline">
         Create a room
       </Link>{' '}
       first, then come back to connect.

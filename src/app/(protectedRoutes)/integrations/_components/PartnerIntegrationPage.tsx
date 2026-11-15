@@ -129,7 +129,7 @@ export function PartnerIntegrationPage({
 
   const handleCreate = () => {
     if (!workspaceId) {
-      toast.error('Create a Messages room first, then connect this partner.')
+      toast.error('Set up your business in Services first, then connect this partner.')
       return
     }
     startTransition(guardAction(async () => {
@@ -248,7 +248,7 @@ export function PartnerIntegrationPage({
                     : `/${guide.kind}`,
             dim: true,
           },
-          { text: workspaceId ? `workspace: ${workspaceName}` : 'workspace: create a Messages room', dim: true },
+          { text: workspaceId ? `workspace: ${workspaceName}` : 'workspace: set up Services first', dim: true },
         ],
       },
       extra: connector ? (
@@ -298,7 +298,7 @@ export function PartnerIntegrationPage({
           {!workspaceId ? (
             <p className="text-xs text-zinc-500">
               Create a room in{' '}
-              <Link href="/messages" className="text-zinc-200 underline">
+              <Link href="/services" className="text-zinc-200 underline">
                 Messages
               </Link>{' '}
               first.

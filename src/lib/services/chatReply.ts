@@ -49,8 +49,10 @@ export async function generateRoomChatReply(input: {
   extraInstruction?: string
   /** Token the model may emit as a signal; stripped from the reply and stored history. */
   marker?: string
+  /** The Chat AI assistant picked in Services (its prompt replaces the room agent's). */
+  persona?: { name: string; systemPrompt: string | null; firstMessage: string | null } | null
 }): Promise<ChatReplyResult> {
-  const { roomName, message, sessionId, extraInstruction, marker } = input
+  const { roomName, message, sessionId, extraInstruction, marker, persona } = input
 
   const agent = await prismaClient.liveKitAgent.findUnique({ where: { roomName } })
   if (!agent) return { ok: false, status: 404, error: 'Agent not found' }
@@ -73,7 +75,7 @@ export async function generateRoomChatReply(input: {
   // The agent owner's own key only — never the platform's GOOGLE_API_KEY.
   const googleApiKey = safeDecrypt(ownerVoiceCred?.googleApiKey) || null
 
-  const agentContext = await buildAgentContext(roomName)
+  const agentContext = await buildAgentContext(roomName, { persona })
 
   const conversation = await prismaClient.messageConversation.findFirst({
     where: { channelId: channel.id, externalId: sessionId },

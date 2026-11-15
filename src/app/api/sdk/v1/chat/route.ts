@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       message,
       sessionId: `sdk-${guard.claims.sid}`,
       extraInstruction: chatStyleInstruction(chat.config),
+      persona: chat.agent,
     })
     if (!result.ok) {
       return sdkJson({ error: result.error, code: result.code ?? 'CHAT_FAILED' }, guard.corsHeaders, { status: result.status })

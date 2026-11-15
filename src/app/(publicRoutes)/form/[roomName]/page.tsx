@@ -46,7 +46,7 @@ export default async function FormServicePage({ params }: Props) {
       {access === 'owner-preview' ? (
         <div className="fixed inset-x-0 top-1 z-20 bg-amber-400 px-4 py-1.5 text-center text-xs font-medium text-black">
           Only you can see this. Form is off.{' '}
-          <Link href="/messages/form" className="underline underline-offset-2">
+          <Link href="/services/form" className="underline underline-offset-2">
             Turn it on
           </Link>{' '}
           to share it.
@@ -57,7 +57,7 @@ export default async function FormServicePage({ params }: Props) {
         businessName={loaded.business.name}
         config={config}
         chatHref={loaded.links.chat}
-        defaultCountry={loaded.agent.language === 'bn' ? 'BD' : 'US'}
+        defaultCountry={(loaded.services.form.agent?.language ?? loaded.agent.language) === 'bn' ? 'BD' : 'US'}
       />
     </>
   )

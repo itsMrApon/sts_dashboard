@@ -184,9 +184,11 @@ const COMPONENTS = {
   hr: withClass("hr", "border-foreground/20"),
 }
 
-function withClass(Tag: keyof JSX.IntrinsicElements, classes: string) {
+function withClass(Tag: keyof React.JSX.IntrinsicElements, classes: string) {
+  // Rendered as a generic element: the full intrinsic-element union makes `className` collapse to never.
+  const Element = Tag as unknown as React.ComponentType<Record<string, unknown>>
   const Component = ({ node, ...props }: any) => (
-    <Tag className={classes} {...props} />
+    <Element className={classes} {...props} />
   )
   Component.displayName = Tag
   return Component

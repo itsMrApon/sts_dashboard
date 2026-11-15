@@ -1,5 +1,6 @@
-# Dependencies & build
+# Dependencies & build (every level, e.g. packages/*/node_modules)
 node_modules
+**/node_modules
 npm-debug.log*
 yarn-error.log*
 .pnpm-store

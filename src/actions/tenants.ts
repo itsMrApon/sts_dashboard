@@ -67,7 +67,7 @@ export async function createWorkspace(data: {
   })
 
   revalidatePath('/integrations')
-  revalidatePath('/messages/publish')
+  revalidatePath('/services/publish')
   return { success: true, workspace, tenant: workspace }
 }
 
@@ -430,9 +430,9 @@ export async function saveTenantContextDraft(tenantId: string, draft: TenantCont
 
   revalidatePath('/integrations')
   revalidatePath(`/integrations`)
-  revalidatePath('/messages/publish')
-  revalidatePath('/messages/publish')
-  revalidatePath('/messages')
+  revalidatePath('/services/publish')
+  revalidatePath('/services/publish')
+  revalidatePath('/services')
   return { success: true }
 }
 
@@ -479,9 +479,9 @@ export async function importServicesCatalogToTenant(
 
     revalidatePath('/integrations')
     revalidatePath(`/integrations`)
-    revalidatePath('/messages/publish')
-    revalidatePath('/messages/publish')
-    revalidatePath('/messages')
+    revalidatePath('/services/publish')
+    revalidatePath('/services/publish')
+    revalidatePath('/services')
 
     return { success: true, typeSort, importedCount: typeSort.length, format }
   } catch (error) {
@@ -536,7 +536,7 @@ export async function publishTenantContext(tenantId: string) {
   await prismaClient.workspace.update({
     where: { id: tenantId },
     data: {
-      compactProfileJson: applyPublishModulesToCompact(compact, modules),
+      compactProfileJson: applyPublishModulesToCompact(compact, modules) as Prisma.InputJsonObject,
       compactTokenEstimate,
       contextVersion: version,
       contextStatus: ContextStatusEnum.PUBLISHED,
@@ -546,9 +546,9 @@ export async function publishTenantContext(tenantId: string) {
 
   revalidatePath('/integrations')
   revalidatePath(`/integrations`)
-  revalidatePath('/messages/publish')
-  revalidatePath('/messages/publish')
-  revalidatePath('/messages')
+  revalidatePath('/services/publish')
+  revalidatePath('/services/publish')
+  revalidatePath('/services')
   return { success: true, contextVersion: version, compactTokenEstimate }
 }
 
@@ -673,9 +673,9 @@ export async function updatePublishModules(
 
   revalidatePath('/integrations')
   revalidatePath(`/integrations`)
-  revalidatePath('/messages/publish')
-  revalidatePath('/messages/publish')
-  revalidatePath('/messages')
+  revalidatePath('/services/publish')
+  revalidatePath('/services/publish')
+  revalidatePath('/services')
   return { success: true, modules: normalized }
 }
 

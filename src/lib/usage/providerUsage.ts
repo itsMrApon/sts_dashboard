@@ -242,7 +242,7 @@ export async function getProviderUsageDashboard(
     const outputUnits = toNumber(row.outputUnits)
     const surface = normalizeUsageSurface(row.surface)
     const provider = normalizeUsageProvider(row.provider)
-    const isTransport = provider === 'livekit' || provider === 'vapi'
+    const isTransport = provider === 'livekit'
 
     if (!isTransport) {
       totals[kind].requests += requests

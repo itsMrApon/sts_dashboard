@@ -28,15 +28,17 @@ const nextConfig: NextConfig = {
       { source: '/tenants', destination: '/integrations', permanent: false },
       { source: '/tenants/chat', destination: '/integrations/chat', permanent: false },
       { source: '/tenants/partners', destination: '/integrations/partners', permanent: false },
-      { source: '/tenants/publish', destination: '/messages/publish', permanent: false },
-      { source: '/tenants/business-profile', destination: '/messages/publish', permanent: false },
+      { source: '/tenants/publish', destination: '/services/publish', permanent: false },
+      { source: '/tenants/business-profile', destination: '/services/publish', permanent: false },
       { source: '/tenants/:path*', destination: '/integrations', permanent: false },
-      // Voice AI is split into Chat AI / Speak AI / Form; the wizard moved under Messages.
-      { source: '/messages/voice', destination: '/messages/speak', permanent: false },
-      { source: '/messages/connections', destination: '/messages', permanent: false },
-      { source: '/wizard', destination: '/messages/wizard', permanent: false },
-      { source: '/wizard/:slug/configure', destination: '/messages/wizard', permanent: false },
-      { source: '/messages/wizard/:slug', destination: '/messages/wizard', permanent: false },
+      // Messages was renamed to Services; old links and bookmarks keep working.
+      { source: '/messages', destination: '/services', permanent: true },
+      { source: '/messages/voice', destination: '/services/speak', permanent: false },
+      { source: '/messages/connections', destination: '/services', permanent: false },
+      { source: '/messages/wizard/:slug', destination: '/services/wizard', permanent: false },
+      { source: '/messages/:path*', destination: '/services/:path*', permanent: true },
+      { source: '/wizard', destination: '/services/wizard', permanent: false },
+      { source: '/wizard/:slug/configure', destination: '/services/wizard', permanent: false },
     ]
   },
   compiler: {

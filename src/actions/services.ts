@@ -1,17 +1,22 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { WebServiceKind } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
 import { getCreatorBusiness, type CreatorBusiness } from '@/lib/business/creatorBusiness'
-import { getBusinessServices, saveServiceConfig } from '@/lib/services/serviceConfig'
+import { SERVICE_KIND, getBusinessServices, saveServiceConfig } from '@/lib/services/serviceConfig'
+import { LOOK_KEYS, splitServiceConfig } from '@/lib/agents/assistantServices'
 import { submitBusinessForm } from '@/lib/services/formSubmit'
 import { PAID_ACCESS_ERROR, userHasPaidAccess } from '@/lib/billing/paidAccess'
+import { getWebsiteConnection } from '@/lib/embed/websiteConnection'
+import { WEBSITE_REQUIRED_ERROR } from '@/lib/embed/websiteConnectionShared'
 import { siteContentFromLegacy } from '@/lib/business/siteContent'
 import { decryptToken } from '@/lib/messages/encrypt'
 import { generateReply } from '@/lib/messages/geminiText'
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
+import { ensureAgentEditAccess } from '@/lib/agents/agentAccess'
+import { FORM_DRAFT_BRIEF } from '@/lib/agents/assistantDraft'
 import {
   DEFAULT_FORM_CONFIG,
   sanitizeChatConfig,
@@ -36,62 +41,51 @@ async function blockedFromGoingLive(business: CreatorBusiness, enabled: boolean)
   return enabled && !(await userHasPaidAccess(business.userId))
 }
 
-export async function saveChatService(input: {
-  enabled: boolean
-  config: ChatServiceConfig
-}): Promise<ActionResult<{ config: ChatServiceConfig }>> {
-  const business = await myBusiness()
-  if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
-  if (await blockedFromGoingLive(business, Boolean(input.enabled))) return { ok: false, error: PAID_ACCESS_ERROR }
-  const config = sanitizeChatConfig(input.config)
-  await saveServiceConfig(business.workspaceId, WebServiceKind.CHAT, Boolean(input.enabled), config)
-  revalidatePath('/messages', 'layout')
-  return { ok: true, config }
-}
-
-const SPEAK_LANGUAGES = new Set(['en', 'bn'])
-const FIRST_LINE_MAX = 500
+type LookService = 'chat' | 'voice' | 'form'
+type LookConfig = { chat: ChatServiceConfig; voice: SpeakServiceConfig; form: FormServiceConfig }
 
 /**
- * Speak AI: language and first line live on the shared agent (read by the Python worker).
- * The voice is account-wide (AI Agents → Config), so it is not written here.
+ * Services page save: the switch and the looks only. Behaviour (greeting, questions, call length…)
+ * belongs to the service's assistant and is saved from AI Agents. A service can't go live
+ * without an assistant.
  */
-export async function saveSpeakService(input: {
+export async function saveServiceLook<S extends LookService>(input: {
+  service: S
   enabled: boolean
-  config: SpeakServiceConfig
-  language: string
-  firstMessage: string
-}): Promise<ActionResult<{ config: SpeakServiceConfig }>> {
+  look: Partial<LookConfig[S]>
+}): Promise<ActionResult<{ config: LookConfig[S]; enabled: boolean }>> {
   const business = await myBusiness()
   if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
-  if (await blockedFromGoingLive(business, Boolean(input.enabled))) return { ok: false, error: PAID_ACCESS_ERROR }
+  if (!['chat', 'voice', 'form'].includes(input.service)) return { ok: false, error: 'Unknown service' }
+  const enabled = Boolean(input.enabled)
+  if (await blockedFromGoingLive(business, enabled)) return { ok: false, error: PAID_ACCESS_ERROR }
 
-  const config = sanitizeSpeakConfig(input.config)
-  const language = SPEAK_LANGUAGES.has(input.language) ? input.language : 'en'
-  const firstMessage = input.firstMessage?.trim().slice(0, FIRST_LINE_MAX) || null
+  const kind = SERVICE_KIND[input.service]
+  const row = await prismaClient.serviceConfig.findUnique({
+    where: { workspaceId_kind: { workspaceId: business.workspaceId, kind } },
+    select: { config: true },
+  })
+  const current = await getBusinessServices(business.workspaceId)
+  const slot = input.service === 'chat' ? current.chat : input.service === 'voice' ? current.speak : current.form
+  if (enabled && !slot.agent) return { ok: false, error: 'Pick an assistant for this service first.' }
+  // Going live the first time needs the website connection (one connection covers every service).
+  if (enabled && !slot.enabled && !(await getWebsiteConnection(business.roomName)).connected) {
+    return { ok: false, error: WEBSITE_REQUIRED_ERROR }
+  }
 
-  await Promise.all([
-    saveServiceConfig(business.workspaceId, WebServiceKind.SPEAK, Boolean(input.enabled), config),
-    prismaClient.liveKitAgent.update({
-      where: { id: business.agentId },
-      data: { language, firstMessage },
-    }),
-  ])
-  revalidatePath('/messages', 'layout')
-  return { ok: true, config }
-}
+  // Only look keys are taken from the input; behaviour fallbacks already on the row are kept.
+  const lookKeys: readonly string[] = LOOK_KEYS[input.service]
+  const rawLook = Object.fromEntries(Object.entries(input.look ?? {}).filter(([key]) => lookKeys.includes(key)))
+  const sanitize = input.service === 'chat' ? sanitizeChatConfig : input.service === 'voice' ? sanitizeSpeakConfig : sanitizeFormConfig
+  const cleanLook = splitServiceConfig(sanitize({ ...slot.config, ...rawLook }), lookKeys).look
+  const stored = { ...(row?.config && typeof row.config === 'object' && !Array.isArray(row.config) ? row.config : {}), ...cleanLook }
+  delete (stored as Record<string, unknown>).agentId
+  await saveServiceConfig(business.workspaceId, kind, enabled, stored as Prisma.InputJsonObject)
+  revalidatePath('/services', 'layout')
 
-export async function saveFormService(input: {
-  enabled: boolean
-  config: FormServiceConfig
-}): Promise<ActionResult<{ config: FormServiceConfig }>> {
-  const business = await myBusiness()
-  if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
-  if (await blockedFromGoingLive(business, Boolean(input.enabled))) return { ok: false, error: PAID_ACCESS_ERROR }
-  const config = sanitizeFormConfig(input.config)
-  await saveServiceConfig(business.workspaceId, WebServiceKind.FORM, Boolean(input.enabled), config)
-  revalidatePath('/messages', 'layout')
-  return { ok: true, config }
+  const saved = await getBusinessServices(business.workspaceId)
+  const next = input.service === 'chat' ? saved.chat : input.service === 'voice' ? saved.speak : saved.form
+  return { ok: true, config: next.config as LookConfig[S], enabled: next.enabled }
 }
 
 /** Dashboard "try it" submit: uses the saved form config and really emails it (nothing is stored). */
@@ -134,25 +128,13 @@ export async function setBusinessProducts(webinarIds: string[]): Promise<ActionR
       })),
     }),
   ])
-  revalidatePath('/messages', 'layout')
+  revalidatePath('/services', 'layout')
   return { ok: true }
 }
 
-const FORM_DRAFT_BRIEF = [
-  'Design a short lead form for this business that a visitor fills in one question at a time (Typeform style).',
-  'Return JSON: {"title","description","submitLabel","successMessage","fields":[{"label","type","required","options","multiple","scale","placeholder","helpText"}]}.',
-  'type is one of: text, textarea, email, phone, number, url, date, select, yesno, rating.',
-  '- 4 to 7 questions. Ask for the name first, then at least one way to reply (phone and/or email, required).',
-  '- Write each label as a friendly question ("What\'s your name?"). helpText is optional and short.',
-  '- Use select (with 2–8 options) for things like which service they need; take options from the services list when given. multiple=true only when several answers make sense.',
-  '- Use date for a preferred day, yesno for simple yes/no, rating only when it fits; scale is 5 (stars) or 10.',
-  '- placeholder only for text/textarea/email/phone/number/url; otherwise "".',
-  '- title is short (under 60 characters); description is one sentence; successMessage thanks the visitor.',
-  '- Never invent prices, addresses or promises that are not in the facts given.',
-].join('\n')
 
-/** "Build with AI": drafts the form from the business details, services and agent prompt. Nothing is saved. */
-export async function draftFormWithAI(): Promise<
+/** "Build with AI": drafts the form from the business details, its services and this assistant's prompt. Nothing is saved. */
+export async function draftFormWithAI(agentId: string): Promise<
   | {
       ok: true
       draft: Pick<FormServiceConfig, 'title' | 'description' | 'submitLabel' | 'successMessage' | 'fields'>
@@ -161,10 +143,12 @@ export async function draftFormWithAI(): Promise<
 > {
   const business = await myBusiness()
   if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
+  const access = await ensureAgentEditAccess(agentId, business.userId)
+  if (!access.ok) return { ok: false, error: 'Assistant not found' }
 
   const [agent, workspace, credential] = await Promise.all([
     prismaClient.liveKitAgent.findUnique({
-      where: { id: business.agentId },
+      where: { id: access.agentId },
       select: { name: true, systemPrompt: true, language: true },
     }),
     prismaClient.workspace.findUnique({

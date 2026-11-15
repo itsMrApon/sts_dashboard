@@ -13,8 +13,8 @@ type Props = {
 }
 
 /**
- * Protected layout: auth-only. Stripe/Vapi/LiveKit are not fetched here so that
- * routes that don't need them (e.g. /messages, /lead, /settings) get fast TTFB.
+ * Protected layout: auth-only. Stripe/LiveKit are not fetched here so that
+ * routes that don't need them (e.g. /services, /lead, /settings) get fast TTFB.
  * Header loads that data client-side only when the Create flow is needed.
  */
 const Layout = async ({ children }: Props) => {

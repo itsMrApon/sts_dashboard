@@ -30,7 +30,7 @@ export function OnboardingForm({ defaultName }: { defaultName: string }) {
         toast.error(result.error)
         return
       }
-      router.replace('/messages')
+      router.replace('/services')
       router.refresh()
     }))
   }

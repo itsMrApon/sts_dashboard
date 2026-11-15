@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Prisma } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId'
 
@@ -41,4 +42,17 @@ export async function ensureAgentEditAccess(agentId: string, userId: string): Pr
     if (current?.userId !== userId) return { ok: false, reason: 'FORBIDDEN' }
   }
   return { ok: true, agentId: agent.id, roomName: agent.roomName, claimed: claim.count > 0 }
+}
+
+/**
+ * The assistants a creator sees and may use: their own, plus classic unowned ones, minus any
+ * already running someone else's business. Same rule for /ai-agents and every service picker.
+ */
+export function myAssistantsWhere(userId: string): Prisma.LiveKitAgentWhereInput {
+  return {
+    AND: [
+      { OR: [{ userId }, { userId: null }] },
+      { NOT: { publishAgents: { some: { publishProfile: { userId: { not: userId } } } } } },
+    ],
+  }
 }

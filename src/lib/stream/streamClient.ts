@@ -1,6 +1,6 @@
 import { StreamClient } from '@stream-io/node-sdk'
+import { lazyClient, requireEnv } from '@/lib/lazyClient'
 
-export const getStreamClient = new StreamClient(
-      process.env.NEXT_PUBLIC_STREAM_API_KEY!, 
-      process.env.STREAM_SECRET!
-    )
+export const getStreamClient = lazyClient(
+  () => new StreamClient(requireEnv('NEXT_PUBLIC_STREAM_API_KEY'), requireEnv('STREAM_SECRET')),
+)

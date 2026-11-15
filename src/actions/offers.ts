@@ -94,7 +94,7 @@ export async function createOffer(input: { kind: OfferKindInput; title: string }
     },
     select: { id: true },
   })
-  // Every product gets its own wizard profile (Messages → Wizard), separate from the others.
+  // Every product gets its own wizard profile (Services → Wizard), separate from the others.
   await ensureOfferTourQuietly({ webinarId: webinar.id, userId: owner.user.id })
   revalidateOffer(webinar.id)
   return { ok: true, id: webinar.id }
@@ -244,6 +244,6 @@ export async function setOfferOnBusiness(input: { id: string; enabled: boolean }
     await prismaClient.publishProduct.deleteMany({ where: key })
   }
   revalidateOffer(input.id)
-  revalidatePath('/messages', 'layout')
+  revalidatePath('/services', 'layout')
   return { ok: true }
 }

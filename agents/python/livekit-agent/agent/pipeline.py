@@ -162,6 +162,9 @@ def _create_tts(config: RoomConfig):
     voice = (config.voice_model or "").strip()
     style = (config.voice_style or "").strip()
     bangla = _is_bangla(config)
+    # Clamp: some providers reject extreme values; 1.0 means "leave the provider default".
+    speed = min(max(float(config.speaking_speed or 1.0), 0.7), 1.3)
+    custom_speed = abs(speed - 1.0) > 1e-6
 
     if provider == "fish":
         kwargs: dict = {
@@ -172,20 +175,28 @@ def _create_tts(config: RoomConfig):
         }
         if voice:
             kwargs["voice_id"] = voice
+        if custom_speed:
+            kwargs["speed"] = speed
         return fishaudio.TTS(**kwargs)
     if provider == "openai":
         kwargs = {"model": "gpt-4o-mini-tts", "voice": voice or "coral", "api_key": _key(config, "openai")}
+        if custom_speed:
+            kwargs["speed"] = speed
         if style:
             kwargs["instructions"] = style
         return openai.TTS(**kwargs)
     if provider == "google":
         kwargs = {"model": "gemini-2.5-flash-tts", "voice_name": voice or "Kore", "api_key": _key(config, "google")}
-        if style:
-            kwargs["instructions"] = style
+        # Gemini TTS has no speed setting; ask for the pace in its style instructions instead.
+        pace = ("Speak at a slightly slower pace." if speed < 1 else "Speak at a slightly faster pace.") if custom_speed else ""
+        if style or pace:
+            kwargs["instructions"] = " ".join(part for part in (style, pace) if part)
         return google.beta.GeminiTTS(**kwargs)
     if provider == "xai":
         return xai.TTS(voice=voice or "ara", language="bn" if bangla else "en", api_key=_key(config, "xai"))
 
+    if custom_speed:
+        return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"), speed=speed)
     return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"))
 
 

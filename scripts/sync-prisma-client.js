@@ -22,6 +22,13 @@ try {
   process.exit(0)
 }
 
+// npm (and Docker's `npm ci`) already generates into node_modules/.prisma/client. Removing it and
+// linking it to itself would delete the generated client, so there is nothing to do.
+if (path.resolve(generated) === path.resolve(dest)) {
+  console.log('[sync-prisma-client] already at', dest)
+  process.exit(0)
+}
+
 fs.mkdirSync(destDir, { recursive: true })
 
 try {

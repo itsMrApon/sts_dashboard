@@ -7,11 +7,11 @@ import type { PublicServiceKind, PublicServiceLinks } from '@/lib/public/publicS
 type LinkKind = keyof PublicServiceLinks
 
 const SERVICE_META: Record<LinkKind, { label: string; icon: LucideIcon; dashboard: string }> = {
-  chat: { label: 'Chat', icon: MessageCircle, dashboard: '/messages/chat' },
-  speak: { label: 'Speak', icon: Mic, dashboard: '/messages/speak' },
-  form: { label: 'Form', icon: ClipboardList, dashboard: '/messages/form' },
-  business: { label: 'Business', icon: Globe, dashboard: '/messages/publish' },
-  wizard: { label: 'Tour', icon: Compass, dashboard: '/messages/wizard' },
+  chat: { label: 'Chat', icon: MessageCircle, dashboard: '/services/chat' },
+  speak: { label: 'Speak', icon: Mic, dashboard: '/services/speak' },
+  form: { label: 'Form', icon: ClipboardList, dashboard: '/services/form' },
+  business: { label: 'Business', icon: Globe, dashboard: '/services/publish' },
+  wizard: { label: 'Tour', icon: Compass, dashboard: '/services/wizard' },
 }
 
 const LINK_ORDER: LinkKind[] = ['business', 'chat', 'speak', 'form', 'wizard']
@@ -24,6 +24,8 @@ type Props = {
   ownerPreview?: boolean
   /** Wide pages (business site) skip the centered column. */
   wide?: boolean
+  /** Rendered inside a box (the dashboard's live view) instead of filling the viewport. */
+  embedded?: boolean
   children: ReactNode
 }
 
@@ -31,18 +33,13 @@ type Props = {
  * Shared frame for the public service pages (/chat, /speak, /form, /business). Always dark —
  * the same look as the Speak and Wizard previews in the dashboard — regardless of app theme.
  */
-export function PublicServiceShell({ businessName, service, links, ownerPreview, wide, children }: Props) {
+export function PublicServiceShell({ businessName, service, links, ownerPreview, wide, embedded, children }: Props) {
   const otherLinks = LINK_ORDER.filter((kind) => kind !== service && links[kind])
   const meta = SERVICE_META[service]
 
-  return (
-    <div className="relative flex min-h-dvh flex-col bg-[#05060f] text-zinc-50">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(60%_45%_at_20%_0%,rgba(139,92,246,0.22),transparent),radial-gradient(50%_40%_at_90%_10%,rgba(56,189,248,0.14),transparent)]"
-      />
-
-      {ownerPreview ? (
+  const page = (
+    <div className={cn('relative flex flex-col', embedded ? 'min-h-full' : 'min-h-dvh')}>
+      {ownerPreview && !embedded ? (
         <div className="relative z-10 bg-amber-400 px-4 py-1.5 text-center text-xs font-medium text-black">
           Only you can see this. {meta.label} is off —{' '}
           <Link href={meta.dashboard} className="underline underline-offset-2">
@@ -95,6 +92,19 @@ export function PublicServiceShell({ businessName, service, links, ownerPreview,
       </main>
 
       <footer className="relative z-10 pb-5 text-center text-[11px] text-zinc-500">Powered by STS AI</footer>
+    </div>
+  )
+
+  return (
+    <div className={cn('relative bg-[#05060f] text-zinc-50', embedded && 'h-full overflow-hidden')}>
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none inset-0 -z-0 bg-[radial-gradient(60%_45%_at_20%_0%,rgba(139,92,246,0.22),transparent),radial-gradient(50%_40%_at_90%_10%,rgba(56,189,248,0.14),transparent)]',
+          embedded ? 'absolute' : 'fixed',
+        )}
+      />
+      {embedded ? <div className="relative h-full overflow-y-auto overscroll-contain">{page}</div> : page}
     </div>
   )
 }

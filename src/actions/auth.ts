@@ -2,6 +2,7 @@
 
 import { prismaClient } from "@/lib/prismaClient"
 import { auth, currentUser } from "@clerk/nextjs/server"
+import { unstable_rethrow } from "next/navigation"
 import { startPerf, timeAsync } from "@/lib/dev/perf"
 import { cache } from "react"
 import type { User } from "@prisma/client"
@@ -74,6 +75,9 @@ const resolveAuthenticatedUser = cache(async (): Promise<AuthUserResult> => {
       user: newUser
     }
   } catch (error) {
+    // Next's own signals (dynamic rendering bail-out at build, redirect, notFound) must pass
+    // through; swallowing them made every protected page fail to prerender as "500".
+    unstable_rethrow(error)
     if (isDatabaseConnectivityError(error)) {
       logDatabaseConnectivityFailure('auth.onAuthenticateUser', error)
       return {

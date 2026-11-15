@@ -6,7 +6,6 @@ import { aiAgentPrompt } from '@/lib/data';
 import type { LiveKitUiAgentConfig } from '@/lib/livekit/livekitTypes';
 import { onAuthenticateUser } from '@/actions/auth';
 import { ensureAgentEditAccess } from '@/lib/agents/agentAccess';
-import { getEngineForUser } from '@/lib/agents/engineSettings';
 import { isAgentLanguage } from '@/lib/agents/engineOptions';
 import { AI_INSTRUCTION_MAX, isAgentAiQuickAction } from '@/lib/agents/agentAiActions';
 import { editAgentTextWithAi } from '@/lib/agents/agentTextAi';
@@ -14,15 +13,6 @@ import {
   isDatabaseConnectivityError,
   logDatabaseConnectivityFailure,
 } from '@/lib/prismaErrors';
-
-function generateUniqueRoomName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const shortId = Math.random().toString(36).slice(2, 8);
-  return `room-${slug || 'agent'}-${shortId}`;
-}
 
 function mapToUiConfig(agent: {
   id: string;
@@ -147,44 +137,6 @@ export const getLiveKitAgent = async () => {
     return { ...result, data: result.data[0] };
   }
   return { success: false, status: 500, error: 'No LiveKit agent found' };
-};
-
-export const createLiveKitAgent = async (name: string) => {
-  try {
-    const userId = await currentUserId();
-    if (!userId) return { success: false, status: 401, error: 'UNAUTHENTICATED' };
-    const trimmedName = name.trim().slice(0, 255);
-    if (!trimmedName) return { success: false, status: 400, error: 'Agent name is required' };
-    // New agents start on the account-wide engine from Settings.
-    const { engine } = await getEngineForUser(userId);
-    const created = await prismaClient.liveKitAgent.create({
-      data: {
-        userId,
-        name: trimmedName,
-        roomName: generateUniqueRoomName(trimmedName),
-        firstMessage:
-          'Hey there! This is your AI sales agent. I’ll ask a few quick questions to see if this is a good fit. Sounds fair?',
-        systemPrompt: aiAgentPrompt,
-        language: 'en',
-        ...engine,
-      },
-      select: LIVEKIT_AGENT_SELECT,
-    });
-
-    revalidateTag('livekit-agents');
-    return {
-      success: true,
-      status: 200,
-      data: mapToUiConfig(created),
-    };
-  } catch (error) {
-    console.error('Error creating LiveKit agent config', error);
-    return {
-      success: false,
-      status: 500,
-      error: 'Error creating LiveKit agent config',
-    };
-  }
 };
 
 export type LiveKitAgentBehaviorUpdate = {

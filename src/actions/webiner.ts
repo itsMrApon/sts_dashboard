@@ -153,7 +153,7 @@ export const createProject = async(
         },
       })
 
-      // Every product gets its own wizard profile (Messages → Wizard), separate from the others.
+      // Every product gets its own wizard profile (Services → Wizard), separate from the others.
       await ensureOfferTourQuietly({ webinarId: webinar.id, userId: presenterId })
 
       // Phase 2 unified add flow: if a workspace is selected, attach created project/webinar

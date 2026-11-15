@@ -39,10 +39,10 @@ const OFFERS: Array<Tile & { kind: OfferKindInput }> = [
 ]
 
 const WEBSITE_SERVICES: Array<Tile & { href: string }> = [
-  { href: '/messages/chat', title: 'Chat AI', description: 'Text chat on your website', icon: MessageSquare },
-  { href: '/messages/speak', title: 'Voice AI', description: 'Talk to your AI by voice', icon: Mic },
-  { href: '/messages/form', title: 'Form', description: 'Collect leads and callbacks', icon: ClipboardList },
-  { href: '/messages/wizard', title: 'Wizard', description: 'A voice guide through your site', icon: Wand2 },
+  { href: '/services/chat', title: 'Chat AI', description: 'Text chat on your website', icon: MessageSquare },
+  { href: '/services/speak', title: 'Voice AI', description: 'Talk to your AI by voice', icon: Mic },
+  { href: '/services/form', title: 'Form', description: 'Collect leads and callbacks', icon: ClipboardList },
+  { href: '/services/wizard', title: 'Wizard', description: 'A voice guide through your site', icon: Wand2 },
 ]
 
 const tileClass =

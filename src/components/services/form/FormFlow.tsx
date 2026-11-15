@@ -224,7 +224,7 @@ export function FormFlow({ config, defaultCountry, onSubmit, frame, corner, chat
 
   const accentStyle = { '--form-accent': accent } as CSSProperties
   // The public layout centres pages in a container, so the hosted form pins itself to the viewport.
-  const frameClass = frame === 'page' ? 'fixed inset-0' : 'h-[560px]'
+  const frameClass = frame === 'page' ? 'fixed inset-0' : 'h-full min-h-[540px]'
 
   if (done) {
     return (

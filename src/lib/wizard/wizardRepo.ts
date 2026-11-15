@@ -150,7 +150,7 @@ export async function getOrCreateBusinessWizard(business: CreatorBusiness) {
  * A product's own wizard profile: created with the product (and for older products the first
  * time it is needed), with fresh steps about the product. The product's AI agent sets the default
  * language; guide, voice and look start from the business tour so they match. Everything except
- * the agent can then be changed in Messages → Wizard. Returns the slug, or null if not the owner's.
+ * the agent can then be changed in Services → Wizard. Returns the slug, or null if not the owner's.
  */
 export async function ensureOfferTour(input: { webinarId: string; userId: string }): Promise<string | null> {
   const existing = await prismaClient.voiceWizard.findUnique({
@@ -219,7 +219,7 @@ export type WizardProfile = {
   isPublished: boolean
 }
 
-/** The business tour plus one profile per product, for the profile switcher in Messages → Wizard. */
+/** The business tour plus one profile per product, for the profile switcher in Services → Wizard. */
 export async function listWizardProfiles(userId: string): Promise<WizardProfile[]> {
   const [business, products] = await Promise.all([
     prismaClient.voiceWizard.findFirst({

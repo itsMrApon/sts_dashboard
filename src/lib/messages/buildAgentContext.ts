@@ -48,7 +48,13 @@ function publicOfferUrl(appUrl: string, webinar: { kind: string; slug: string | 
 
 export async function buildAgentContext(
   roomName: string,
-  options?: { preloadedAgent?: LiveKitAgent | null; mode?: 'full' | 'homePreview' | 'embedBootstrap' },
+  options?: {
+    preloadedAgent?: LiveKitAgent | null
+    mode?: 'full' | 'homePreview' | 'embedBootstrap'
+    /** The service's own assistant (Services → Chat AI / Voice AI): its prompt, name and first
+     *  message replace the room agent's. Business details still come from the room's business. */
+    persona?: { name: string; systemPrompt: string | null; firstMessage: string | null } | null
+  },
 ): Promise<AgentContext> {
   const mode = options?.mode ?? 'full'
   const timer = startPerf('messages.buildAgentContext', { roomName, mode })
@@ -213,8 +219,10 @@ export async function buildAgentContext(
 
   const parts: string[] = []
 
-  if (mode === 'full' && agent?.systemPrompt) {
-    parts.push(agent.systemPrompt)
+  const persona = options?.persona ?? null
+  const personaPrompt = persona ? persona.systemPrompt : agent?.systemPrompt
+  if (mode === 'full' && personaPrompt) {
+    parts.push(personaPrompt)
   }
 
   if (mode === 'full' && business && business.products.length > 0) {
@@ -373,8 +381,8 @@ export async function buildAgentContext(
     roomJoinLink,
     buyNowLink,
     businessName: business?.name ?? null,
-    agentName: agent?.name || null,
-    firstMessage: agent?.firstMessage || null,
+    agentName: (persona ? persona.name : agent?.name) || null,
+    firstMessage: (persona ? persona.firstMessage : agent?.firstMessage) || null,
     voiceAgentLinks,
     productLinks,
     socialAccounts,

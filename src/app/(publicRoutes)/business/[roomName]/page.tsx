@@ -5,24 +5,21 @@ import { siteContentFromLegacy } from '@/lib/business/siteContent'
 import { prismaClient } from '@/lib/prismaClient'
 import { loadPublicBusiness, serviceAccess } from '@/lib/public/publicService'
 import { PublicServiceShell, ServiceUnavailable } from '../../_components/PublicServiceShell'
-import { BusinessSite, type BusinessOffer } from './_components/BusinessSite'
+import { loadBusinessOffers } from '@/lib/business/businessOffers'
+import { BusinessSite } from './_components/BusinessSite'
 
 type Props = { params: Promise<{ roomName: string }> }
 
-/** Business + its site content (same source as Messages → Business), loaded once per request. */
+/** Business + its site content (same source as Services → Business), loaded once per request. */
 const loadSite = cache(async (roomName: string) => {
   const loaded = await loadPublicBusiness(roomName)
   if (!loaded) return null
-  const [workspace, products] = await Promise.all([
+  const [workspace, offers] = await Promise.all([
     prismaClient.workspace.findUnique({
       where: { id: loaded.business.workspaceId },
       select: { contextVertical: true, contextCoreJson: true, contextIndustryJson: true, contextSocialJson: true },
     }),
-    prismaClient.publishProduct.findMany({
-      where: { publishProfileId: loaded.business.publishProfileId, webinar: { deletedAt: null, slug: { not: null } } },
-      orderBy: [{ isPrimary: 'desc' }],
-      select: { webinar: { select: { title: true, description: true, slug: true, kind: true } } },
-    }),
+    loadBusinessOffers(loaded.business.publishProfileId),
   ])
   const content = siteContentFromLegacy({
     businessName: loaded.business.name,
@@ -31,13 +28,6 @@ const loadSite = cache(async (roomName: string) => {
     industry: workspace?.contextIndustryJson,
     social: workspace?.contextSocialJson,
   })
-  const offers: BusinessOffer[] = products.map(({ webinar }) => ({
-    title: webinar.title,
-    description: webinar.description,
-    // Projects (live sessions) open the Live link; products open the Share link.
-    href: webinar.kind === 'PROJECT' ? `/live/${webinar.slug}` : `/o/${webinar.slug}`,
-    live: webinar.kind === 'PROJECT',
-  }))
   return { loaded, content, offers }
 })
 

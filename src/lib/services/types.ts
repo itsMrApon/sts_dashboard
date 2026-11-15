@@ -60,6 +60,16 @@ export type ChatServiceConfig = {
 export const END_WARNINGS = [0, 30, 60] as const
 export type EndWarningSeconds = (typeof END_WARNINGS)[number]
 
+/** How fast the voice speaks (TTS speed multiplier). 1 = the voice's normal pace. */
+export const SPEAKING_SPEEDS = [
+  { id: 0.8, label: 'Slower' },
+  { id: 0.9, label: 'Slow' },
+  { id: 1, label: 'Normal' },
+  { id: 1.1, label: 'Fast' },
+  { id: 1.2, label: 'Faster' },
+] as const
+export type SpeakingSpeed = (typeof SPEAKING_SPEEDS)[number]['id']
+
 export type SpeakServiceConfig = {
   maxCallMinutes: number
   /** Name the voice AI introduces itself with. Empty = the agent's own prompt decides. */
@@ -72,6 +82,8 @@ export type SpeakServiceConfig = {
   callButtonLabel: string
   /** Warn the caller this many seconds before the call limit (0 = no warning). */
   endWarningSeconds: EndWarningSeconds
+  /** Voice pace on calls (Fish, OpenAI and Deepgram voices; Gemini voices get a pace hint). */
+  speakingSpeed: SpeakingSpeed
   showHumanHandoff: boolean
 }
 
@@ -220,6 +232,7 @@ export const DEFAULT_SPEAK_CONFIG: SpeakServiceConfig = {
   orbShape: 'circle',
   callButtonLabel: 'Talk to us',
   endWarningSeconds: 30,
+  speakingSpeed: 1,
   showHumanHandoff: true,
 }
 
@@ -357,6 +370,7 @@ export function sanitizeSpeakConfig(raw: unknown): SpeakServiceConfig {
     orbShape: isWizardShape(input.orbShape) ? input.orbShape : DEFAULT_SPEAK_CONFIG.orbShape,
     callButtonLabel: text(input.callButtonLabel, SERVICE_LIMITS.buttonLabel) || DEFAULT_SPEAK_CONFIG.callButtonLabel,
     endWarningSeconds: oneOf(input.endWarningSeconds, END_WARNINGS, DEFAULT_SPEAK_CONFIG.endWarningSeconds),
+    speakingSpeed: oneOf(input.speakingSpeed, SPEAKING_SPEEDS, DEFAULT_SPEAK_CONFIG.speakingSpeed),
     showHumanHandoff: bool(input.showHumanHandoff, DEFAULT_SPEAK_CONFIG.showHumanHandoff),
   }
 }

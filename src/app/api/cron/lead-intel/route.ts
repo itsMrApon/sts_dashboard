@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
       where: { userId },
     })
     // Wizard removed; process any user with Call Intel settings.
+    if (!settings) continue
 
     const webinarIds = settings.selectedWebinarIds || []
     const geminiApiKey = await resolveUserGeminiApiKey(userId)

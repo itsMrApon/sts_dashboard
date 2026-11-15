@@ -33,10 +33,16 @@ export async function POST(req: Request, routeContext: RouteContext) {
     })
     if (!guard.ok) return guard.response
 
-    // A business room answers in the style set in Messages → Chat AI.
+    // A business room answers as its Chat AI assistant, in the style set for it.
     const business = await getBusinessByRoomName(roomName)
-    const style = business ? chatStyleInstruction((await getBusinessServices(business.workspaceId)).chat.config) : undefined
-    const result = await generateRoomChatReply({ roomName, message, sessionId, extraInstruction: style })
+    const chat = business ? (await getBusinessServices(business.workspaceId)).chat : null
+    const result = await generateRoomChatReply({
+      roomName,
+      message,
+      sessionId,
+      extraInstruction: chat ? chatStyleInstruction(chat.config) : undefined,
+      persona: chat?.agent ?? null,
+    })
     if (!result.ok) {
       return jsonWithCors({ error: result.error, code: result.code }, guard.corsHeaders, { status: result.status })
     }

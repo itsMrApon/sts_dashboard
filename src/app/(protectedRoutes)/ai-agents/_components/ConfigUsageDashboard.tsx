@@ -8,7 +8,6 @@ import {
   FolderKanban,
   MessageSquare,
   Mic,
-  Radio,
   Users,
   Volume2,
 } from 'lucide-react'
@@ -64,14 +63,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   kimi: 'Kimi',
   deepgram: 'Deepgram',
   fish: 'Fish Audio',
-  vapi: 'Vapi',
   livekit: 'LiveKit',
 }
 
 const LLM_SURFACE_META = [
   {
     surface: 'messages',
-    label: 'Messages',
+    label: 'Services',
     hint: 'Chat AI and hosted chat',
     Icon: MessageSquare,
   },
@@ -101,12 +99,6 @@ const VOICE_META = [
     label: 'Fish Audio',
     hint: 'TTS',
     Icon: Volume2,
-  },
-  {
-    provider: 'vapi',
-    label: 'Vapi',
-    hint: 'Voice sessions',
-    Icon: Radio,
   },
   {
     provider: 'deepgram',
@@ -152,12 +144,6 @@ function voicePrimary(row: UsageVoiceRow): { value: string; detail: string } {
     return {
       value: formatCompact(row.ttsChars),
       detail: `chars · ${row.requests} sessions`,
-    }
-  }
-  if (row.provider === 'vapi') {
-    return {
-      value: String(row.requests),
-      detail: row.sttMs > 0 ? formatMinutes(row.sttMs) : 'sessions',
     }
   }
   if (row.provider === 'livekit') {
@@ -266,7 +252,7 @@ export default function ConfigUsageDashboard() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            LLM by product surface, and voice STT/TTS by Fish, Vapi, Deepgram, and
+            LLM by product surface, and voice STT/TTS by Fish, Deepgram, and
             LiveKit. Updates every few seconds from new traffic.
             {updatedAt
               ? ` Last sync ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`

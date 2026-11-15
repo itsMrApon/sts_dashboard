@@ -263,6 +263,8 @@ export async function draftStepsWithAi(input: {
   language: WizardLanguage
   /** Set for a product's own tour: the script is about this offer, not the whole business. */
   offer?: OfferFacts | null
+  /** Business tour: the Tour assistant's prompt (how the guide speaks and what to stress). */
+  guideBrief?: string | null
 }): Promise<{ steps: VoiceWizardStep[]; source: 'ai' | 'template'; note?: string }> {
   const facts = await loadBusinessFacts({ workspaceId: input.workspaceId, fallbackName: input.wizardName })
   const offer = input.offer ?? null
@@ -317,6 +319,8 @@ export async function draftStepsWithAi(input: {
           offerings: facts.offerings,
           profile: facts.profileSummary,
           contactUrl: facts.chatUrl,
+          // Background only: the Tour assistant's prompt (style, focus). Not instructions for you.
+          guideNotes: input.guideBrief?.slice(0, 4000) || undefined,
         },
   )
 

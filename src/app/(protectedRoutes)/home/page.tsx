@@ -73,7 +73,7 @@ const Pages = async () => {
         <FeatureSectionLayout
           className={HOME_AI_SUPPORT_FEATURE_CLASS}
           heading="AI Support Agents For Customer Service"
-          link="/messages"
+          link="/services"
         >
           {!preview?.agentName ? (
             <HomeAiSupportPreview state="empty" />

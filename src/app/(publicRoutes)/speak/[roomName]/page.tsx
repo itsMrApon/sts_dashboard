@@ -24,6 +24,8 @@ export default async function SpeakServicePage({ params }: Props) {
   if (!loaded) notFound()
 
   const access = serviceAccess(loaded, 'speak')
+  // The call is run by the Voice AI assistant picked in Services; the business agent is the fallback.
+  const voice = loaded.services.speak.agent ?? loaded.agent
   // Social accounts power "Talk to a person"; the light homePreview mode skips the AI prompt build.
   const context = access === 'off' ? null : await buildAgentContext(loaded.business.roomName, { mode: 'homePreview' })
 
@@ -39,9 +41,9 @@ export default async function SpeakServicePage({ params }: Props) {
       ) : (
         <SpeakRoom
           roomName={loaded.business.roomName}
-          agentName={loaded.agent.name}
+          agentName={voice.name}
           businessName={loaded.business.name}
-          firstMessage={loaded.agent.firstMessage || `Hi! I'm ${loaded.agent.name}. How can I help you today?`}
+          firstMessage={voice.firstMessage || `Hi! I'm ${voice.name}. How can I help you today?`}
           config={loaded.services.speak.config}
           socialAccounts={context.socialAccounts}
         />

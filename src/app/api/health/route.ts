@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
   const health = {
     api: 'healthy' as const,
-    database: 'unknown' as const,
+    database: 'unknown' as 'unknown' | 'healthy' | 'unhealthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     // Don't expose sensitive info
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
   // Check database connectivity
   try {
-    const { prisma } = await import('@/lib/prisma');
+    const { prismaClient: prisma } = await import('@/lib/prismaClient');
 
     // Simple query to verify connection
     await prisma.$queryRaw`SELECT 1`;

@@ -42,7 +42,7 @@ export default async function ChatServicePage({ params }: Props) {
       ) : (
         <ChatRoom
           roomName={loaded.business.roomName}
-          agentName={loaded.agent.name}
+          agentName={loaded.services.chat.agent?.name ?? loaded.agent.name}
           config={config}
           isOwner={loaded.isOwner}
           socialAccounts={context?.socialAccounts ?? []}

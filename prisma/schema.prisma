@@ -386,6 +386,12 @@ model LiveKitAgent {
   updatedAt     DateTime       @updatedAt
   llmModel      String         @default("gemini-2.0-flash") @db.VarChar(100)
   llmProvider   String         @default("google") @db.VarChar(50)
+  /// The one service this assistant is made for: chat | voice | form | tour. Null = classic
+  /// (created before per-service assistants), usable by any service.
+  service         String?        @db.VarChar(16)
+  /// Per-service behaviour (greeting, form questions, call length…) keyed by service.
+  /// Looks (colours, orb, theme) stay on the service in /services.
+  serviceSettings Json           @default("{}")
   /// Owner. Null for legacy rows created before ownership; claimed on first authorized edit.
   userId        String?        @db.Uuid
   user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -1140,9 +1146,12 @@ enum WebServiceKind {
   CHAT
   SPEAK
   FORM
+  /// Business tour: its ServiceConfig only links the Tour assistant (content lives in VoiceWizard).
+  TOUR
 }
 
-/// Per-business config for a website service (Chat AI, Speak AI, Form). Wizard lives in VoiceWizard.
+/// Per-business config for a website service (Chat AI, Speak AI, Form, Tour). config.agentId links the
+/// assistant that runs it (required to go live); the rest of config is the service's look + fallbacks.
 model ServiceConfig {
   id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId String         @db.Uuid

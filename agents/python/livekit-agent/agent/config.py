@@ -53,6 +53,8 @@ class RoomConfig(BaseModel):
     stt_model: Optional[str] = None
     # Free-text speaking style for TTS/realtime models that accept instructions (accent, tone).
     voice_style: Optional[str] = None
+    # TTS pace multiplier from the voice assistant (1.0 = the voice's normal speed).
+    speaking_speed: float = 1.0
     realtime_provider: Optional[str] = None
     realtime_model: Optional[str] = None
     realtime_voice: Optional[str] = None

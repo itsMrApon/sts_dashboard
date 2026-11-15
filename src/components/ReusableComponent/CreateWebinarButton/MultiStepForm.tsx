@@ -1,6 +1,6 @@
 import { useStsStore } from'@/store/useStsStore'
 import React, { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { AlertCircle, Check, Loader2, ChevronRight } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'

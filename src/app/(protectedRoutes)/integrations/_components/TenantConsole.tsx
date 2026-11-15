@@ -43,7 +43,7 @@ export function TenantConsole({ workspaceId, connectedPartners = [] }: Props) {
                 connect Medusa, ERPNext, or n8n.
               </p>
               <Button asChild>
-                <Link href="/messages">Go to Messages</Link>
+                <Link href="/services">Go to Services</Link>
               </Button>
             </CardContent>
           </Card>

@@ -1,6 +1,6 @@
 import * as React from "react";
 
-const SvgIcon = (props) => (
+const SvgIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     id="Layer_2"
     data-name="Layer 2"

@@ -1,12 +1,11 @@
 import Link from 'next/link'
 import { ArrowUpRight, CalendarDays, ClipboardList, Compass, FileText, Mail, MessageCircle, Mic, Radio } from 'lucide-react'
+import type { BusinessOffer } from '@/lib/business/businessOffers'
 import type { BusinessSiteContent, KeyDate } from '@/lib/business/siteContent'
 import { SOCIAL_PLATFORMS, socialUrl } from '@/lib/business/siteContent'
 import type { PublicServiceLinks } from '@/lib/public/publicService'
 import { accentHex } from '@/lib/services/types'
 import { cn } from '@/lib/utils'
-
-export type BusinessOffer = { title: string; description: string | null; href: string; live: boolean }
 
 type Props = {
   businessName: string

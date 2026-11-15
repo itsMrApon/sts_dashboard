@@ -14,9 +14,9 @@ export const sidebarData = [
   },
   {
     id: 3,
-    title: 'Messages',
+    title: 'Services',
     icon: MessageCircle,
-    link: '/messages',
+    link: '/services',
   },
   {
     id: 4,

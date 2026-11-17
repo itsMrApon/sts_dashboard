@@ -1,0 +1,4 @@
+ui-ux-pro-max  nextlevelbuilder/ui-ux-pro-max-skill @ e59ff37 (v2.15.0)
+sakuga-vfx     finktheartist/sakuga-vfx @ c3dabb1
+
+Local change: ui-ux-pro-max/SKILL.md script paths point at .claude/skills/ui-ux-pro-max (not ${CLAUDE_PLUGIN_ROOT}) and use python3.

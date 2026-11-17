@@ -50,3 +50,5 @@ cal.diy/
 __pycache__/
 *.pyc
 primeone_Insurance/
+test-results/
+playwright-report/

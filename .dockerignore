@@ -41,3 +41,9 @@ n8n
 # Misc
 *.tsbuildinfo
 next-env.d.ts
+
+# Tests
+e2e
+playwright.config.ts
+test-results
+playwright-report

@@ -4,7 +4,8 @@ FROM node:22-bookworm-slim AS deps
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
+# .npmrc too: it sets legacy-peer-deps, and npm ci must resolve exactly as it did when the lockfile was written.
+COPY package.json package-lock.json .npmrc ./
 COPY prisma ./prisma
 COPY scripts ./scripts
 RUN npm ci

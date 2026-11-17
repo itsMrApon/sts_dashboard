@@ -75,7 +75,8 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/.next ./.next
+# The app runs as `nextjs` and writes .next/cache (fetch cache, optimized images), so it owns .next.
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 
 USER nextjs
 EXPOSE 3000

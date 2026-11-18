@@ -1,0 +1,45 @@
+# The two Python workers that run next to the sts-ai web app on the server.
+# Deploy with: scripts/deploy-workers.sh   (builds on the server through the `sts` Docker context)
+#
+# Values come from .env.production by name (--env-file), so each worker only receives the few
+# settings it needs, never the app's other secrets. Provider keys (Gemini, Cartesia, ElevenLabs…)
+# are not here: each creator's own keys arrive per call / per request from the app.
+name: sts-workers
+
+services:
+  voice-agent:
+    build: ../agents/python/livekit-agent
+    image: sts-ai-voice-agent:latest
+    container_name: sts-voice-agent
+    restart: unless-stopped
+    environment:
+      # Same LiveKit project as the web app.
+      LIVEKIT_URL: ${LIVEKIT_URL:?LIVEKIT_URL missing in .env.production}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY missing in .env.production}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET missing in .env.production}
+      # The app on the private network: each call fetches its agent config and keys here.
+      SAAS_API_URL: http://sts-ai:3000/api
+      SAAS_API_KEY: ${SAAS_API_KEY:?SAAS_API_KEY missing in .env.production}
+    # On restart the worker stops taking new calls and lets live ones finish first.
+    stop_grace_period: 5m
+    init: true
+    mem_limit: 2g
+    networks: [sts]
+
+  scrape-agent:
+    build: ../agents/python/scrape-agent
+    image: sts-ai-scrape-agent:latest
+    container_name: sts-scrape-agent
+    restart: unless-stopped
+    environment:
+      # Shared secret the app sends as x-api-key (same value as the app's).
+      SCRAPE_AGENT_API_KEY: ${SCRAPE_AGENT_API_KEY:?SCRAPE_AGENT_API_KEY missing in .env.production}
+    init: true
+    mem_limit: 1536m
+    # No published port: only the app reaches it, at http://sts-scrape-agent:8100.
+    networks: [sts]
+
+networks:
+  sts:
+    name: sts-net
+    external: true

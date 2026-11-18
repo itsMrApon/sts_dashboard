@@ -23,6 +23,9 @@ APP_NAME="sts-ai"
 IMAGE="sts-ai"
 PREVIOUS_NAME="${APP_NAME}-previous"
 PUBLISH="127.0.0.1:3020:3000"
+# Private network shared with the voice and scrape workers (scripts/deploy-workers.sh):
+# the app reaches the scrape worker at http://sts-scrape-agent:8100, the voice worker reaches it at http://sts-ai:3000.
+NETWORK="sts-net"
 CONTEXT="${DOCKER_CONTEXT:-sts}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
@@ -126,8 +129,10 @@ swap_to() {
     d update --restart no "$PREVIOUS_NAME" >/dev/null
   fi
 
+  d network inspect "$NETWORK" >/dev/null 2>&1 || d network create "$NETWORK" >/dev/null
+
   log "Starting $image"
-  d run -d --name "$APP_NAME" --restart unless-stopped -p "$PUBLISH" --env-file "$ENV_FILE" "$image" >/dev/null
+  d run -d --name "$APP_NAME" --restart unless-stopped -p "$PUBLISH" --network "$NETWORK" --env-file "$ENV_FILE" "$image" >/dev/null
 
   if wait_healthy; then
     trap - INT TERM ERR

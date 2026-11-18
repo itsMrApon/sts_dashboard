@@ -11,14 +11,6 @@ type ActionResult<T = undefined> = T extends undefined
   ? { ok: true } | { ok: false; error: string }
   : { ok: true; data: T } | { ok: false; error: string }
 
-export type HomePreviewData = {
-  roomName: string
-  agentName: string
-  firstMessage: string | null
-  businessName: string
-  socialAccounts: { platform: string; label: string; url?: string }[]
-}
-
 export type MessageRoomData = {
   id: string
   name: string
@@ -46,64 +38,6 @@ type MessageRoomRow = {
   workspaces: { id: string }[]
   _count: { channels: number; products: number }
 }
-
-const getHomePreviewDataCached = unstable_cache(
-  async (userId: string): Promise<HomePreviewData | null> => {
-    const business = await prismaClient.publishProfile.findFirst({
-      where: { userId },
-      orderBy: [{ isHomeFeatured: 'desc' }, { createdAt: 'desc' }],
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        agents: {
-          orderBy: { isPrimary: 'desc' },
-          take: 1,
-          select: {
-            agent: {
-              select: {
-                roomName: true,
-                name: true,
-                firstMessage: true,
-              },
-            },
-          },
-        },
-      },
-    })
-
-    const primaryAgent = business?.agents[0]?.agent
-    if (!business || !primaryAgent?.roomName || !primaryAgent.name) {
-      return null
-    }
-
-    const outreach = await prismaClient.outreachChannel.findMany({
-      where: {
-        userId: business.userId,
-        status: 'ACTIVE',
-      },
-      select: {
-        platform: true,
-        accountLabel: true,
-        pageUrl: true,
-      },
-    })
-
-    return {
-      roomName: primaryAgent.roomName,
-      agentName: primaryAgent.name,
-      firstMessage: primaryAgent.firstMessage,
-      businessName: business.name,
-      socialAccounts: outreach.map((o) => ({
-        platform: o.platform,
-        label: o.accountLabel,
-        url: o.pageUrl ?? undefined,
-      })),
-    }
-  },
-  ['home-preview-data'],
-  { revalidate: 20 },
-)
 
 /** Create a publish profile with only name/description (no agents/products). Link agents from Messages later if needed. */
 export async function createPublishProfileQuick(data: {
@@ -426,30 +360,6 @@ export async function getHomePrimaryAgentRoomName(): Promise<string | null> {
 
   const result = business?.agents[0]?.agent.roomName ?? null
   timer.end({ hasRoom: Boolean(result) })
-  return result
-}
-
-export async function getHomePreviewData(): Promise<HomePreviewData | null> {
-  const timer = startPerf('publishProfiles.getHomePreviewData')
-  const authResult = await timeAsync('publishProfiles.getHomePreviewData.onAuthenticateUser', () =>
-    onAuthenticateUser(),
-  )
-  if (!authResult.user) {
-    timer.end({ reason: 'no-auth-user' })
-    return null
-  }
-
-  const result = await timeAsync('publishProfiles.getHomePreviewData.cached', () =>
-    getHomePreviewDataCached(authResult.user.id),
-  )
-  if (!result) {
-    timer.end({ reason: 'no-primary-agent' })
-    return null
-  }
-
-  timer.end({
-    hasSocialAccounts: result.socialAccounts.length > 0,
-  })
   return result
 }
 

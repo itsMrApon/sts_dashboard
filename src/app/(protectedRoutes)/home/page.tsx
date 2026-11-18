@@ -9,7 +9,7 @@ const Pages = () => {
     <div className="w-full mx-auto h-full">
       <LandingHero
         signedIn
-        className="rounded-xl"
+        fullBleed
         top={
           // On the dark cubes surface, so colors are fixed light-on-dark.
           <div className="w-full flex flex-col sm:flex-row justify-between items-start gap-14">

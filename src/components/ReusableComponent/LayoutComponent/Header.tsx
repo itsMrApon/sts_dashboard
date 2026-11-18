@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import PurpleIcon from '../PurpleIcon'
 import STS2 from '@/icons/sts-2'
+import { cn } from '@/lib/utils'
 const AddServiceDialog = dynamic(
   () => import('../AddService/AddServiceDialog').then((m) => m.default),
   { ssr: false, loading: () => <div className="h-9 w-28 rounded-xl bg-muted animate-pulse" /> }
@@ -24,8 +25,16 @@ type Props = {
 const Header = ({ user }: Props) => {
   const pathname = usePathname()
   const router = useRouter()
+  // /home draws its cubes background behind the header, so the header is see-through there and
+  // scrolls away with the page (a clear sticky bar would sit on top of the hero text).
+  const overHero = pathname === '/home'
   return (
-    <div className="w-full px-0 md:px-4 pt-4 md:pt-10 pb-3 md:pb-4 sticky top-0 z-30 flex justify-between items-center gap-3 md:gap-4 bg-background">
+    <div
+      className={cn(
+        'w-full px-0 md:px-4 pt-4 md:pt-10 pb-3 md:pb-4 flex justify-between items-center gap-3 md:gap-4',
+        overHero ? 'relative z-30 bg-transparent' : 'sticky top-0 z-30 bg-background',
+      )}
+    >
         {pathname.includes('pipeline') ? (
           <Button
           className="bg-primary/10 border border-border rounded-xl" 

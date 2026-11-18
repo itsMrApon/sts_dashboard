@@ -1512,3 +1512,12 @@ export function WarpCarousel({
 }
 
 export default WarpCarousel;
+
+// Ring geometry and spin curve, shared with WarpRing (the same motion for HTML children).
+export {
+  poseAt as warpPoseAt,
+  spinN as warpSpin,
+  CW as WARP_CARD_W,
+  CH as WARP_CARD_H,
+  FOCAL as WARP_FOCAL,
+};

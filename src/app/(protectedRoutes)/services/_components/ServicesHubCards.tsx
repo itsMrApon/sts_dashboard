@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { AnimatePresence, motion } from 'motion/react'
 import { Building2, ClipboardList, MessageSquare, Mic, Wand2 } from 'lucide-react'
 import { CanvasRevealEffect } from '@/components/ui/canvas-reveal-effect'
+import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import { WarpRing, useWarpRingSlot } from '@/components/ui/warp-ring'
 import { cn } from '@/lib/utils'
 
 export type HubStatus = { label: string; on: boolean }
@@ -13,14 +15,23 @@ type Props = {
   status: { chat: HubStatus; speak: HubStatus; form: HubStatus; wizard: HubStatus; business: HubStatus }
 }
 
-/** The five services (each run by its own AI Agents assistant), as swipeable canvas-reveal cards (scroll/swipe left–right; snaps per card). */
+const SERVICE_LABELS = ['Chat AI', 'Voice AI', 'Form', 'Tour', 'Business']
+// Ring glow / flare colour per card, taken from each card's hover reveal.
+const SERVICE_ACCENTS = ['#10b981', '#ec4899', '#38bdf8', '#818cf8', '#f59e0b']
+
+/**
+ * The five services (each run by its own AI Agents assistant) as canvas-reveal cards on the same
+ * 3D ring the onboarding cards slide on: drag, swipe, trackpad-scroll or arrow-key to spin it.
+ */
 export function ServicesHubCards({ status }: Props) {
   return (
-    <div
-      // Phones: a vertical list of compact cards. sm+: the full-height sideways carousel.
-      className="grid grid-cols-1 gap-8 px-3 pb-5 pt-4 sm:-mx-4 sm:flex sm:h-[calc(100dvh-14rem)] sm:min-h-[22rem] sm:snap-x sm:snap-mandatory sm:gap-9 sm:overflow-x-auto sm:scroll-smooth sm:px-7 [scrollbar-width:thin]"
-      aria-label="Services"
-    >
+    // PageViewport: the ring fills exactly what is left of the visible screen under the header (above
+    // the tab bar on phones) and the page itself doesn't scroll. Phones need this: the layout's
+    // min-h-screen counts the area behind the address bar, so the page would scroll under the ring.
+    // max-md:-mb-8: on phones PageViewport leaves 64px for the tab bar but the layout pads 96px
+    // (pb-24), so without it the document is 32px taller than the screen and can still shift.
+    <PageViewport className="flex min-h-0 w-full flex-col overflow-hidden max-md:-mb-8">
+    <WarpRing ariaLabel="Services" labels={SERVICE_LABELS} accents={SERVICE_ACCENTS} className="h-full w-full">
       <HubCard href="/services/chat" title="Chat AI" description="Text chat in your own chat box." status={status.chat} icon={<MessageSquare className="h-10 w-10" aria-hidden />}>
         <CanvasRevealEffect animationSpeed={5.1} containerClassName="bg-emerald-900" />
       </HubCard>
@@ -45,7 +56,8 @@ export function ServicesHubCards({ status }: Props) {
       <HubCard href="/services/publish" title="Business" description="Profile, services and links your AI uses." status={status.business} icon={<Building2 className="h-10 w-10" aria-hidden />}>
         <CanvasRevealEffect animationSpeed={3} containerClassName="bg-amber-900" colors={[[251, 191, 36]]} />
       </HubCard>
-    </div>
+    </WarpRing>
+    </PageViewport>
   )
 }
 
@@ -65,6 +77,8 @@ function HubCard({
   children?: React.ReactNode
 }) {
   const [hovered, setHovered] = React.useState(false)
+  // The reveal canvas sizes itself when it mounts, so only show it once the card sits flat in front.
+  const { active } = useWarpRingSlot()
 
   return (
     <Link
@@ -74,7 +88,8 @@ function HubCard({
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
       aria-label={`${title}: ${description} (${status.label})`}
-      className="group/canvas-card relative flex h-40 w-full shrink-0 snap-start items-center justify-center border border-black/[0.2] p-4 dark:border-white/[0.2] sm:h-full sm:w-[16rem] xl:w-auto xl:min-w-[13rem] xl:flex-1"
+      // Sized by its ring slot.
+      className="group/canvas-card relative flex h-full w-full items-center justify-center border border-black/[0.2] p-4 dark:border-white/[0.2]"
     >
       <CornerIcon className="absolute -left-3 -top-3 h-6 w-6 text-black dark:text-white" />
       <CornerIcon className="absolute -bottom-3 -left-3 h-6 w-6 text-black dark:text-white" />
@@ -91,7 +106,7 @@ function HubCard({
       </span>
 
       <AnimatePresence>
-        {hovered && (
+        {hovered && active && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 h-full w-full">
             {children}
           </motion.div>

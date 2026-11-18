@@ -60,12 +60,13 @@ const TONES = {
   },
 };
 
-// Dark cube faces (the component defaults are light stone), lit by a soft grey glow.
+// Near-black cube faces with a faint violet cast, lit by the app's button purple
+// (rgba(135, 49, 255) in `.iconBackground`).
 const DARK_CUBES = {
-  topColor: "#1a1a1a",
-  leftColor: "#121212",
-  rightColor: "#0c0c0c",
-  glowColor: "#525252",
+  topColor: "#16131d",
+  leftColor: "#0f0d14",
+  rightColor: "#0a090e",
+  glowColor: "#8731ff",
 } as const;
 
 type HeroTone = keyof typeof TONES;
@@ -180,12 +181,18 @@ export function LandingHero({
   className,
   signedIn = false,
   top,
+  fullBleed = false,
 }: {
   className?: string;
   /** Swap the sign-up / sign-in buttons for in-app links. */
   signedIn?: boolean;
-  /** Content placed above the headline on the same cubes background (style it for a light surface). */
+  /** Content placed above the headline on the same cubes background (style it for a dark surface). */
   top?: ReactNode;
+  /**
+   * Pin the cubes to the viewport (right of the md+ sidebar) so they fill the whole app column,
+   * behind the header and past the layout's padding, instead of only this box.
+   */
+  fullBleed?: boolean;
 }) {
   const content = <HeroContent tone="dark" signedIn={signedIn} />;
   return (
@@ -195,7 +202,10 @@ export function LandingHero({
         className,
       )}
     >
-      <BackgroundCubesGrid className="-z-10" {...DARK_CUBES} />
+      <BackgroundCubesGrid
+        className={cn("-z-10", fullBleed && "fixed inset-0 md:left-28")}
+        {...DARK_CUBES}
+      />
       {top ? (
         <div className="flex w-full max-w-[1080px] flex-col gap-24">
           {top}

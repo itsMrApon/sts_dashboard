@@ -124,10 +124,6 @@ export default async function SettingsPage() {
         ) : null}
 
         <div className="border-border mt-6 border-t pt-6">
-          <h3 className="mb-1 text-base font-semibold">Done-for-you packages</h3>
-          <p className="text-muted-foreground mb-4 text-sm">
-            No time to set it all up? We can do it for you, or run it with you every month.
-          </p>
           <PackagesPanel cards={packageCards} />
         </div>
       </div>

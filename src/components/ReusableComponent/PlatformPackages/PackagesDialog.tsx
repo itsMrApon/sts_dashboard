@@ -41,11 +41,12 @@ export default function PackagesDialog() {
           Choose a package
         </button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[720px]">
-        <DialogHeader>
-          <DialogTitle>Get started with sts-ai</DialogTitle>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[920px]">
+        {/* The plan picker has its own visible heading; this one is for screen readers. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>Choose your plan</DialogTitle>
           <DialogDescription>
-            Let us set it up once, or run it with you every month.
+            Flip the two switches: just your site or every AI tool, set up once or run with you every month.
           </DialogDescription>
         </DialogHeader>
         {cards === null ? (

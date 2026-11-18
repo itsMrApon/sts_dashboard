@@ -1,4 +1,4 @@
-// Creates (or finds) the two platform package prices on the platform Stripe account and prints the env lines.
+// Creates (or finds) the four platform plan prices on the platform Stripe account and prints the env lines.
 //   node --env-file=.env scripts/stripe/create-platform-packages.mjs          # test mode only
 //   node --env-file=.env scripts/stripe/create-platform-packages.mjs --live   # explicitly allow a live key
 // Idempotent: prices are found again by lookup_key, so re-running never duplicates them.
@@ -18,6 +18,18 @@ const PACKAGES = [
     lookupKey: 'sts_setup_integrate_v1',
     product: { name: 'sts-ai Setup & Integrate', description: 'One-time done-for-you setup' },
     price: { unit_amount: 4900, currency: 'usd' },
+  },
+  {
+    env: 'STRIPE_SITE_CARE_PRICE_ID',
+    lookupKey: 'sts_site_care_monthly_v1',
+    product: { name: 'sts-ai Site Care', description: 'Monthly site care and lead follow-up' },
+    price: { unit_amount: 9900, currency: 'usd', recurring: { interval: 'month' } },
+  },
+  {
+    env: 'STRIPE_AI_SETUP_PRICE_ID',
+    lookupKey: 'sts_ai_launch_v1',
+    product: { name: 'sts-ai AI Launch', description: 'One-time setup of every AI tool' },
+    price: { unit_amount: 99900, currency: 'usd' },
   },
   {
     env: 'STRIPE_BUSINESS_PRICE_ID',

@@ -8,9 +8,15 @@ import {
   applySetupPayment,
   ensureStripeCustomer,
   getPackagePrice,
+  isOneTimePackage,
   isPlatformPackageId,
+  loadOwnedPackages,
+  PLATFORM_PACKAGE_IDS,
   PLATFORM_PACKAGES,
   syncPlatformAccess,
+  WAIVED_SETUP,
+  type PlanMode,
+  type PlanTier,
   type PlatformAccess,
   type PlatformPackageId,
 } from '@/lib/billing/platformPackages'
@@ -20,9 +26,9 @@ type PurchaseStart =
   | { ok: false; error: string }
 
 /**
- * Starts a package purchase and returns a PaymentIntent client secret for the card form.
- * SETUP is a one-time PaymentIntent; BUSINESS is a subscription created as default_incomplete
- * (same flow the app used for the original subscription).
+ * Starts a plan purchase and returns a PaymentIntent client secret for the card form.
+ * One-time plans (Site Launch, AI Launch) are a PaymentIntent; monthly plans (Site Care, Run My
+ * Business) are a subscription created as default_incomplete (the app's original subscription flow).
  */
 export async function startPackagePurchase(packageId: PlatformPackageId): Promise<PurchaseStart> {
   if (!isPlatformPackageId(packageId)) return { ok: false, error: 'Unknown package' }
@@ -31,29 +37,31 @@ export async function startPackagePurchase(packageId: PlatformPackageId): Promis
   if (!auth.user) return { ok: false, error: 'Please sign in again' }
   const user = auth.user
 
-  if (packageId === 'SETUP' && user.setupPaidAt) {
-    return { ok: false, error: 'Setup & Integrate is already purchased' }
-  }
-  if (packageId === 'BUSINESS' && user.businessSubscriptionStatus === 'active') {
-    return { ok: false, error: 'Run My Business is already active' }
+  const meta = PLATFORM_PACKAGES[packageId]
+  const owned = await loadOwnedPackages(user)
+  if (owned.has(packageId)) return { ok: false, error: `${meta.name} is already ${isOneTimePackage(packageId) ? 'purchased' : 'active'}` }
+  // One monthly plan at a time: switching between them is done by the team, not a second subscription.
+  const otherMonthly = PLATFORM_PACKAGE_IDS.find((id) => id !== packageId && !isOneTimePackage(id) && owned.has(id))
+  if (!isOneTimePackage(packageId) && otherMonthly) {
+    return { ok: false, error: `You already have ${PLATFORM_PACKAGES[otherMonthly].name}. Contact us to switch plans.` }
   }
 
   const price = await getPackagePrice(packageId)
   if (!price) {
-    return { ok: false, error: `${PLATFORM_PACKAGES[packageId].name} is not available yet` }
+    return { ok: false, error: `${meta.name} is not available yet` }
   }
 
   try {
     const customerId = await ensureStripeCustomer(user)
     const metadata = { userId: user.id, package: packageId }
 
-    if (packageId === 'SETUP') {
+    if (isOneTimePackage(packageId)) {
       const intent = await stripe.paymentIntents.create({
         amount: price.unitAmount,
         currency: price.currency,
         customer: customerId,
         payment_method_types: ['card'],
-        description: PLATFORM_PACKAGES.SETUP.name,
+        description: meta.name,
         metadata: { ...metadata, priceId: price.priceId },
       })
       if (!intent.client_secret) throw new Error('Missing client secret')
@@ -91,7 +99,7 @@ export async function confirmPackagePurchase(input: {
   if (!auth.user) return { ok: false, error: 'Please sign in again' }
 
   try {
-    if (input.packageId === 'SETUP') {
+    if (isOneTimePackage(input.packageId)) {
       const intent = await stripe.paymentIntents.retrieve(input.paymentIntentId)
       if (intent.metadata?.userId !== auth.user.id) return { ok: false, error: 'Payment not found' }
       if (!(await applySetupPayment(intent))) return { ok: false, error: 'Payment has not completed yet' }
@@ -111,36 +119,54 @@ export type PackageCard = {
   name: string
   tagline: string
   features: string[]
+  tier: PlanTier
+  mode: PlanMode
+  billing: 'one_time' | 'month'
+  /** Smallest currency unit; null when the plan's Stripe price is not configured. */
+  amountCents: number | null
+  currency: string
   priceLabel: string | null
+  /** Monthly plans: the one-time setup fee they waive (shown crossed out). */
+  waivedSetupCents: number | null
   owned: boolean
 }
 
-/** Package cards for the settings page and the header dialog. priceLabel is null when not configured. */
+function formatAmount(cents: number, currency: string): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100)
+}
+
+/** The four plan cards for the settings page and the header dialog. priceLabel is null when not configured. */
 export async function getPackageCards(): Promise<PackageCard[]> {
   const auth = await onAuthenticateUser()
   const user = auth.user
-  const prices = await Promise.all([getPackagePrice('SETUP'), getPackagePrice('BUSINESS')])
+  const [prices, owned] = await Promise.all([
+    Promise.all(PLATFORM_PACKAGE_IDS.map((id) => getPackagePrice(id))),
+    user ? loadOwnedPackages(user) : Promise.resolve(new Set<PlatformPackageId>()),
+  ])
+  const priceOf = (id: PlatformPackageId) => prices[PLATFORM_PACKAGE_IDS.indexOf(id)]
 
-  return (['SETUP', 'BUSINESS'] as const).map((id, index) => {
+  return PLATFORM_PACKAGE_IDS.map((id) => {
     const meta = PLATFORM_PACKAGES[id]
-    const price = prices[index]
-    const amount = price
-      ? new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: price.currency.toUpperCase(),
-          maximumFractionDigits: price.unitAmount % 100 === 0 ? 0 : 2,
-        }).format(price.unitAmount / 100)
-      : null
+    const price = priceOf(id)
+    const waived = WAIVED_SETUP[id]
+    const amount = price ? formatAmount(price.unitAmount, price.currency) : null
     return {
       id,
       name: meta.name,
       tagline: meta.tagline,
       features: meta.features,
+      tier: meta.tier,
+      mode: meta.mode,
+      billing: meta.billing,
+      amountCents: price?.unitAmount ?? null,
+      currency: price?.currency ?? 'usd',
       priceLabel: amount ? (meta.billing === 'month' ? `${amount}/month` : `${amount} one-time`) : null,
-      owned:
-        id === 'SETUP'
-          ? !!user?.setupPaidAt
-          : user?.businessSubscriptionStatus === 'active' || user?.businessSubscriptionStatus === 'trialing',
+      waivedSetupCents: waived ? (priceOf(waived)?.unitAmount ?? null) : null,
+      owned: owned.has(id),
     }
   })
 }

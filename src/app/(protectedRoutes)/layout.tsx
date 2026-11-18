@@ -41,6 +41,10 @@ const Layout = async ({ children }: Props) => {
   if (!business) {
     redirect('/onboarding')
   }
+  // Setup not finished: back to the step they were on.
+  if (business.onboardingStep) {
+    redirect('/onboarding')
+  }
 
   const rendered = (
     <div className="flex w-full min-h-screen">

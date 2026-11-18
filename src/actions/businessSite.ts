@@ -15,6 +15,7 @@ import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
 import { normalizeIndustryInput, type IndustryInput } from '@/lib/tenantContext'
 import {
   sanitizeSiteContent,
+  siteContentFromLegacy,
   type BusinessSiteContent,
   type SiteSection,
   type SiteService,
@@ -86,6 +87,36 @@ export async function saveBusinessSite(
   })
   revalidateBusiness()
   return { ok: true, content, status }
+}
+
+/**
+ * Onboarding: a few tags to find the business online later (@handles, domains, names). Saved
+ * only; the scrape agent researches them once the creator has an AI key. A domain-looking tag
+ * also fills the website when none is set.
+ */
+export async function saveBusinessLookupTags(input: { tags?: string[] }): Promise<ActionResult<{ tags: string[] }>> {
+  const business = await myBusiness()
+  if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
+  const workspace = await prismaClient.workspace.findUnique({
+    where: { id: business.workspaceId },
+    select: { contextVertical: true, contextCoreJson: true, contextIndustryJson: true, contextSocialJson: true },
+  })
+  const current = siteContentFromLegacy({
+    businessName: business.name,
+    vertical: workspace?.contextVertical ?? null,
+    core: workspace?.contextCoreJson,
+    industry: workspace?.contextIndustryJson,
+    social: workspace?.contextSocialJson,
+  })
+  const tags = (Array.isArray(input.tags) ? input.tags : []).filter((tag): tag is string => typeof tag === 'string')
+  const domain = tags.find((tag) => !tag.startsWith('@') && /^(https?:\/\/)?[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(tag.trim()))
+  const websiteUrl = current.advanced.websiteUrl || (domain ? (/^https?:\/\//i.test(domain) ? domain : `https://${domain}`) : '')
+
+  const saved = await saveBusinessSite({
+    ...current,
+    advanced: { ...current.advanced, websiteUrl, lookupTags: [...current.advanced.lookupTags, ...tags] },
+  })
+  return saved.ok ? { ok: true, tags: saved.content.advanced.lookupTags } : saved
 }
 
 /** Makes the saved content live for the AI, the public profile API and the website SDK. */

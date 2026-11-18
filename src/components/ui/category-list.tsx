@@ -37,6 +37,10 @@ export interface CategoryListProps {
   footer?: React.ReactNode
   /** Shown instead of the rows when there are none. */
   empty?: React.ReactNode
+  /** A small control at the end of the header row (compact only), e.g. a collapse button. */
+  headerAction?: React.ReactNode
+  /** Extra classes for each row box (e.g. a darker fill on a tinted surface). */
+  rowClassName?: string
 }
 
 /**
@@ -54,6 +58,8 @@ export const CategoryList = ({
   toolbar,
   footer,
   empty,
+  headerAction,
+  rowClassName,
 }: CategoryListProps) => {
   const [hoveredItem, setHoveredItem] = useState<string | number | null>(null)
 
@@ -72,12 +78,13 @@ export const CategoryList = ({
               {headerIcon}
             </div>
           )}
-          <div>
+          <div className={cn(compact && headerAction && 'min-w-0 flex-1')}>
             <h1 className={cn('mb-2 text-4xl font-bold tracking-tight md:text-5xl', compact && 'mb-0 text-lg leading-tight md:text-lg')}>{title}</h1>
             {subtitle && (
               <h2 className={cn('text-4xl font-bold text-muted-foreground md:text-5xl', compact && 'text-lg leading-tight md:text-lg')}>{subtitle}</h2>
             )}
           </div>
+          {compact && headerAction ? <div className="shrink-0 self-start">{headerAction}</div> : null}
         </div>
 
         {toolbar}
@@ -102,6 +109,7 @@ export const CategoryList = ({
                   aria-current={activeId === category.id ? 'true' : undefined}
                   className={cn(
                     'relative block w-full cursor-pointer overflow-hidden border bg-card text-left transition-all duration-300 ease-in-out focus-visible:outline-none',
+                    rowClassName,
                     lit
                       ? cn('border-primary bg-primary/5 shadow-lg shadow-primary/20', compact ? 'h-24' : 'h-32')
                       : cn('border-border hover:border-primary/50', compact ? 'h-[4.5rem]' : 'h-24'),

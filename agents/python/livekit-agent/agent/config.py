@@ -43,13 +43,14 @@ class RoomConfig(BaseModel):
     instructions: str
     first_message: Optional[str] = None
     language: str = "en"  # "en" or "bn"
-    voice_provider: str = "deepgram"
-    voice_model: str = "aura-asteria-en"
+    voice_provider: str = "cartesia"
+    # Empty = the provider's default voice for the room language (see pipeline._create_tts).
+    voice_model: str = ""
     llm_model: str = os.getenv("LLM_CHOICE", "gemini-2.5-flash")
     llm_provider: str = "google"
     # "pipeline" = STT -> LLM -> TTS; "realtime" = one speech-to-speech model.
     engine_mode: str = "pipeline"
-    stt_provider: str = "deepgram"
+    stt_provider: str = "cartesia"
     stt_model: Optional[str] = None
     # Free-text speaking style for TTS/realtime models that accept instructions (accent, tone).
     voice_style: Optional[str] = None
@@ -110,7 +111,8 @@ MOCK_SAAS_DB = {
         business_type="General Assistant",
         instructions="You are a helpful assistant who speaks Bangla.",
         language="bn",
-        voice_model="aura-luna-en",  # Using English voice for now as Deepgram TTS Bangla might not be fully available
+        voice_provider="cartesia",
+        voice_model="9c35520a-73f9-4c9e-b6c6-69027a3819bd",  # Cartesia Poulomi, native Bengali
     ),
 }
 

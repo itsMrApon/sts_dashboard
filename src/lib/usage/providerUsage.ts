@@ -66,6 +66,7 @@ export function normalizeUsageProvider(raw: string): string {
   if (provider === 'gemini') return 'google'
   if (provider === 'claude') return 'anthropic'
   if (provider === 'fishaudio' || provider === 'fish_audio') return 'fish'
+  if (provider === 'eleven' || provider === 'eleven_labs') return 'elevenlabs'
   if (provider === 'moonshot') return 'kimi'
   if (provider === 'open_router') return 'openrouter'
   if (provider === 'grok' || provider === 'x-ai') return 'xai'

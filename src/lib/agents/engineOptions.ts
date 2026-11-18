@@ -15,19 +15,21 @@ import {
  */
 
 export type EngineMode = 'pipeline' | 'realtime'
-export type SttProvider = 'deepgram' | 'openai' | 'google' | 'xai'
-export type VoiceProvider = 'deepgram' | 'fish' | 'openai' | 'google' | 'xai'
+export type SttProvider = 'cartesia' | 'deepgram' | 'openai' | 'google' | 'xai'
+export type VoiceProvider = 'cartesia' | 'elevenlabs' | 'deepgram' | 'fish' | 'openai' | 'google' | 'xai'
+/** Providers whose voices are opaque ids picked from a live catalog (with a stored label). */
+export type LibraryVoiceProvider = 'fish' | 'cartesia' | 'elevenlabs'
 export type RealtimeProvider = 'openai' | 'google' | 'xai'
 
 export type AgentEngine = {
   mode: EngineMode
   sttProvider: SttProvider
-  /** null = provider default (Deepgram picks per agent language). */
+  /** null = provider default (Cartesia picks ink-2 for English, ink-whisper for Bangla). */
   sttModel: string | null
   llmProvider: LlmModelProvider
   llmModel: string
   voiceProvider: VoiceProvider
-  /** Voice id: Deepgram model, Fish reference id, or the provider's voice name. */
+  /** Voice id: Cartesia/ElevenLabs voice id, Deepgram model, Fish reference id, or a voice name. */
   voiceModel: string
   /** Speaking-style instructions (accent, tone) for OpenAI/Gemini TTS and every realtime model. */
   voiceStyle: string | null
@@ -66,11 +68,18 @@ export const STT_PROVIDER_OPTIONS: {
   note: string
 }[] = [
   {
+    value: 'cartesia',
+    label: 'Cartesia Ink',
+    bangla: 'yes',
+    models: [{ id: '', label: 'Auto by agent language (ink-2 / ink-whisper)' }],
+    note: 'Default. Same key as the voice. ink-2 detects turns in English; Bangla runs on ink-whisper.',
+  },
+  {
     value: 'deepgram',
     label: 'Deepgram',
     bangla: 'none',
     models: [{ id: '', label: 'Auto by agent language (nova-2)' }],
-    note: 'Fast and cheap for English. Its model list has no Bangla.',
+    note: 'Optional, English only. Bangla agents switch to Cartesia when you have a Cartesia key.',
   },
   {
     value: 'openai',
@@ -94,7 +103,7 @@ export const STT_PROVIDER_OPTIONS: {
     label: 'xAI Grok',
     bangla: 'none',
     models: [{ id: '', label: 'Grok STT (default)' }],
-    note: 'No Bangla: Bangla agents fall back to Deepgram automatically.',
+    note: 'No Bangla: Bangla agents switch to Cartesia when you have a Cartesia key.',
   },
 ]
 
@@ -133,6 +142,16 @@ export const DEEPGRAM_VOICES: Choice[] = [
 
 export const DEFAULT_DEEPGRAM_VOICE = 'aura-asteria-en'
 
+/**
+ * Cartesia Sonic public voices. The worker swaps the English default for the Bangla one on
+ * Bangla agents (agents/python/livekit-agent/agent/pipeline.py), so one account engine serves both.
+ */
+export const DEFAULT_CARTESIA_VOICE = 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'
+export const DEFAULT_CARTESIA_VOICE_LABEL = 'Skylar - Friendly Guide'
+/** ElevenLabs premade "Rachel"; available on every account. */
+export const DEFAULT_ELEVENLABS_VOICE = '21m00Tcm4TlvDq8ikWAM'
+export const DEFAULT_ELEVENLABS_VOICE_LABEL = 'Rachel'
+
 const OPENAI_TTS_VOICES: Choice[] = ['coral', 'alloy', 'ash', 'ballad', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer'].map(
   (id) => ({ id, label: titleCase(id) }),
 )
@@ -154,12 +173,34 @@ export const VOICE_PROVIDER_OPTIONS: {
   value: VoiceProvider
   label: string
   bangla: BanglaSupport
-  /** null = picked with a custom picker (Fish library). */
+  /** null = picked from the provider's live catalog (LibraryVoiceProvider). */
   voices: Choice[] | null
   defaultVoice: string
+  /** Title for defaultVoice when voices is null (ids are opaque). */
+  defaultVoiceLabel?: string
   acceptsStyle: boolean
   note: string
 }[] = [
+  {
+    value: 'cartesia',
+    label: 'Cartesia Sonic',
+    bangla: 'yes',
+    voices: null,
+    defaultVoice: DEFAULT_CARTESIA_VOICE,
+    defaultVoiceLabel: DEFAULT_CARTESIA_VOICE_LABEL,
+    acceptsStyle: false,
+    note: 'Default. Lowest latency (Sonic 3), native Bangla voices, and your cloned voices.',
+  },
+  {
+    value: 'elevenlabs',
+    label: 'ElevenLabs',
+    bangla: 'untested',
+    voices: null,
+    defaultVoice: DEFAULT_ELEVENLABS_VOICE,
+    defaultVoiceLabel: DEFAULT_ELEVENLABS_VOICE_LABEL,
+    acceptsStyle: false,
+    note: 'Premium, expressive voices (Flash v2.5 for English). Test a Bangla call before going live.',
+  },
   {
     value: 'fish',
     label: 'Fish Audio',
@@ -203,7 +244,7 @@ export const VOICE_PROVIDER_OPTIONS: {
     voices: DEEPGRAM_VOICES,
     defaultVoice: DEFAULT_DEEPGRAM_VOICE,
     acceptsStyle: false,
-    note: 'Lowest latency, English only.',
+    note: 'Fast, English only.',
   },
 ]
 
@@ -266,12 +307,12 @@ export const REALTIME_PROVIDER_OPTIONS: {
 
 export const DEFAULT_AGENT_ENGINE: AgentEngine = {
   mode: 'pipeline',
-  sttProvider: 'deepgram',
+  sttProvider: 'cartesia',
   sttModel: null,
   llmProvider: 'google',
   llmModel: DEFAULT_LLM_MODEL,
-  voiceProvider: 'deepgram',
-  voiceModel: DEFAULT_DEEPGRAM_VOICE,
+  voiceProvider: 'cartesia',
+  voiceModel: DEFAULT_CARTESIA_VOICE,
   voiceStyle: null,
   realtimeProvider: 'openai',
   realtimeModel: 'gpt-realtime',
@@ -279,6 +320,10 @@ export const DEFAULT_AGENT_ENGINE: AgentEngine = {
 }
 
 export const MAX_VOICE_STYLE_LENGTH = 500
+
+export function isLibraryVoiceProvider(provider: VoiceProvider): provider is LibraryVoiceProvider {
+  return provider === 'fish' || provider === 'cartesia' || provider === 'elevenlabs'
+}
 
 export function llmModelsForProvider(provider: LlmModelProvider) {
   return LLM_MODEL_GROUPS.flatMap((group) => group.items).filter((item) => item.provider === provider)
@@ -353,8 +398,10 @@ export function validateAgentEngine(input: Partial<Record<keyof AgentEngine, unk
       if (voice.value === 'deepgram') return { ok: false, error: 'Pick a Deepgram voice.' }
       voiceModel = voice.defaultVoice
     }
+  } else if (!voiceModel && voice.defaultVoice) {
+    voiceModel = voice.defaultVoice
   } else if (!/^[A-Za-z0-9_-]{6,100}$/u.test(voiceModel)) {
-    return { ok: false, error: 'Pick a Fish voice.' }
+    return { ok: false, error: `Pick a ${voice.label} voice.` }
   }
 
   const realtime = REALTIME_PROVIDER_OPTIONS.find((option) => option.value === input.realtimeProvider)
@@ -388,9 +435,9 @@ function choiceLabel(choices: Choice[] | null, id: string): string | null {
 
 /**
  * Short human summary. In realtime mode `llm`/`voice` describe the realtime model and voice so
- * existing callers keep working. Fish voice titles are resolved by callers.
+ * existing callers keep working. Library voice titles (Fish, Cartesia, ElevenLabs) come from callers.
  */
-export function describeEngine(engine: AgentEngine, fishVoiceTitle?: string | null) {
+export function describeEngine(engine: AgentEngine, libraryVoiceTitle?: string | null) {
   if (engine.mode === 'realtime') {
     const option = realtimeOption(engine.realtimeProvider)
     return {
@@ -409,10 +456,11 @@ export function describeEngine(engine: AgentEngine, fishVoiceTitle?: string | nu
     mode: 'pipeline' as const,
     llm: labelForLlmModelId(engine.llmModel),
     llmProvider: llmProviderLabel(engine.llmProvider),
-    voice:
-      engine.voiceProvider === 'fish'
-        ? fishVoiceTitle || `Fish voice ${engine.voiceModel.slice(0, 8)}…`
-        : choiceLabel(voice.voices, engine.voiceModel) ?? engine.voiceModel,
+    voice: isLibraryVoiceProvider(engine.voiceProvider)
+      ? libraryVoiceTitle ||
+        (engine.voiceModel === voice.defaultVoice ? voice.defaultVoiceLabel : null) ||
+        `${voice.label} voice ${engine.voiceModel.slice(0, 8)}…`
+      : choiceLabel(voice.voices, engine.voiceModel) ?? engine.voiceModel,
     voiceProvider: voice.label,
     stt: choiceLabel(stt.models, engine.sttModel ?? '') ?? stt.models[0].label,
     sttProvider: stt.label,

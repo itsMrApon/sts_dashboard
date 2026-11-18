@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { getAssistantServiceSettings, listAssistants } from '@/actions/assistants'
 import { getAgentEngineSettings } from '@/actions/agentEngine'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
@@ -8,6 +9,7 @@ import { isSmtpConfigured } from '@/lib/services/formSubmit'
 import { sanitizeChatConfig, sanitizeFormConfig, sanitizeSpeakConfig } from '@/lib/services/types'
 import { getOrCreateBusinessWizard } from '@/lib/wizard/wizardRepo'
 import { loadServicesContext } from '../services/_lib/servicesContext'
+import { RAIL_COOKIE } from './_components/railCookie'
 import { AssistantWorkspace, type AssistantBehaviour } from './_components/AssistantWorkspace'
 
 type Props = { searchParams: Promise<{ assistant?: string; new?: string; list?: string }> }
@@ -27,7 +29,9 @@ function behaviourOnly(service: 'chat' | 'voice' | 'form', config: Record<string
  * its service's behaviour; /services keeps only the looks, switch and website code.
  */
 export default async function AiAgentsPage({ searchParams }: Props) {
-  const [{ business, user }, params] = await Promise.all([loadServicesContext(), searchParams])
+  const [{ business, user }, params, cookieStore] = await Promise.all([loadServicesContext(), searchParams, cookies()])
+  // The assistants rail starts collapsed (more room for the editor) until someone opens it.
+  const railCollapsed = cookieStore.get(RAIL_COOKIE)?.value !== 'open'
   const [assistants, engineResult, services] = await Promise.all([
     listAssistants(),
     getAgentEngineSettings(),
@@ -75,7 +79,12 @@ export default async function AiAgentsPage({ searchParams }: Props) {
         tour={tour}
         tourAssistantId={services.tour.agent?.id ?? null}
         newService={newService}
-        engineView={engineView}
+        engine={
+          engineSummary
+            ? { llm: engineSummary.llm, llmProvider: engineSummary.llmProvider, voice: engineSummary.voice, voiceProvider: engineSummary.voiceProvider, stt: engineSummary.stt }
+            : null
+        }
+        railCollapsed={railCollapsed}
         voiceLabel={engineSummary ? `${engineSummary.voice} · ${engineSummary.voiceProvider}` : 'Default voice'}
         voiceSpeaksBangla={engineView ? engineSpeaksBangla(engineView.engine) : false}
         ownerEmail={user.email ?? ''}

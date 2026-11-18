@@ -74,13 +74,28 @@ export const WIZARD_SHAPES: { id: WizardShape; label: string }[] = [
   { id: 'metaballs', label: 'Metaballs' },
 ]
 
-/** Deepgram Aura-2 voices (English). Bangla tours use the visitor's browser voice. */
+/** Cartesia Sonic voices (English). Bangla tours use the visitor's browser voice. */
 export const WIZARD_VOICES: { id: string; label: string }[] = [
-  { id: 'aura-2-thalia-en', label: 'Thalia — warm, female' },
-  { id: 'aura-2-andromeda-en', label: 'Andromeda — calm, female' },
-  { id: 'aura-2-apollo-en', label: 'Apollo — confident, male' },
-  { id: 'aura-2-orion-en', label: 'Orion — friendly, male' },
+  { id: 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4', label: 'Skylar — friendly, female' },
+  { id: '62ae83ad-4f6a-430b-af41-a9bede9286ca', label: 'Gemma — decisive, female' },
+  { id: '47c38ca4-5f35-497b-b1a3-415245fb35e1', label: 'Daniel — modern, male' },
+  { id: '30894953-bcce-41fe-892c-15ce19c843ff', label: 'Parker — supportive, male' },
 ]
+
+export const DEFAULT_WIZARD_VOICE = WIZARD_VOICES[0].id
+
+/** Tours saved with a retired Deepgram Aura voice speak with the matching Cartesia voice. */
+const LEGACY_WIZARD_VOICES: Record<string, string> = {
+  'aura-2-thalia-en': 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+  'aura-2-andromeda-en': '62ae83ad-4f6a-430b-af41-a9bede9286ca',
+  'aura-2-apollo-en': '47c38ca4-5f35-497b-b1a3-415245fb35e1',
+  'aura-2-orion-en': '30894953-bcce-41fe-892c-15ce19c843ff',
+}
+
+export function resolveWizardVoice(voice: string | null | undefined): string {
+  if (voice && WIZARD_VOICES.some((item) => item.id === voice)) return voice
+  return (voice && LEGACY_WIZARD_VOICES[voice]) || DEFAULT_WIZARD_VOICE
+}
 
 export const WIZARD_LANGUAGES: { id: WizardLanguage; label: string }[] = [
   { id: 'en', label: 'English' },

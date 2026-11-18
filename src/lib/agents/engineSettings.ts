@@ -3,6 +3,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import type { LlmModelProvider } from '@/lib/llm/modelOptions'
 import {
   DEFAULT_AGENT_ENGINE,
+  isLibraryVoiceProvider,
   validateAgentEngine,
   type AgentEngine,
 } from '@/lib/agents/engineOptions'
@@ -42,11 +43,18 @@ const ENGINE_SETTINGS_SELECT = {
   realtimeVoice: true,
 } as const
 
-/** Legacy per-agent columns (LLM + voice only) -> full engine on pipeline defaults. */
+/**
+ * Legacy per-agent columns (LLM + voice only) -> full engine on pipeline defaults. Those columns
+ * store no STT, and agents made before Cartesia became the default heard with Deepgram: keep that
+ * so their calls don't start needing a Cartesia key. Agents that already speak Cartesia hear with it.
+ */
 export function engineFromAgentColumns(agent: AgentEngineColumns | null | undefined): AgentEngine {
   if (!agent) return DEFAULT_AGENT_ENGINE
+  const sttProvider = !agent.voiceProvider || agent.voiceProvider === 'cartesia' ? DEFAULT_AGENT_ENGINE.sttProvider : 'deepgram'
   const validation = validateAgentEngine({
     ...DEFAULT_AGENT_ENGINE,
+    sttProvider,
+    sttModel: null,
     llmProvider: agent.llmProvider || DEFAULT_AGENT_ENGINE.llmProvider,
     llmModel: agent.llmModel || DEFAULT_AGENT_ENGINE.llmModel,
     voiceProvider: agent.voiceProvider || DEFAULT_AGENT_ENGINE.voiceProvider,
@@ -124,7 +132,7 @@ export async function saveEngineForUser(
   if (!validation.ok) return validation
   const { engine } = validation
   const voiceLabel =
-    engine.voiceProvider === 'fish' && typeof input.voiceLabel === 'string'
+    isLibraryVoiceProvider(engine.voiceProvider) && typeof input.voiceLabel === 'string'
       ? input.voiceLabel.trim().slice(0, 200) || null
       : null
 

@@ -112,7 +112,7 @@ export async function setVoiceWizardPublished(
     }
   }
 
-  // Pre-render narration so the first visitor gets instant audio (English / Deepgram only).
+  // Pre-render narration so the first visitor gets instant audio (English / Cartesia only).
   const { failed, missingKey } =
     published && wizard.language === 'en'
       ? await pregenerateClips(wizard.id, userId, wizard.voice, wizard.steps)

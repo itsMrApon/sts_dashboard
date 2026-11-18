@@ -9,14 +9,19 @@ type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string 
 /** Onboarding: the only place a business is created (one per creator). */
 export async function createMyBusiness(input: {
   name: string
-  description?: string
+  type?: string
+  location?: string
 }): Promise<ActionResult> {
   const auth = await onAuthenticateUser()
   if (!auth.user) return { ok: false, error: 'UNAUTHENTICATED' }
   if (!input.name?.trim()) return { ok: false, error: 'Business name is required' }
 
   try {
-    await createCreatorBusiness(auth.user.id, { name: input.name, description: input.description })
+    await createCreatorBusiness(auth.user.id, {
+      name: input.name,
+      type: typeof input.type === 'string' ? input.type : null,
+      location: typeof input.location === 'string' ? input.location : null,
+    })
   } catch (error) {
     console.error('[createMyBusiness]', error)
     return { ok: false, error: 'Could not create your business. Please try again.' }
@@ -24,4 +29,3 @@ export async function createMyBusiness(input: {
   revalidatePath('/', 'layout')
   return { ok: true }
 }
-

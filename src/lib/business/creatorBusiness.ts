@@ -3,6 +3,9 @@ import { cache } from 'react'
 import { Prisma, VideoType } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { DEFAULT_LLM_MODEL } from '@/lib/llm/defaultModel'
+import { DEFAULT_AGENT_ENGINE } from '@/lib/agents/engineOptions'
+import { VERTICALS, sanitizeSiteContent } from '@/lib/business/siteContent'
+import { normalizeOnboardingStep, type OnboardingResumeStep } from '@/lib/business/onboarding'
 
 /**
  * Single-business model: 1 creator = 1 workspace = 1 business profile = 1 shared AI (room).
@@ -18,15 +21,23 @@ export type CreatorBusiness = {
   pitchMessage: string
   agentId: string
   roomName: string
+  /** Setup guide step still to finish; null once onboarding is complete. */
+  onboardingStep: OnboardingResumeStep | null
 }
 
 const BUSINESS_NAME_MAX = 120
-const DESCRIPTION_MAX = 500
+const LOCATION_MAX = 120
 
-function businessSystemPrompt(name: string, description: string | null): string {
+/**
+ * The workspace AI's starting prompt. It only knows what onboarding asked (name, type, location);
+ * products, FAQs and policies come from the business profile at run time, and each service agent
+ * the creator builds gets its own persona and prompt.
+ */
+function businessSystemPrompt(name: string, typeLabel: string | null, location: string | null): string {
   return [
     `You are the AI assistant for ${name}.`,
-    description ? `About the business: ${description}` : null,
+    typeLabel ? `Business type: ${typeLabel}.` : null,
+    location ? `Location: ${location}.` : null,
     'Answer questions about the business, its services and products clearly and briefly.',
     'Be warm and professional. If you do not know something, say so and offer to connect the visitor with the team.',
     'Never invent prices, policies or availability. Reply in the language the visitor uses (Bangla or English).',
@@ -52,6 +63,7 @@ async function loadCreatorBusiness(userId: string): Promise<CreatorBusiness | nu
       id: true,
       name: true,
       pitchMessage: true,
+      onboardingStep: true,
       publishProfile: {
         select: {
           id: true,
@@ -79,6 +91,8 @@ async function loadCreatorBusiness(userId: string): Promise<CreatorBusiness | nu
     pitchMessage: workspace.pitchMessage,
     agentId: agent.id,
     roomName: agent.roomName,
+    // An unknown value never traps a creator in onboarding.
+    onboardingStep: normalizeOnboardingStep(workspace.onboardingStep),
   }
 }
 
@@ -92,7 +106,8 @@ export async function requireCreatorBusiness(userId: string): Promise<CreatorBus
   return business
 }
 
-export type CreateBusinessInput = { name: string; description?: string | null }
+/** Onboarding asks three things: name, type (a VERTICALS id) and location. */
+export type CreateBusinessInput = { name: string; type?: string | null; location?: string | null }
 
 /**
  * Creates profile + workspace + the one shared AI agent atomically.
@@ -107,12 +122,16 @@ export async function createCreatorBusiness(
 
   const name = input.name.trim().slice(0, BUSINESS_NAME_MAX)
   if (!name) throw new Error('Business name is required')
-  const description = input.description?.trim().slice(0, DESCRIPTION_MAX) || null
+  const vertical = VERTICALS.find((item) => item.id === input.type) ?? null
+  const location = input.location?.trim().slice(0, LOCATION_MAX) || null
+  // Type and location live in the business profile's site content (Services → Business edits them).
+  const site = sanitizeSiteContent({ advanced: { vertical: vertical?.id ?? '', location: location ?? '' } }, name)
+  const typeLabel = vertical && vertical.id !== 'other' ? vertical.label : null
 
   try {
     await prismaClient.$transaction(async (tx) => {
       const profile = await tx.publishProfile.create({
-        data: { userId, name, description },
+        data: { userId, name },
         select: { id: true },
       })
       await tx.workspace.create({
@@ -122,6 +141,10 @@ export async function createCreatorBusiness(
           publishProfileId: profile.id,
           pitchMessage: `Welcome to ${name}. Ask me anything about our services.`,
           videoType: VideoType.LINK,
+          contextVertical: vertical?.id ?? null,
+          contextCoreJson: { site } as unknown as Prisma.InputJsonObject,
+          // New workspaces go through the rest of the setup guide.
+          onboardingStep: 'agent',
         },
       })
       const agent = await tx.liveKitAgent.create({
@@ -130,10 +153,10 @@ export async function createCreatorBusiness(
           name: `${name} AI`,
           roomName: roomNameFor(name),
           firstMessage: `Hi! Welcome to ${name}. How can I help you today?`,
-          systemPrompt: businessSystemPrompt(name, description),
+          systemPrompt: businessSystemPrompt(name, typeLabel, location),
           language: 'en',
-          voiceProvider: 'deepgram',
-          voiceModel: 'aura-asteria-en',
+          voiceProvider: DEFAULT_AGENT_ENGINE.voiceProvider,
+          voiceModel: DEFAULT_AGENT_ENGINE.voiceModel,
           llmModel: DEFAULT_LLM_MODEL,
           llmProvider: 'google',
         },
@@ -162,4 +185,9 @@ export async function getBusinessByRoomName(roomName: string): Promise<CreatorBu
   })
   const userId = link?.publishProfile.userId
   return userId ? getCreatorBusiness(userId) : null
+}
+
+/** Saves the setup step the creator is on, or null when they finish. */
+export async function setOnboardingStep(workspaceId: string, step: OnboardingResumeStep | null): Promise<void> {
+  await prismaClient.workspace.update({ where: { id: workspaceId }, data: { onboardingStep: step } })
 }

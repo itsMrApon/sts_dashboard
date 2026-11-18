@@ -8,6 +8,8 @@ export type ConfigCredentialProvider =
   | 'kimi'
   | 'deepgram'
   | 'fish'
+  | 'cartesia'
+  | 'elevenlabs'
 
 export type ConfigProviderKind = 'llm' | 'stt' | 'tts'
 
@@ -131,7 +133,7 @@ export const CONFIG_PROVIDERS: ConfigProviderItem[] = [
     name: 'Deepgram',
     kind: 'stt',
     placeholder: 'Deepgram API key…',
-    tagline: 'Hears the caller. Speech-to-text on every call.',
+    tagline: 'Optional English speech-to-text and Aura voices.',
     keyUrl: 'https://console.deepgram.com/',
     envVar: 'DEEPGRAM_API_KEY',
     monogram: 'Dg',
@@ -148,6 +150,32 @@ export const CONFIG_PROVIDERS: ConfigProviderItem[] = [
     envVar: 'FISH_API_KEY',
     monogram: 'Fi',
     accent: 'from-rose-500 to-pink-600',
+    capabilities: ['tts'],
+  },
+  {
+    id: 'cartesia',
+    name: 'Cartesia',
+    kind: 'tts',
+    placeholder: 'sk_car_…',
+    tagline: 'Hears and speaks: Ink speech-to-text and Sonic voices, English and Bangla, on one key.',
+    keyUrl: 'https://play.cartesia.ai/keys',
+    envVar: 'CARTESIA_API_KEY',
+    keyPrefix: 'sk_car_',
+    monogram: 'Ca',
+    accent: 'from-amber-400 to-orange-600',
+    capabilities: ['stt', 'tts'],
+  },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs',
+    kind: 'tts',
+    placeholder: 'sk_…',
+    tagline: 'Speaks back. Premium, expressive voices and your cloned voices.',
+    keyUrl: 'https://elevenlabs.io/app/settings/api-keys',
+    envVar: 'ELEVENLABS_API_KEY',
+    keyPrefix: 'sk_',
+    monogram: 'El',
+    accent: 'from-slate-600 to-slate-900',
     capabilities: ['tts'],
   },
 ]
@@ -183,4 +211,4 @@ export type ProviderKeyCheck = {
 }
 
 export const LLM_SURFACES = ['messages', 'leads', 'projects', 'tenants'] as const
-export const VOICE_PROVIDERS = ['fish', 'deepgram', 'livekit'] as const
+export const VOICE_PROVIDERS = ['cartesia', 'elevenlabs', 'fish', 'deepgram', 'livekit'] as const

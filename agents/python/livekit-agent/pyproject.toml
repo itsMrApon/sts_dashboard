@@ -15,17 +15,12 @@ dependencies = [
     "livekit-plugins-google>=1.8.11",
     "livekit-plugins-anthropic>=1.8.11",
     "livekit-plugins-xai>=1.8.11",
+    "livekit-plugins-cartesia>=1.8.11",
+    "livekit-plugins-elevenlabs>=1.8.11",
     "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
-# Additional TTS providers
-tts = [
-    "livekit-plugins-cartesia>=1.0.0",
-    "livekit-plugins-elevenlabs>=1.0.0",
-    "livekit-plugins-fishaudio>=1.0.0",
-]
-
 # Additional LLM providers
 llm = [
     "livekit-plugins-anthropic>=1.0.0",
@@ -51,9 +46,6 @@ dev = [
 
 # All optional dependencies
 all = [
-    "livekit-plugins-cartesia>=1.0.0",
-    "livekit-plugins-elevenlabs>=1.0.0",
-    "livekit-plugins-fishaudio>=1.0.0",
     "livekit-plugins-anthropic>=1.0.0",
     "livekit-plugins-google>=1.0.0",
     "livekit-plugins-groq>=1.0.0",

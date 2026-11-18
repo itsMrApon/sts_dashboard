@@ -43,7 +43,12 @@ export type KeyDate = {
   note: string
 }
 
-export type SiteAdvanced = { vertical: string; websiteUrl: string; termsAndConditions: string }
+/**
+ * vertical = business type, location = where it operates (city / region). Both set at onboarding.
+ * lookupTags = what the creator typed to find the business online (@handles, domains, names); the
+ * scrape agent researches them later, once the creator has an AI key.
+ */
+export type SiteAdvanced = { vertical: string; location: string; lookupTags: string[]; websiteUrl: string; termsAndConditions: string }
 
 /** Look of the hosted business site (/business/<room>): colour, hero, which blocks show. */
 export type SiteAppearance = {
@@ -93,6 +98,7 @@ export const SITE_LIMITS = {
   services: 40,
   docs: 12,
   keyDates: 150,
+  lookupTags: 12,
 } as const
 
 export const SOCIAL_PLATFORMS: { id: string; label: string; urlFor: (handle: string) => string }[] = [
@@ -117,6 +123,13 @@ export const VERTICALS: { id: string; label: string }[] = [
   { id: 'wholesale', label: 'Wholesale' },
   { id: 'healthcare', label: 'Healthcare' },
   { id: 'education', label: 'Education' },
+  { id: 'food', label: 'Food & drink' },
+  { id: 'beauty', label: 'Beauty & wellness' },
+  { id: 'fitness', label: 'Fitness' },
+  { id: 'legal', label: 'Legal' },
+  { id: 'home_services', label: 'Home services' },
+  { id: 'travel', label: 'Travel' },
+  { id: 'other', label: 'Something else' },
 ]
 
 export function newId(): string {
@@ -140,7 +153,7 @@ export function emptySiteContent(businessName: string): BusinessSiteContent {
     social: { followLabel: 'Follow on', accounts: [], media: [] },
     services: [],
     keyDates: [],
-    advanced: { vertical: '', websiteUrl: '', termsAndConditions: '' },
+    advanced: { vertical: '', location: '', lookupTags: [], websiteUrl: '', termsAndConditions: '' },
     appearance: {
       accent: 'violet',
       heroAlign: 'center',
@@ -287,6 +300,8 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
     keyDates,
     advanced: {
       vertical: VERTICALS.some((v) => v.id === advanced.vertical) ? String(advanced.vertical) : '',
+      location: str(advanced.location, SITE_LIMITS.short),
+      lookupTags: [...new Set(arr(advanced.lookupTags).map((tag) => str(tag, 80)).filter(Boolean))].slice(0, SITE_LIMITS.lookupTags),
       websiteUrl: safeUrl(advanced.websiteUrl),
       termsAndConditions: str(advanced.termsAndConditions, SITE_LIMITS.terms),
     },

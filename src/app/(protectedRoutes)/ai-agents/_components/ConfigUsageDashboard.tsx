@@ -63,6 +63,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   kimi: 'Kimi',
   deepgram: 'Deepgram',
   fish: 'Fish Audio',
+  cartesia: 'Cartesia',
+  elevenlabs: 'ElevenLabs',
   livekit: 'LiveKit',
 }
 
@@ -94,6 +96,18 @@ const LLM_SURFACE_META = [
 ] as const
 
 const VOICE_META = [
+  {
+    provider: 'cartesia',
+    label: 'Cartesia',
+    hint: 'TTS',
+    Icon: Volume2,
+  },
+  {
+    provider: 'elevenlabs',
+    label: 'ElevenLabs',
+    hint: 'TTS',
+    Icon: Volume2,
+  },
   {
     provider: 'fish',
     label: 'Fish Audio',
@@ -140,7 +154,7 @@ function providerUnits(kind: string, inputUnits: number, outputUnits: number): s
 }
 
 function voicePrimary(row: UsageVoiceRow): { value: string; detail: string } {
-  if (row.provider === 'fish') {
+  if (row.provider === 'fish' || row.provider === 'elevenlabs') {
     return {
       value: formatCompact(row.ttsChars),
       detail: `chars · ${row.requests} sessions`,
@@ -252,7 +266,7 @@ export default function ConfigUsageDashboard() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-            LLM by product surface, and voice STT/TTS by Fish, Deepgram, and
+            LLM by product surface, and voice STT/TTS by Cartesia, ElevenLabs, Fish, Deepgram, and
             LiveKit. Updates every few seconds from new traffic.
             {updatedAt
               ? ` Last sync ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`

@@ -60,7 +60,7 @@ function usedForLines(id: ConfigCredentialProvider, engine: AgentEngine): string
   const active = rolesFor(id, engine).filter((role) => role !== 'Chat & leads')
   if (active.length) lines.push(`In use right now: ${active.join(', ').toLowerCase()} on every voice call.`)
   for (const capability of configProviderById(id).capabilities) lines.push(CAPABILITY_LINES[capability])
-  if (id === 'fish') lines.push('Browsing and cloning voices in the voice picker.')
+  if (id === 'fish' || id === 'cartesia' || id === 'elevenlabs') lines.push('Browsing your own and cloned voices in the voice picker.')
   return lines
 }
 

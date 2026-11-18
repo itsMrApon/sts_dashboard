@@ -243,8 +243,8 @@ export function WizardConfigurator({
       }
       patch({ isPublished: published })
       if (published && result.audioKeyMissing) {
-        toast.warning('Wizard is live with the browser voice. Add your Deepgram API key in AI Agents → Config for the AI voice.', {
-          action: { label: 'Open Config', onClick: () => router.push('/ai-agents/config?provider=deepgram') },
+        toast.warning('Wizard is live with the browser voice. Add your Cartesia API key in AI Agents → Config for the AI voice.', {
+          action: { label: 'Open Config', onClick: () => router.push('/ai-agents/config?provider=cartesia') },
         })
       } else if (published && result.audioFailures > 0) {
         toast.warning(`Published, but ${result.audioFailures} clip(s) failed — they'll use the browser voice.`)
@@ -261,7 +261,7 @@ export function WizardConfigurator({
     setPlayingStepId(null)
   }, [])
 
-  /** Saved English steps play the real Deepgram clip; unsaved/Bangla steps use the browser voice. */
+  /** Saved English steps play the real Cartesia clip; unsaved/Bangla steps use the browser voice. */
   const previewStep = (step: VoiceWizardStep) => {
     if (playingStepId === step.id) {
       stopPreview()

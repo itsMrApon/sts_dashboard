@@ -20,7 +20,7 @@ type SpeakOptions = { muted: boolean }
 
 /**
  * Plays one step at a time and resolves when it finishes (or is cancelled).
- * English: pre-rendered Deepgram clip → browser voice → timer.
+ * English: pre-rendered Cartesia clip → browser voice → timer.
  * Bangla: browser voice (bn) → timer.
  * One shared <audio> element, unlocked on the first user gesture (required by iOS Safari).
  */

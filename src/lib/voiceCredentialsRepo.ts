@@ -16,6 +16,8 @@ export type VoiceCredentialProvider =
   | 'fish'
   | 'deepseek'
   | 'kimi'
+  | 'cartesia'
+  | 'elevenlabs'
 
 export type UserVoiceCredentialRow = UserVoiceCredential
 
@@ -29,6 +31,8 @@ type KeyColumn =
   | 'fishApiKey'
   | 'deepseekApiKey'
   | 'kimiApiKey'
+  | 'cartesiaApiKey'
+  | 'elevenlabsApiKey'
 
 type ValidatedAtColumn =
   | 'googleValidatedAt'
@@ -40,6 +44,8 @@ type ValidatedAtColumn =
   | 'fishValidatedAt'
   | 'deepseekValidatedAt'
   | 'kimiValidatedAt'
+  | 'cartesiaValidatedAt'
+  | 'elevenlabsValidatedAt'
 
 export const CREDENTIAL_COLUMNS: Record<
   VoiceCredentialProvider,
@@ -54,6 +60,8 @@ export const CREDENTIAL_COLUMNS: Record<
   fish: { key: 'fishApiKey', validatedAt: 'fishValidatedAt' },
   deepseek: { key: 'deepseekApiKey', validatedAt: 'deepseekValidatedAt' },
   kimi: { key: 'kimiApiKey', validatedAt: 'kimiValidatedAt' },
+  cartesia: { key: 'cartesiaApiKey', validatedAt: 'cartesiaValidatedAt' },
+  elevenlabs: { key: 'elevenlabsApiKey', validatedAt: 'elevenlabsValidatedAt' },
 }
 
 export type VoiceCredentialKeyUpdate = Partial<Record<KeyColumn, string | null>>

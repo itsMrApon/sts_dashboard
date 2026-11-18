@@ -2,7 +2,7 @@
 
  import { WebinarFormState } from "@/store/useStsStore"
  import { onAuthenticateUser } from "./auth"
- import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
+ import { revalidatePath, revalidateTag } from "next/cache"
  import { prismaClient } from "@/lib/prismaClient"
  import { ensureOfferTourQuietly } from '@/lib/wizard/wizardRepo'
  import { CtaTypeEnum, OfferPriceKind, WebinarKind, WebinarStatusEnum } from "@prisma/client"
@@ -201,57 +201,6 @@ export const createProject = async(
   }
 }
 
-//todo update frontend to pass webinarstatus
-const getProjectsByPresenterCached = unstable_cache(
-  async (userId: string, statusKey: string) =>
-    prismaClient.webinar.findMany({
-      where: {
-        presenterId: userId,
-        webinarStatus: statusKey === 'all' ? undefined : (statusKey as WebinarStatusEnum),
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        thumbnail: true,
-        startTime: true,
-        kind: true,
-        ctaType: true,
-        linkVariants: true,
-        webinarStatus: true,
-        slug: true,
-        orderModes: { select: { kind: true, enabled: true } },
-      },
-    }),
-  ['projects-by-presenter-v2'],
-  { revalidate: 20, tags: ['projects-list'] },
-)
-
-export const getProjectByPresenterId = async (
-  presenterId: string,
-  webinarStatus?: string
-) => {
-  try {
-    let statusFilter: WebinarStatusEnum | undefined
-    switch (webinarStatus) {
-      case 'upcoming':
-        statusFilter = WebinarStatusEnum.SCHEDULED
-        break
-      case 'ended':
-        statusFilter = WebinarStatusEnum.ENDED
-        break
-      default:
-        statusFilter = undefined
-    }
-
-    return await getProjectsByPresenterCached(presenterId, statusFilter ?? 'all')
-  } catch (error) {
-    console.error('Error getting projects:', error)
-    return []
-  }
-}
-
 export const getProjectbyId = async (projectId: string) =>{
   try {
     const project = await prismaClient.webinar.findUnique({
@@ -288,6 +237,8 @@ export const changeProjectStatus = async (
       data: { webinarStatus: status },
     })
     if (updated.count === 0) return { status: 404, success: false, message: 'Session not found' }
+    // The Projects cards show the session's status.
+    revalidateTag('projects-list')
     return {
       status: 200,
       success: true,

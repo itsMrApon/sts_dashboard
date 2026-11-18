@@ -22,7 +22,10 @@ export function BusinessProductsCard({ projects, linkedIds }: { projects: Projec
 
   const save = () =>
     startTransition(guardAction(async () => {
-      const result = await setBusinessProducts(selected)
+      const result = await setBusinessProducts({
+        add: selected.filter((id) => !linkedIds.includes(id)),
+        remove: linkedIds.filter((id) => !selected.includes(id)),
+      })
       if (result.ok) toast.success('Products updated')
       else toast.error(result.error)
     }))

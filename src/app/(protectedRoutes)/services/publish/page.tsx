@@ -21,7 +21,7 @@ export default async function BusinessPage() {
       },
     }),
     prismaClient.webinar.findMany({
-      where: { presenterId: user.id },
+      where: { presenterId: user.id, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       select: { id: true, title: true, kind: true },
     }),

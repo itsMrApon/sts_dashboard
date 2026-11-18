@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import type { Prisma } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
@@ -108,27 +108,39 @@ export async function submitFormPreview(input: {
 }
 
 /** Projects/products the shared AI can mention (links shown in chat replies). */
-export async function setBusinessProducts(webinarIds: string[]): Promise<ActionResult> {
+/**
+ * Adds and removes offers on the business (the Business → Products & projects picker). Only the
+ * changes are sent, so an offer created after the picker loaded (on the business by default) is
+ * never dropped by a stale save. The oldest link becomes Featured when none is.
+ */
+export async function setBusinessProducts(input: { add: string[]; remove: string[] }): Promise<ActionResult> {
   const auth = await onAuthenticateUser()
   if (!auth.user) return { ok: false, error: 'UNAUTHENTICATED' }
   const business = await getCreatorBusiness(auth.user.id)
   if (!business) return { ok: false, error: 'Create your business first' }
 
+  const add = Array.isArray(input?.add) ? input.add.slice(0, 50) : []
+  const remove = Array.isArray(input?.remove) ? input.remove.slice(0, 50) : []
   const owned = await prismaClient.webinar.findMany({
-    where: { id: { in: webinarIds.slice(0, 50) }, presenterId: auth.user.id },
+    where: { id: { in: add }, presenterId: auth.user.id, deletedAt: null },
     select: { id: true },
   })
-  await prismaClient.$transaction([
-    prismaClient.publishProduct.deleteMany({ where: { publishProfileId: business.publishProfileId } }),
-    prismaClient.publishProduct.createMany({
-      data: owned.map((webinar, index) => ({
-        publishProfileId: business.publishProfileId,
-        webinarId: webinar.id,
-        isPrimary: index === 0,
-      })),
-    }),
-  ])
+  const publishProfileId = business.publishProfileId
+
+  await prismaClient.$transaction(async (tx) => {
+    await tx.publishProduct.deleteMany({ where: { publishProfileId, webinarId: { in: remove } } })
+    await tx.publishProduct.createMany({
+      data: owned.map((webinar) => ({ publishProfileId, webinarId: webinar.id, isPrimary: false })),
+      skipDuplicates: true,
+    })
+    const hasPrimary = await tx.publishProduct.count({ where: { publishProfileId, isPrimary: true } })
+    if (!hasPrimary) {
+      const first = await tx.publishProduct.findFirst({ where: { publishProfileId }, orderBy: { createdAt: 'asc' } })
+      if (first) await tx.publishProduct.update({ where: { id: first.id }, data: { isPrimary: true } })
+    }
+  })
   revalidatePath('/services', 'layout')
+  revalidateTag('projects-list')
   return { ok: true }
 }
 

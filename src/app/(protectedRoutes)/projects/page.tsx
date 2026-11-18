@@ -1,27 +1,35 @@
 import React from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Webcam, MessageCircle, HomeIcon } from 'lucide-react'
 import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { onAuthenticateUser } from '@/actions/auth'
-import { redirect } from 'next/navigation'
-import { getProjectByPresenterId } from '@/actions/webiner'
 import ProjectCard from './_components/ProjectCard '
-import { WebinarStatusEnum } from '@prisma/client'
-import Link from 'next/link'
+import ProjectsEmptyState from './_components/ProjectsEmptyState'
 import ProjectIntentLauncher from './_components/ProjectIntentLauncher'
 import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
+import { listCreatorOffers, parseOfferFilter, type OfferFilter } from '@/lib/offers/creatorOffers'
+import { cn } from '@/lib/utils'
 
 type Props = {
   searchParams: Promise<{
-    webinarStatus?: string
+    filter?: string
     tenantId?: string
     intent?: string
     openAdd?: string
   }>
 }
 
+const FILTER_TABS: { value: OfferFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'products', label: 'Products' },
+  { value: 'webinars', label: 'Webinars' },
+  { value: 'ended', label: 'Ended' },
+]
+
+/** Products and webinars: one card each, filtered by type (or ended webinars) via ?filter=. */
 const page = async ({ searchParams }: Props) => {
-  const [{ webinarStatus, tenantId, intent, openAdd }, checkUser] = await Promise.all([
+  const [{ filter: filterParam, tenantId, intent, openAdd }, checkUser] = await Promise.all([
     searchParams,
     onAuthenticateUser(),
   ])
@@ -30,13 +38,11 @@ const page = async ({ searchParams }: Props) => {
     redirect('/')
   }
 
+  const filter = parseOfferFilter(filterParam)
   const shouldAutoLaunch = openAdd === '1' && (intent === 'product' || intent === 'webinar')
 
-  // Default path: projects list only (cached). Stripe/LiveKit only when launcher opens.
-  const webinars = await getProjectByPresenterId(
-    checkUser.user.id,
-    webinarStatus as WebinarStatusEnum,
-  )
+  // Default path: offers list only (cached). Stripe/LiveKit only when the legacy launcher opens.
+  const offers = await listCreatorOffers(checkUser.user.id, filter)
 
   let stripeProducts: unknown[] = []
   let livekitAgents: unknown[] = []
@@ -59,12 +65,6 @@ const page = async ({ searchParams }: Props) => {
 
   const shareBaseUrl = publicBaseUrl()
 
-  const hostUser = {
-    id: checkUser.user.id,
-    name: checkUser.user.name,
-    profileImage: checkUser.user.profileImage,
-  }
-
   return (
     <>
       {shouldAutoLaunch ? (
@@ -75,75 +75,42 @@ const page = async ({ searchParams }: Props) => {
           livekitAgents={livekitAgents as never}
         />
       ) : null}
-      <Tabs defaultValue="all" className="flex w-full flex-col gap-8">
+      <div className="flex w-full flex-col gap-8">
         <PageHeader
           leftIcon={<HomeIcon className="h-3 w-3" />}
           mainIcon={<Webcam className="h-12 w-12" />}
           rightIcon={<MessageCircle className="h-4 w-4" />}
-          heading="The home to all your Projects"
-          placeholder="Search option..."
+          heading="Your products & webinars"
+          mobileHeading="Projects"
+          hideSearch
         >
-          <TabsList className="space-x-3 bg-transparent">
-            <TabsTrigger
-              value="all"
-              className="bg-secondary px-6 py-4 opacity-50 data-[state=active]:opacity-100"
-            >
-              <Link href="/webinars?webinarStatus=all">All</Link>
-            </TabsTrigger>
-            <TabsTrigger value="active" className="bg-secondary px-6 py-4">
-              <Link href="/webinars?webinarStatus=upcoming">OnDemand</Link>
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="bg-secondary px-6 py-4">
-              <Link href="/webinars?webinarStatus=ended">Ended</Link>
-            </TabsTrigger>
-          </TabsList>
+          <nav aria-label="Filter projects" className="flex flex-wrap gap-2">
+            {FILTER_TABS.map((tab) => (
+              <Link
+                key={tab.value}
+                href={tab.value === 'all' ? '/projects' : `/projects?filter=${tab.value}`}
+                aria-current={filter === tab.value ? 'page' : undefined}
+                className={cn(
+                  'rounded-md bg-secondary px-5 py-2.5 text-sm transition-opacity',
+                  filter === tab.value ? 'font-medium opacity-100' : 'opacity-50 hover:opacity-80',
+                )}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
         </PageHeader>
 
-        <TabsContent
-          value="all"
-          className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4"
-        >
-          {webinars?.length > 0 ? (
-            webinars.map((project, index: number) => (
-              <ProjectCard key={index} project={project as never} hostUser={hostUser} shareBaseUrl={shareBaseUrl} />
-            ))
-          ) : (
-            <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
-              No projects found
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent
-          value="onDemand"
-          className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4"
-        >
-          {webinars?.length > 0 ? (
-            webinars.map((project, index: number) => (
-              <ProjectCard key={index} project={project as never} hostUser={hostUser} shareBaseUrl={shareBaseUrl} />
-            ))
-          ) : (
-            <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
-              No onDemand projects found
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent
-          value="ended"
-          className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-4"
-        >
-          {webinars?.length > 0 ? (
-            webinars.map((project, index: number) => (
-              <ProjectCard key={index} project={project as never} hostUser={hostUser} shareBaseUrl={shareBaseUrl} />
-            ))
-          ) : (
-            <div className="col-span-12 flex h-[200px] w-full items-center justify-center text-2xl font-semibold text-primary">
-              No completed projects found
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+        {offers.length > 0 ? (
+          <div className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {offers.map((offer) => (
+              <ProjectCard key={offer.id} project={offer} shareBaseUrl={shareBaseUrl} />
+            ))}
+          </div>
+        ) : (
+          <ProjectsEmptyState filter={filter} canCreate={!!checkUser.user.subscription} />
+        )}
+      </div>
     </>
   )
 }

@@ -1,6 +1,13 @@
 import type { LiveKitAgent } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { enabledModes, primaryOfferLink } from '@/lib/offers/offerLinks'
+import {
+  WEBINAR_STATUS_LABEL,
+  formatOfferPrice,
+  isWebinarOver,
+  summarizeOfferPrice,
+} from '@/lib/offers/offerSummary'
 
 export type AgentContext = {
   systemInstruction: string
@@ -40,10 +47,25 @@ type TenantCompactProfile = {
   }
 }
 
-/** Public page of a project/product: Live link for live projects, Share link for products. */
-function publicOfferUrl(appUrl: string, webinar: { kind: string; slug: string | null }): string | null {
-  if (!webinar.slug) return null
-  return webinar.kind === 'PROJECT' ? `${appUrl}/live/${webinar.slug}` : `${appUrl}/o/${webinar.slug}`
+/** The offer's link for buyers, from its ways to order (webinars: the Live link when Live is on). */
+function publicOfferUrl(
+  appUrl: string,
+  webinar: Parameters<typeof primaryOfferLink>[0] & { orderModes: Parameters<typeof enabledModes>[0] },
+): string | null {
+  return primaryOfferLink(webinar, enabledModes(webinar.orderModes), appUrl)?.url ?? null
+}
+
+/** "Tue, Nov 24, 2026, 10:00 AM UTC": the creator's timezone isn't stored, so say UTC explicitly. */
+function formatWebinarStart(startTime: Date): string {
+  return `${new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }).format(startTime)} UTC`
 }
 
 export async function buildAgentContext(
@@ -76,6 +98,8 @@ export async function buildAgentContext(
           },
         },
         products: {
+          // Deleted offers are never promoted; ended webinars are dropped below.
+          where: { webinar: { deletedAt: null } },
           include: {
             webinar: {
               select: {
@@ -89,6 +113,13 @@ export async function buildAgentContext(
                 ctaLabel: true,
                 couponCode: true,
                 couponEnabled: true,
+                startTime: true,
+                webinarStatus: true,
+                orderModes: { select: { kind: true, enabled: true } },
+                prices: {
+                  where: { active: true },
+                  select: { kind: true, amountCents: true, currency: true, isDefault: true, active: true },
+                },
               },
             },
           },
@@ -116,7 +147,18 @@ export async function buildAgentContext(
         ),
   ])
 
-  const business = businessLink?.publishProfile || null
+  const linkedBusiness = businessLink?.publishProfile || null
+  // Only offers a buyer can act on: not ended, and with at least one way to order turned on.
+  const business = linkedBusiness
+    ? {
+        ...linkedBusiness,
+        products: linkedBusiness.products.filter(
+          (bp) =>
+            !(bp.webinar.kind === 'PROJECT' && isWebinarOver(bp.webinar.webinarStatus)) &&
+            publicOfferUrl(appUrl, bp.webinar) !== null,
+        ),
+      }
+    : null
   const workspaceId = channel?.workspaceId ?? null
   const webinarId = channel?.webinarId ?? null
 
@@ -204,9 +246,16 @@ export async function buildAgentContext(
 
   if (mode === 'full' && !roomJoinLink && webinarId) {
     const webinar = await timeAsync('messages.buildAgentContext.webinar.findUnique', () =>
-      prismaClient.webinar.findUnique({
-        where: { id: webinarId },
-        select: { id: true, slug: true, kind: true, ctaType: true, ctaUrl: true },
+      prismaClient.webinar.findFirst({
+        where: { id: webinarId, deletedAt: null },
+        select: {
+          id: true,
+          slug: true,
+          kind: true,
+          ctaType: true,
+          ctaUrl: true,
+          orderModes: { select: { kind: true, enabled: true } },
+        },
       }),
     )
     if (webinar) {
@@ -229,9 +278,16 @@ export async function buildAgentContext(
     const productSections = business.products.map((bp) => {
       const w = bp.webinar
       const url = publicOfferUrl(appUrl, w)
+      const price = summarizeOfferPrice(w.prices)
       const lines = [
-        `- **${w.title}**${bp.isPrimary ? ' (Featured)' : ''}`,
+        `- **${w.title}**${w.kind === 'PROJECT' ? ' (Webinar)' : ''}${bp.isPrimary ? ' (Featured)' : ''}`,
         w.description ? `  ${w.description}` : '',
+        w.kind === 'PROJECT'
+          ? w.webinarStatus === 'LIVE'
+            ? '  When: live now'
+            : `  When: ${formatWebinarStart(w.startTime)} (${WEBINAR_STATUS_LABEL[w.webinarStatus].toLowerCase()})`
+          : '',
+        price ? `  Price: ${formatOfferPrice(price)}` : '',
         url ? `  Link: ${url}` : '',
         w.ctaType === 'BUY_NOW' && w.ctaUrl ? `  Buy: ${w.ctaUrl}` : '',
         w.couponEnabled && w.couponCode ? `  Coupon: ${w.couponCode}` : '',

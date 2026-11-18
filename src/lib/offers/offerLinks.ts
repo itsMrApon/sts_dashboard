@@ -44,3 +44,23 @@ export function buildOfferShareLinks(
   }
   return links
 }
+
+/**
+ * The one link to hand out for an offer (AI replies, business page): a webinar's Live link when
+ * Live with you is on, otherwise the Share link, otherwise Direct pay. Null when no way to order is on.
+ */
+export function primaryOfferLink(
+  offer: { kind: 'PRODUCT' | 'PROJECT'; slug: string | null },
+  modes: Partial<Record<OrderModeKey, boolean>>,
+  baseUrl: string,
+): OfferShareLink | null {
+  const links = buildOfferShareLinks(offer.slug, modes, baseUrl)
+  const byVariant = (variant: OfferShareLink['variant']) => links.find((link) => link.variant === variant) ?? null
+  if (offer.kind === 'PROJECT') return byVariant('live') ?? byVariant('share') ?? byVariant('pay')
+  return byVariant('share') ?? byVariant('pay')
+}
+
+/** Order mode rows → the enabled map the link builders take. */
+export function enabledModes(rows: { kind: OrderModeKey; enabled: boolean }[]): Partial<Record<OrderModeKey, boolean>> {
+  return Object.fromEntries(rows.map((row) => [row.kind, row.enabled]))
+}

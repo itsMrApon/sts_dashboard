@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
       { source: '/messages/wizard/:slug', destination: '/services/wizard', permanent: false },
       { source: '/messages/:path*', destination: '/services/:path*', permanent: true },
       { source: '/wizard', destination: '/services/wizard', permanent: false },
+      // Old webinar list links (home card, bookmarks) → Projects, filtered to webinars.
+      { source: '/webinars', destination: '/projects?filter=webinars', permanent: false },
       { source: '/wizard/:slug/configure', destination: '/services/wizard', permanent: false },
     ]
   },

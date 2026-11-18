@@ -26,6 +26,7 @@ import {
   setOfferOnBusiness,
 } from '@/actions/offers'
 import { AiPanelPicker, type AiPanelPicks } from './AiPanelPicker'
+import { OfferDeleteSection } from './OfferDeleteSection'
 import {
   ORDER_MODE_COPY,
   ORDER_MODE_KINDS,
@@ -498,6 +499,8 @@ export function OfferSettings({ offer }: Props) {
           <Section title="Orders" description="Newest first. “Didn’t finish” means the buyer left checkout: worth a follow-up.">
             <OfferOrders orders={offer.orders} />
           </Section>
+
+          <OfferDeleteSection id={offer.id} typeLabel={typeLabel} disabled={locked} />
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-28 lg:self-start">

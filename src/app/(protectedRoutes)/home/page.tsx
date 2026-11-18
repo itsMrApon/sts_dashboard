@@ -28,7 +28,7 @@ const Pages = () => {
               <FeatureCard
                 Icon={<Webcam className="w-10 h-10" />}
                 heading="Go live and interact with your audience in real-time"
-                link="/webinars"
+                link="/projects?filter=webinars"
               />
             </div>
           </div>

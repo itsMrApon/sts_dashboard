@@ -94,6 +94,19 @@ export async function createOffer(input: { kind: OfferKindInput; title: string }
     },
     select: { id: true },
   })
+  // On the business by default, so the business AI can recommend it right away (Settings → "Show on
+  // my business" turns it off). One link added on its own: never a replace of the whole list.
+  if (business) {
+    const { publishProfileId } = business
+    // First offer on the business becomes its Featured one.
+    const hasPrimary = await prismaClient.publishProduct.count({ where: { publishProfileId, isPrimary: true } })
+    await prismaClient.publishProduct.upsert({
+      where: { publishProfileId_webinarId: { publishProfileId, webinarId: webinar.id } },
+      create: { publishProfileId, webinarId: webinar.id, isPrimary: hasPrimary === 0 },
+      update: {},
+    })
+    revalidatePath('/services', 'layout')
+  }
   // Every product gets its own wizard profile (Services → Wizard), separate from the others.
   await ensureOfferTourQuietly({ webinarId: webinar.id, userId: owner.user.id })
   revalidateOffer(webinar.id)
@@ -243,6 +256,26 @@ export async function setOfferOnBusiness(input: { id: string; enabled: boolean }
   } else {
     await prismaClient.publishProduct.deleteMany({ where: key })
   }
+  revalidateOffer(input.id)
+  revalidatePath('/services', 'layout')
+  return { ok: true }
+}
+
+/**
+ * Deletes an offer for the creator: hidden everywhere (Projects, public links, business, AI) but the
+ * row stays, so its orders, payments and pipeline history keep their reference.
+ */
+export async function deleteOffer(input: { id: string }): Promise<ActionResult> {
+  const owner = await requireOwner(input.id)
+  if ('error' in owner || !owner.webinar) return { ok: false, error: 'error' in owner ? owner.error : 'Offer not found' }
+  if (owner.webinar.webinarStatus === WebinarStatusEnum.LIVE) {
+    return { ok: false, error: 'End the live session before deleting this webinar' }
+  }
+
+  await prismaClient.$transaction([
+    prismaClient.webinar.update({ where: { id: input.id }, data: { deletedAt: new Date() } }),
+    prismaClient.publishProduct.deleteMany({ where: { webinarId: input.id } }),
+  ])
   revalidateOffer(input.id)
   revalidatePath('/services', 'layout')
   return { ok: true }

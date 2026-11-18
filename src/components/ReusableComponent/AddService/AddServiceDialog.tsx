@@ -68,14 +68,25 @@ function TileBody({ tile }: { tile: Tile }) {
  * are created here and open on their settings page; website services open their configurators.
  * Only rendered for creators with a package (the server re-checks on create).
  */
-export default function AddServiceDialog() {
+export default function AddServiceDialog({
+  initialKind,
+  triggerLabel = 'Add service',
+}: {
+  /** Open straight on the name step for this offer type (e.g. the Projects empty state). */
+  initialKind?: OfferKindInput
+  triggerLabel?: string
+} = {}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [offerKind, setOfferKind] = useState<OfferKindInput | null>(null)
+  const [offerKind, setOfferKind] = useState<OfferKindInput | null>(initialKind ?? null)
   const [title, setTitle] = useState('')
   const [creating, startCreating] = useTransition()
 
   const reset = () => {
+    setOfferKind(initialKind ?? null)
+    setTitle('')
+  }
+  const backToPicker = () => {
     setOfferKind(null)
     setTitle('')
   }
@@ -101,7 +112,7 @@ export default function AddServiceDialog() {
       <DialogTrigger asChild>
         <button className="flex items-center gap-2 rounded-xl border border-border bg-primary/10 px-4 py-2 text-sm font-normal text-primary backdrop-blur-sm hover:bg-primary/20">
           <PlusIcon className="h-4 w-4" />
-          Add service
+          {triggerLabel}
         </button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
@@ -130,7 +141,7 @@ export default function AddServiceDialog() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" onClick={reset} disabled={creating}>
+                <Button type="button" variant="outline" onClick={backToPicker} disabled={creating}>
                   <ArrowLeft className="mr-1 h-4 w-4" /> Back
                 </Button>
                 <Button type="submit" className="flex-1" disabled={creating || !title.trim()}>

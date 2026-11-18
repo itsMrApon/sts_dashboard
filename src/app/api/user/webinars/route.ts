@@ -18,7 +18,7 @@ export const GET = withRouteErrors('api/user/webinars', async function GET() {
   }
 
   const webinars = await prismaClient.webinar.findMany({
-    where: { presenterId: user.id },
+    where: { presenterId: user.id, deletedAt: null },
     select: { id: true, title: true },
     orderBy: { createdAt: 'desc' },
   })

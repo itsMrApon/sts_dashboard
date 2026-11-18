@@ -12,6 +12,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import type { WebinarLinkVariant } from '@/lib/webinarLinkVariants'
 import { buildOfferShareLinks } from './offerLinks'
 import { publicBaseUrl } from './publicBaseUrl'
+import { pickDefaultPrice } from './offerSummary'
 import {
   AI_SERVICES,
   ORDER_MODE_KINDS,
@@ -105,11 +106,8 @@ type PriceRow = Pick<
   'id' | 'kind' | 'amountCents' | 'currency' | 'depositCents' | 'balanceDueDays' | 'stripePriceId' | 'isDefault' | 'active'
 >
 
-/** The buyer-facing default (what "Buy now" charges today). */
-export function pickDefaultPrice<T extends PriceRow>(prices: T[]): T | null {
-  const active = prices.filter((price) => price.active && price.kind !== OfferPriceKind.DEPOSIT)
-  return active.find((price) => price.isDefault) ?? active[0] ?? null
-}
+/** The buyer-facing default (what "Buy now" charges today). Shared with the client-safe summary. */
+export { pickDefaultPrice }
 
 function pricingFromRows(prices: PriceRow[]): OfferPricingInput & { legacyPriceUnsynced: boolean } {
   const main = pickDefaultPrice(prices)

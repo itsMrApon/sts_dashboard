@@ -3,10 +3,11 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-_local_env = Path(__file__).resolve().parents[1] / ".env"  # scrape-agent/.env
-_root_env = Path(__file__).resolve().parents[4] / ".env"  # sts-ai/.env
-load_dotenv(_local_env)
-load_dotenv(_root_env)
+_here = Path(__file__).resolve()
+load_dotenv(_here.parents[1] / ".env")  # scrape-agent/.env
+# sts-ai/.env only exists in a repo checkout; in Docker (/app/agent) there is no such parent.
+if len(_here.parents) > 4:
+    load_dotenv(_here.parents[4] / ".env")
 
 
 def env(name: str, default: str = "") -> str:

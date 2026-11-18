@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight, CalendarDays, ClipboardList, Compass, FileText, Mail, MessageCircle, Mic, Radio } from 'lucide-react'
 import type { BusinessOffer } from '@/lib/business/businessOffers'
 import type { BusinessSiteContent, KeyDate } from '@/lib/business/siteContent'
-import { SOCIAL_PLATFORMS, socialUrl } from '@/lib/business/siteContent'
+import { SOCIAL_PLATFORMS, VERTICALS, socialUrl } from '@/lib/business/siteContent'
 import type { PublicServiceLinks } from '@/lib/public/publicService'
 import { accentHex } from '@/lib/services/types'
 import { cn } from '@/lib/utils'
@@ -41,6 +41,9 @@ export function BusinessSite({ businessName, description, content, offers, links
   const dates = upcoming(content.keyDates)
   const serviceName = new Map(content.services.map((service) => [service.id, service.name]))
   const { footer, social, advanced, appearance } = content
+  // "Insurance · Austin, Texas": business type (when it's a named one) and location.
+  const typeLabel = advanced.vertical && advanced.vertical !== 'other' ? VERTICALS.find((item) => item.id === advanced.vertical)?.label : null
+  const kicker = [typeLabel, advanced.location].filter(Boolean).join(' · ')
   const { show } = appearance
   const accent = accentHex(appearance.accent)
   const left = appearance.heroAlign === 'left'
@@ -58,9 +61,9 @@ export function BusinessSite({ businessName, description, content, offers, links
   return (
     <div className="space-y-14 pb-6">
       <section className={cn('pt-6 sm:pt-12', left ? 'text-left' : 'text-center')}>
-        {advanced.vertical ? (
+        {kicker ? (
           <p className="mb-4 text-xs font-medium uppercase tracking-[0.2em]" style={{ color: accent }}>
-            {advanced.vertical.replace(/_/g, ' ')}
+            {kicker}
           </p>
         ) : null}
         <h1 className={cn('max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl', !left && 'mx-auto')}>

@@ -501,7 +501,7 @@ export function AdvancedSection({
     <>
       <section className={CARD}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Industry">
+          <Field label="Business type">
             <select className={SELECT} value={advanced.vertical} onChange={(e) => set({ vertical: e.target.value })}>
               <option value="">Not set</option>
               {VERTICALS.map((vertical) => (
@@ -510,6 +510,9 @@ export function AdvancedSection({
                 </option>
               ))}
             </select>
+          </Field>
+          <Field label="Location">
+            <Input value={advanced.location} maxLength={SITE_LIMITS.short} onChange={(e) => set({ location: e.target.value })} placeholder="e.g. Austin, Texas" />
           </Field>
           <Field label="Website URL">
             <Input value={advanced.websiteUrl} onChange={(e) => set({ websiteUrl: e.target.value })} placeholder="https://your-site.com" />

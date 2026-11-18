@@ -18,6 +18,16 @@ type Message = {
 }
 
 const MODEL_FALLBACK = DEFAULT_LLM_MODEL
+/**
+ * Tried in order after the pinned model when it is missing for the key's project (new projects
+ * lose access to older pinned models) or overloaded: Google's always-current Flash alias, then
+ * the lighter Flash-Lite, which is usually far less loaded during demand spikes.
+ */
+const MODEL_FALLBACKS = ['gemini-flash-latest', 'gemini-flash-lite-latest']
+/** One short wait-and-retry per model on "high demand" (503/500) before moving on. */
+const BUSY_RETRY_MS = 1200
+/** Per call. During demand spikes Gemini can hang for minutes; a hung call counts as busy. */
+const GEMINI_TIMEOUT_MS = 30_000
 
 /** Same wording as missingKeyMessage('google') in lib/credentials/providerKeys. */
 export const GEMINI_KEY_MISSING_MESSAGE = 'Add your Gemini API key in AI Agents → Config.'
@@ -45,38 +55,57 @@ export type GenerateReplyWithToolsResult =
     }
   | { ok: false; error: string; code: 'NO_API_KEY' | 'INVALID_API_KEY' | 'QUOTA_EXCEEDED' | 'MODEL_ERROR' | 'UNKNOWN' }
 
+/** HTTP status from the SDK's fetch error ("[404 Not Found] …" in the message on older versions). */
+function errorStatus(err: unknown): number | null {
+  const status = (err as { status?: unknown } | null)?.status
+  if (typeof status === 'number') return status
+  const match = /\[(\d{3})[^\]]*\]/.exec(err instanceof Error ? err.message : String(err))
+  return match ? Number(match[1]) : null
+}
+
+/** Google is overloaded right now ("high demand"): worth a short wait and a retry. */
+function isBusy(err: unknown): boolean {
+  const status = errorStatus(err)
+  const message = err instanceof Error ? err.message : String(err)
+  return status === 500 || status === 503 || /overloaded|high demand|aborted|timed? ?out/i.test(message)
+}
+
+/** Missing for this key's project, or busy: worth trying the next model. */
+function worthTryingNextModel(err: unknown): boolean {
+  const status = errorStatus(err)
+  const message = err instanceof Error ? err.message : String(err)
+  return isBusy(err) || status === 404 || /not found|is not supported for/i.test(message)
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Turns a Gemini failure into a message the creator can act on. Checked by status first: every
+ * Gemini error URL contains "models/", so matching on text alone called them all "unavailable".
+ */
 function mapGeminiError(err: unknown, llmModel?: string | null): GenerateReplyResult {
   const message = err instanceof Error ? err.message : String(err)
+  const status = errorStatus(err)
 
   if (message.includes('API_KEY_INVALID') || message.includes('API key not valid')) {
-    return {
-      ok: false,
-      error: 'Gemini API key is invalid or revoked. Update it from Config Agent.',
-      code: 'INVALID_API_KEY',
-    }
+    return { ok: false, error: 'Gemini API key is invalid or revoked. Update it in AI Agents → Config.', code: 'INVALID_API_KEY' }
   }
-
-  if (message.includes('RESOURCE_EXHAUSTED') || message.includes('quota')) {
-    return {
-      ok: false,
-      error: 'Gemini quota exceeded. Wait for reset or upgrade your Google AI billing.',
-      code: 'QUOTA_EXCEEDED',
-    }
+  if (status === 429 || message.includes('RESOURCE_EXHAUSTED') || message.includes('quota')) {
+    return { ok: false, error: 'Gemini quota reached for this key. Wait a minute and try again.', code: 'QUOTA_EXCEEDED' }
   }
-
-  if (message.includes('models/') || message.includes('not found') || message.includes('is not supported')) {
-    return {
-      ok: false,
-      error: `Model "${llmModel || MODEL_FALLBACK}" is unavailable for this key/project.`,
-      code: 'MODEL_ERROR',
-    }
+  if (/location is not supported/i.test(message)) {
+    return { ok: false, error: 'Gemini isn’t available in this key’s region.', code: 'MODEL_ERROR' }
   }
-
-  return {
-    ok: false,
-    error: 'Gemini request failed. Please retry and verify key, model, and quota.',
-    code: 'UNKNOWN',
+  if (status === 403 || message.includes('PERMISSION_DENIED')) {
+    return { ok: false, error: 'This key isn’t allowed to use Gemini. Create the key in Google AI Studio and try again.', code: 'INVALID_API_KEY' }
   }
+  if (status === 404 || /not found|is not supported for/i.test(message)) {
+    return { ok: false, error: `Model "${llmModel || MODEL_FALLBACK}" is unavailable for this key.`, code: 'MODEL_ERROR' }
+  }
+  if (isBusy(err)) {
+    return { ok: false, error: 'Google reports high demand on Gemini right now. Try again in a minute.', code: 'UNKNOWN' }
+  }
+  return { ok: false, error: 'Gemini request failed. Please try again.', code: 'UNKNOWN' }
 }
 
 function estimateTokensFromText(text: string): number {
@@ -177,48 +206,69 @@ export async function generateReply(options: {
     return { ok: false, error: GEMINI_KEY_MISSING_MESSAGE, code: 'NO_API_KEY' }
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const modelName = llmModel || MODEL_FALLBACK
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      ...(systemPrompt
-        ? {
-            systemInstruction: {
-              role: 'system',
-              parts: [{ text: systemPrompt }],
-            },
-          }
-        : {}),
-    })
+  const genAI = new GoogleGenerativeAI(apiKey)
+  const pinned = llmModel || MODEL_FALLBACK
+  const candidates = [...new Set([pinned, ...MODEL_FALLBACKS])]
+  let lastError: unknown = null
+  const attempts = candidates.flatMap((modelName) => [
+    { modelName, retry: false },
+    { modelName, retry: true },
+  ])
+  for (const { modelName, retry } of attempts) {
+    // The retry on the same model only runs after a busy error, after a short wait.
+    if (retry) {
+      if (!isBusy(lastError)) continue
+      await wait(BUSY_RETRY_MS)
+    }
+    try {
+      const model = genAI.getGenerativeModel(
+        {
+          model: modelName,
+          ...(systemPrompt
+            ? {
+                systemInstruction: {
+                  role: 'system',
+                  parts: [{ text: systemPrompt }],
+                },
+              }
+            : {}),
+        },
+        { timeout: GEMINI_TIMEOUT_MS },
+      )
 
-    const chatHistory = history
-      .filter((m) => m.role !== 'system')
-      .map((m) => ({
-        role: m.role === 'assistant' ? ('model' as const) : ('user' as const),
-        parts: [{ text: m.content }],
-      }))
+      const chatHistory = history
+        .filter((m) => m.role !== 'system')
+        .map((m) => ({
+          role: m.role === 'assistant' ? ('model' as const) : ('user' as const),
+          parts: [{ text: m.content }],
+        }))
 
-    const chat = model.startChat({
-      history: chatHistory,
-    })
+      const chat = model.startChat({
+        history: chatHistory,
+      })
 
-    const result = await chat.sendMessage(userMessage)
-    const response = await result.response
-    const text = response.text()
-    const usage = usageFromGeminiResponse(response, userMessage, text)
-    recordLlmUsage({
-      accountUserId,
-      llmModel: modelName,
-      usageSurface,
-      inputUnits: usage.input,
-      outputUnits: usage.output,
-    })
+      const result = await chat.sendMessage(userMessage)
+      const response = await result.response
+      const text = response.text()
+      const usage = usageFromGeminiResponse(response, userMessage, text)
+      recordLlmUsage({
+        accountUserId,
+        llmModel: modelName,
+        usageSurface,
+        inputUnits: usage.input,
+        outputUnits: usage.output,
+      })
 
-    return { ok: true, text }
-  } catch (err: unknown) {
-    return mapGeminiError(err, llmModel)
+      return { ok: true, text }
+    } catch (err: unknown) {
+      lastError = err
+      // The real reason per attempt, for the server log (the key is never in this message).
+      const message = err instanceof Error ? err.message : String(err)
+      console.warn('[gemini]', errorStatus(err) ?? '-', modelName, retry ? '(retry)' : '', message.slice(0, 240))
+      if (!worthTryingNextModel(err)) break
+    }
   }
+  return mapGeminiError(lastError, llmModel)
 }
 
 /**
@@ -292,7 +342,7 @@ export async function generateReplyWithTools(options: {
           mode: FunctionCallingMode.AUTO,
         },
       },
-    })
+    }, { timeout: GEMINI_TIMEOUT_MS })
 
     const chatHistory = history
       .filter((m) => m.role !== 'system')

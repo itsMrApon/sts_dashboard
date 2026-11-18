@@ -16,7 +16,7 @@ import logging
 import os
 
 from livekit.agents import Agent
-from livekit.plugins import deepgram, fishaudio, google, openai, silero, xai
+from livekit.plugins import cartesia, deepgram, elevenlabs, fishaudio, google, openai, silero, xai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 from .config import RoomConfig
@@ -36,6 +36,8 @@ KEY_NAMES: dict[str, tuple[str, ...]] = {
     "xai": ("XAI_API_KEY",),
     "deepgram": ("DEEPGRAM_API_KEY",),
     "fish": ("FISH_API_KEY",),
+    "cartesia": ("CARTESIA_API_KEY",),
+    "elevenlabs": ("ELEVENLABS_API_KEY", "ELEVEN_API_KEY"),
 }
 
 PROVIDER_LABELS = {
@@ -48,10 +50,23 @@ PROVIDER_LABELS = {
     "xai": "xAI Grok",
     "deepgram": "Deepgram",
     "fish": "Fish Audio",
+    "cartesia": "Cartesia",
+    "elevenlabs": "ElevenLabs",
 }
 
 _ALIASES = {"gemini": "google", "claude": "anthropic", "moonshot": "kimi", "grok": "xai",
-            "fishaudio": "fish", "fish_audio": "fish"}
+            "fishaudio": "fish", "fish_audio": "fish", "eleven": "elevenlabs", "eleven_labs": "elevenlabs"}
+
+# Default voices when the room names none. Cartesia's are from its public library (sonic-3).
+DEFAULT_TTS_PROVIDER = "cartesia"
+DEFAULT_STT_PROVIDER = "cartesia"
+CARTESIA_MODEL = os.getenv("CARTESIA_TTS_MODEL", "sonic-3")
+CARTESIA_DEFAULT_VOICE_EN = "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4"  # Skylar - Friendly Guide (US)
+CARTESIA_DEFAULT_VOICE_BN = "9c35520a-73f9-4c9e-b6c6-69027a3819bd"  # Poulomi - Courteous Dispatcher
+# Flash is ElevenLabs' low-latency model; v3 conversational covers Bangla.
+ELEVENLABS_MODEL_EN = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_flash_v2_5")
+ELEVENLABS_MODEL_BN = os.getenv("ELEVENLABS_TTS_MODEL_BN", "eleven_v3_conversational")
+ELEVENLABS_DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM"  # Rachel (premade)
 
 
 def _norm(provider: str | None, default: str) -> str:
@@ -70,6 +85,11 @@ def _key(config: RoomConfig, provider: str) -> str:
         f"{PROVIDER_LABELS[provider]} selected but the creator has no {PROVIDER_LABELS[provider]} key. "
         "They need to add it in AI Agents -> Config."
     )
+
+
+def _has_key(config: RoomConfig, provider: str) -> bool:
+    tenant_env = getattr(config, "tenant_env", {}) or {}
+    return any(isinstance(tenant_env.get(name), str) and tenant_env[name].strip() for name in KEY_NAMES[provider])
 
 
 def _is_bangla(config: RoomConfig) -> bool:
@@ -97,12 +117,22 @@ def _instructions_for(config: RoomConfig) -> str:
 
 
 def _create_stt(config: RoomConfig):
-    provider = _norm(config.stt_provider, "deepgram")
+    requested = _norm(config.stt_provider, DEFAULT_STT_PROVIDER)
+    provider = requested
     bangla = _is_bangla(config)
 
-    if provider == "xai" and bangla:
-        logger.warning("Grok STT has no Bangla; falling back to Deepgram for this room.")
-        provider = "deepgram"
+    if provider in ("xai", "deepgram") and bangla and _has_key(config, "cartesia"):
+        # Neither has Bangla STT; Cartesia Ink-Whisper does, on the creator's Cartesia key.
+        logger.warning("%s STT has no Bangla; using Cartesia for this room.", PROVIDER_LABELS[provider])
+        provider = "cartesia"
+
+    if provider == "cartesia":
+        # The plugin picks ink-2 (turn-detecting) for English and ink-whisper for other languages.
+        kwargs: dict = {"language": "bn" if bangla else "en", "api_key": _key(config, "cartesia")}
+        # Another provider's model id (rerouted room) would be rejected by Cartesia.
+        if config.stt_model and requested == "cartesia":
+            kwargs["model"] = config.stt_model
+        return cartesia.STT(**kwargs)
 
     if provider == "openai":
         return openai.STT(
@@ -111,19 +141,22 @@ def _create_stt(config: RoomConfig):
             api_key=_key(config, "openai"),
         )
     if provider == "google":
-        kwargs: dict = {"language": "bn-BD" if bangla else "en-US", "api_key": _key(config, "google")}
+        kwargs = {"language": "bn-BD" if bangla else "en-US", "api_key": _key(config, "google")}
         if config.stt_model:
             kwargs["model"] = config.stt_model
         return google.beta.GeminiSTT(**kwargs)
     if provider == "xai":
         return xai.STT(language="en", api_key=_key(config, "xai"))
 
-    # Deepgram (default). Its model list has no Bangla; kept as-is for existing Bangla agents.
-    return deepgram.STT(
-        model=config.stt_model or ("nova-2-general" if bangla else "nova-2"),
-        language="bn" if bangla else "en",
-        api_key=_key(config, "deepgram"),
-    )
+    if provider == "deepgram":
+        # Optional. Its model list has no Bangla; Bangla rooms move to Cartesia when a key exists.
+        return deepgram.STT(
+            model=config.stt_model or ("nova-2-general" if bangla else "nova-2"),
+            language="bn" if bangla else "en",
+            api_key=_key(config, "deepgram"),
+        )
+
+    raise ValueError(f"Unsupported stt_provider: {provider}")
 
 
 # --- Thinks ----------------------------------------------------------------
@@ -158,7 +191,7 @@ def _create_llm(config: RoomConfig):
 
 
 def _create_tts(config: RoomConfig):
-    provider = _norm(config.voice_provider, "deepgram")
+    provider = _norm(config.voice_provider, DEFAULT_TTS_PROVIDER)
     voice = (config.voice_model or "").strip()
     style = (config.voice_style or "").strip()
     bangla = _is_bangla(config)
@@ -166,8 +199,36 @@ def _create_tts(config: RoomConfig):
     speed = min(max(float(config.speaking_speed or 1.0), 0.7), 1.3)
     custom_speed = abs(speed - 1.0) > 1e-6
 
-    if provider == "fish":
+    if provider == "cartesia":
+        # The account engine is shared by English and Bangla agents: the English default voice
+        # on a Bangla agent means "no voice picked", so it gets the native Bangla default.
+        if not voice or (bangla and voice == CARTESIA_DEFAULT_VOICE_EN):
+            voice = CARTESIA_DEFAULT_VOICE_BN if bangla else CARTESIA_DEFAULT_VOICE_EN
         kwargs: dict = {
+            "model": CARTESIA_MODEL,
+            "voice": voice,
+            "language": "bn" if bangla else "en",
+            # Sonic word timestamps cover en/de/es/fr only; other languages just log a warning.
+            "word_timestamps": not bangla,
+            "api_key": _key(config, "cartesia"),
+        }
+        if custom_speed:
+            kwargs["speed"] = speed
+        return cartesia.TTS(**kwargs)
+    if provider == "elevenlabs":
+        kwargs = {
+            "model": ELEVENLABS_MODEL_BN if bangla else ELEVENLABS_MODEL_EN,
+            "voice_id": voice or ELEVENLABS_DEFAULT_VOICE,
+            "language": "bn" if bangla else "en",
+            "api_key": _key(config, "elevenlabs"),
+        }
+        if custom_speed:
+            kwargs["voice_settings"] = elevenlabs.VoiceSettings(
+                stability=0.5, similarity_boost=0.75, speed=min(max(speed, 0.8), 1.2)
+            )
+        return elevenlabs.TTS(**kwargs)
+    if provider == "fish":
+        kwargs = {
             # s2.1-pro-free = $0 fair-use API tier; s1/s2.1-pro require prepaid balance (402 otherwise)
             "model": os.getenv("FISH_TTS_MODEL", "s2.1-pro-free"),
             "latency_mode": os.getenv("FISH_LATENCY_MODE", "balanced"),
@@ -195,9 +256,12 @@ def _create_tts(config: RoomConfig):
     if provider == "xai":
         return xai.TTS(voice=voice or "ara", language="bn" if bangla else "en", api_key=_key(config, "xai"))
 
-    if custom_speed:
-        return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"), speed=speed)
-    return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"))
+    if provider == "deepgram":
+        if custom_speed:
+            return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"), speed=speed)
+        return deepgram.TTS(model=voice or "aura-asteria-en", api_key=_key(config, "deepgram"))
+
+    raise ValueError(f"Unsupported voice_provider: {provider}")
 
 
 # --- Realtime ----------------------------------------------------------------

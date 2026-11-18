@@ -3,10 +3,10 @@ revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
-    "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
-    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten'",
+    "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.13.*' and sys_platform != 'emscripten'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
     "(python_full_version < '3.13' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')",
 ]
 
@@ -1574,14 +1574,14 @@ wheels = [
 
 [[package]]
 name = "livekit-plugins-cartesia"
-version = "1.4.6"
+version = "1.8.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "livekit-agents" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/af/edb6c9dbb3f36c41efb7754c004baa905ef432019219a57299c8d8ac41b0/livekit_plugins_cartesia-1.4.6.tar.gz", hash = "sha256:852d79c050ff54c9feebd5cabb4c81289cc9f49cc10a895e55015c048c88abaf", size = 12642, upload-time = "2026-03-16T19:08:26.133Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/42/22c431720670c854b0d33ae6ff845ece6d56d679574033c761055c071af5/livekit_plugins_cartesia-1.8.11.tar.gz", hash = "sha256:62d14f09c082c9dc17795767405764bacef35daf47b619b7674e5c028efb8eba", size = 20215, upload-time = "2026-11-05T19:45:49.161Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/06/9354fede786220c9cfc5130b2cae279e6e518a5092befe1ba195a6e6d5d9/livekit_plugins_cartesia-1.4.6-py3-none-any.whl", hash = "sha256:2e6ab847e99d678864a98faba183763f41a13bb0f958d3fdff88c2a1b0a7f282", size = 15655, upload-time = "2026-03-16T19:08:25.122Z" },
+    { url = "https://files.pythonhosted.org/packages/57/82/171a8d0a68f1631b38949e51083a37d4b5cce9654e601548543718008a33/livekit_plugins_cartesia-1.8.11-py3-none-any.whl", hash = "sha256:c42992e1730501ba990305a51013fbc6541ee730be158ba1d8d793d231786a4f", size = 27897, upload-time = "2026-11-05T19:45:47.884Z" },
 ]
 
 [[package]]
@@ -1599,14 +1599,14 @@ wheels = [
 
 [[package]]
 name = "livekit-plugins-elevenlabs"
-version = "1.4.6"
+version = "1.8.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "livekit-agents", extra = ["codecs"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c0/b9/88aee566d82cfe7f1472180198a2f8269556eecc3c5db0a1f9c5aa684fe1/livekit_plugins_elevenlabs-1.4.6.tar.gz", hash = "sha256:b2a9a9a69e6102e1e41763ea61995e61bd764d46056290e011ae545757aa5dc4", size = 17135, upload-time = "2026-03-16T19:08:31.99Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/85/ea/a94d121ba15aac3411dfc16b5e4eae94f8eaef07f39d25c0e468825b5bd4/livekit_plugins_elevenlabs-1.8.11.tar.gz", hash = "sha256:966e43b55438e015f364adbc41aaaf5fb8747417bff20c50aef1c97438431828", size = 26026, upload-time = "2026-11-05T19:46:10.746Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/3b/dc30be2c3b7ca3502f64d3ec5308fa793d364c669b5d790264acf95e9c2f/livekit_plugins_elevenlabs-1.4.6-py3-none-any.whl", hash = "sha256:a782840b46c0bf9b98ec797cfeea7df6a5834fa9a85bcbbca634c7b9b4eb2c39", size = 19820, upload-time = "2026-03-16T19:08:30.935Z" },
+    { url = "https://files.pythonhosted.org/packages/39/ce/bbe55669fa6aa7a7c888a17ccde2813d625ad958e2a219a871e86ffef023/livekit_plugins_elevenlabs-1.8.11-py3-none-any.whl", hash = "sha256:be26cbb3524b7464c35cc2b5ef31604d5ecb6c7445debc5fd8bb4ebd6b20ab8b", size = 27823, upload-time = "2026-11-05T19:46:09.4Z" },
 ]
 
 [[package]]
@@ -1730,7 +1730,9 @@ source = { virtual = "." }
 dependencies = [
     { name = "livekit-agents", extra = ["mcp"] },
     { name = "livekit-plugins-anthropic" },
+    { name = "livekit-plugins-cartesia" },
     { name = "livekit-plugins-deepgram" },
+    { name = "livekit-plugins-elevenlabs" },
     { name = "livekit-plugins-fishaudio" },
     { name = "livekit-plugins-google" },
     { name = "livekit-plugins-openai" },
@@ -1745,9 +1747,6 @@ all = [
     { name = "livekit-plugins-anthropic" },
     { name = "livekit-plugins-assemblyai" },
     { name = "livekit-plugins-azure" },
-    { name = "livekit-plugins-cartesia" },
-    { name = "livekit-plugins-elevenlabs" },
-    { name = "livekit-plugins-fishaudio" },
     { name = "livekit-plugins-google" },
     { name = "livekit-plugins-groq" },
 ]
@@ -1768,11 +1767,6 @@ stt = [
     { name = "livekit-plugins-assemblyai" },
     { name = "livekit-plugins-azure" },
 ]
-tts = [
-    { name = "livekit-plugins-cartesia" },
-    { name = "livekit-plugins-elevenlabs" },
-    { name = "livekit-plugins-fishaudio" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -1785,14 +1779,10 @@ requires-dist = [
     { name = "livekit-plugins-assemblyai", marker = "extra == 'stt'", specifier = ">=1.0.0" },
     { name = "livekit-plugins-azure", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "livekit-plugins-azure", marker = "extra == 'stt'", specifier = ">=1.0.0" },
-    { name = "livekit-plugins-cartesia", marker = "extra == 'all'", specifier = ">=1.0.0" },
-    { name = "livekit-plugins-cartesia", marker = "extra == 'tts'", specifier = ">=1.0.0" },
+    { name = "livekit-plugins-cartesia", specifier = ">=1.8.11" },
     { name = "livekit-plugins-deepgram", specifier = ">=1.8.11" },
-    { name = "livekit-plugins-elevenlabs", marker = "extra == 'all'", specifier = ">=1.0.0" },
-    { name = "livekit-plugins-elevenlabs", marker = "extra == 'tts'", specifier = ">=1.0.0" },
+    { name = "livekit-plugins-elevenlabs", specifier = ">=1.8.11" },
     { name = "livekit-plugins-fishaudio", specifier = ">=1.8.11" },
-    { name = "livekit-plugins-fishaudio", marker = "extra == 'all'", specifier = ">=1.0.0" },
-    { name = "livekit-plugins-fishaudio", marker = "extra == 'tts'", specifier = ">=1.0.0" },
     { name = "livekit-plugins-google", specifier = ">=1.8.11" },
     { name = "livekit-plugins-google", marker = "extra == 'all'", specifier = ">=1.0.0" },
     { name = "livekit-plugins-google", marker = "extra == 'llm'", specifier = ">=1.0.0" },
@@ -1809,7 +1799,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
 ]
-provides-extras = ["tts", "llm", "stt", "dev", "all"]
+provides-extras = ["llm", "stt", "dev", "all"]
 
 [[package]]
 name = "markdown-it-py"

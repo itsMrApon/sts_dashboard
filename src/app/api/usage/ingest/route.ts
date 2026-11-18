@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     jobs.push(
       recordProviderUsage({
         userId,
-        provider: normalizeUsageProvider(body.sttProvider || 'deepgram'),
+        provider: normalizeUsageProvider(body.sttProvider || 'cartesia'),
         kind: 'stt',
         surface,
         requestCount: sttRequests || 1,
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     jobs.push(
       recordProviderUsage({
         userId,
-        provider: normalizeUsageProvider(body.ttsProvider || 'deepgram'),
+        provider: normalizeUsageProvider(body.ttsProvider || 'cartesia'),
         kind: 'tts',
         surface,
         requestCount: ttsRequests || 1,

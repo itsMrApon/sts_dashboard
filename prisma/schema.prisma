@@ -69,6 +69,8 @@ model UserVoiceCredential {
   kimiApiKey            String?
   openrouterApiKey      String?
   xaiApiKey             String?
+  cartesiaApiKey        String?
+  elevenlabsApiKey      String?
   googleValidatedAt     DateTime?
   deepgramValidatedAt   DateTime?
   fishValidatedAt       DateTime?
@@ -78,6 +80,8 @@ model UserVoiceCredential {
   anthropicValidatedAt  DateTime?
   openrouterValidatedAt DateTime?
   xaiValidatedAt        DateTime?
+  cartesiaValidatedAt   DateTime?
+  elevenlabsValidatedAt DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -380,8 +384,8 @@ model LiveKitAgent {
   firstMessage  String?
   systemPrompt  String?
   language      String         @default("en") @db.VarChar(10)
-  voiceModel    String         @default("aura-asteria-en") @db.VarChar(100)
-  voiceProvider String         @default("deepgram") @db.VarChar(50)
+  voiceModel    String         @default("db6b0ed5-d5d3-463d-ae85-518a07d3c2b4") @db.VarChar(100)
+  voiceProvider String         @default("cartesia") @db.VarChar(50)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   llmModel      String         @default("gemini-2.0-flash") @db.VarChar(100)
@@ -408,13 +412,13 @@ model AgentEngineSettings {
   userId           String   @unique @db.Uuid
   llmProvider      String   @default("google") @db.VarChar(50)
   llmModel         String   @db.VarChar(100)
-  voiceProvider    String   @default("deepgram") @db.VarChar(50)
-  voiceModel       String   @default("aura-asteria-en") @db.VarChar(100)
-  /// Display-only voice title (Fish voices are opaque reference_ids).
+  voiceProvider    String   @default("cartesia") @db.VarChar(50)
+  voiceModel       String   @default("db6b0ed5-d5d3-463d-ae85-518a07d3c2b4") @db.VarChar(100)
+  /// Display-only voice title (Fish, Cartesia and ElevenLabs voices are opaque ids).
   voiceLabel       String?  @db.VarChar(200)
   /// "pipeline" (STT -> LLM -> TTS) or "realtime" (one speech-to-speech model).
   engineMode       String   @default("pipeline") @db.VarChar(20)
-  sttProvider      String   @default("deepgram") @db.VarChar(50)
+  sttProvider      String   @default("cartesia") @db.VarChar(50)
   sttModel         String?  @db.VarChar(100)
   /// Speaking-style instructions for TTS/realtime models that accept them (accent, tone).
   voiceStyle       String?  @db.VarChar(500)
@@ -591,6 +595,8 @@ model Workspace {
   compactTokenEstimate Int               @default(0)
   contextStatus        ContextStatusEnum @default(DRAFT)
   publishedAt          DateTime?
+  /// Setup guide progress: agent | tools | keys. Null = finished (and every pre-existing workspace).
+  onboardingStep       String?           @db.VarChar(16)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -1107,7 +1113,7 @@ model VoiceWizard {
   guideName   String    @default("Nova") @db.VarChar(60)
   /// en | bn
   language    String    @default("en") @db.VarChar(8)
-  voice       String    @default("aura-2-thalia-en") @db.VarChar(64)
+  voice       String    @default("db6b0ed5-d5d3-463d-ae85-518a07d3c2b4") @db.VarChar(64)
   theme       String    @default("obsidian") @db.VarChar(32)
   shape       String    @default("circle") @db.VarChar(16)
   /// VoiceWizardStep[]

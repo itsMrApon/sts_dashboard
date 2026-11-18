@@ -3,13 +3,12 @@ import { createHash } from 'node:crypto'
 import { resolveUserProviderKey } from '@/lib/credentials/providerKeys'
 import { prismaClient } from '@/lib/prismaClient'
 import { recordProviderUsageLater } from '@/lib/usage/providerUsage'
-import { spokenText, type VoiceWizardStep } from '@/lib/wizard/types'
+import { synthesizeWithCartesia } from '@/lib/voices/cartesiaSpeech'
+import { resolveWizardVoice, spokenText, type VoiceWizardStep } from '@/lib/wizard/types'
 
-const DEEPGRAM_SPEAK_URL = 'https://api.deepgram.com/v1/speak'
-const TTS_TIMEOUT_MS = 20_000
-
+/** The voice resolves first, so clips made with a retired Deepgram voice are re-made on Cartesia. */
 export function clipHash(voice: string, step: Pick<VoiceWizardStep, 'narration' | 'heading' | 'body'>): string {
-  return createHash('sha256').update(`${voice}\n${spokenText(step)}`).digest('hex')
+  return createHash('sha256').update(`${resolveWizardVoice(voice)}\n${spokenText(step)}`).digest('hex')
 }
 
 /** Short version string for cache-busting public audio URLs. */
@@ -19,22 +18,10 @@ export function clipVersion(voice: string, step: VoiceWizardStep): string {
 
 export class TtsUnavailableError extends Error {}
 
-/** Narration runs on the wizard owner's own Deepgram key (AI Agents → Config), never the platform's. */
-async function synthesizeWithDeepgram(text: string, voice: string, apiKey: string | null): Promise<Uint8Array> {
-  if (!apiKey) throw new TtsUnavailableError('Wizard owner has no Deepgram API key')
-
-  const url = `${DEEPGRAM_SPEAK_URL}?model=${encodeURIComponent(voice)}&encoding=mp3`
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Token ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
-    signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
-  })
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(`Deepgram TTS failed (${response.status}): ${detail.slice(0, 200)}`)
-  }
-  return new Uint8Array(await response.arrayBuffer())
+/** Narration runs on the wizard owner's own Cartesia key (AI Agents → Config), never the platform's. */
+async function synthesizeNarration(text: string, voice: string, apiKey: string | null): Promise<Uint8Array> {
+  if (!apiKey) throw new TtsUnavailableError('Wizard owner has no Cartesia API key')
+  return synthesizeWithCartesia({ text, voiceId: resolveWizardVoice(voice), apiKey })
 }
 
 export async function getCachedClip(input: { wizardId: string; voice: string; step: VoiceWizardStep }) {
@@ -51,8 +38,8 @@ export async function getOrCreateClip(input: {
   step: VoiceWizardStep
   /** Wizard owner — TTS runs on (and is attributed to) their key. */
   ownerUserId: string
-  /** Owner's Deepgram key when the caller already has it (saves a DB read per clip). */
-  deepgramApiKey?: string | null
+  /** Owner's Cartesia key when the caller already has it (saves a DB read per clip). */
+  cartesiaApiKey?: string | null
 }): Promise<{ audio: Uint8Array; mimeType: string; created: boolean }> {
   const textHash = clipHash(input.voice, input.step)
   const cached = await getCachedClip(input)
@@ -60,13 +47,13 @@ export async function getOrCreateClip(input: {
 
   const text = spokenText(input.step)
   const apiKey =
-    input.deepgramApiKey !== undefined
-      ? input.deepgramApiKey
-      : await resolveUserProviderKey(input.ownerUserId, 'deepgram')
-  const audio = await synthesizeWithDeepgram(text, input.voice, apiKey)
+    input.cartesiaApiKey !== undefined
+      ? input.cartesiaApiKey
+      : await resolveUserProviderKey(input.ownerUserId, 'cartesia')
+  const audio = await synthesizeNarration(text, input.voice, apiKey)
   recordProviderUsageLater({
     userId: input.ownerUserId,
-    provider: 'deepgram',
+    provider: 'cartesia',
     kind: 'tts',
     surface: 'wizard',
     requestCount: 1,
@@ -96,15 +83,15 @@ export async function pregenerateClips(
   voice: string,
   steps: VoiceWizardStep[],
 ) {
-  const deepgramApiKey = await resolveUserProviderKey(ownerUserId, 'deepgram')
-  if (!deepgramApiKey) return { failed: steps.length, missingKey: true }
+  const cartesiaApiKey = await resolveUserProviderKey(ownerUserId, 'cartesia')
+  if (!cartesiaApiKey) return { failed: steps.length, missingKey: true }
 
   let failed = 0
   const queue = [...steps]
   const workers = Array.from({ length: Math.min(3, queue.length) }, async () => {
     for (let step = queue.shift(); step; step = queue.shift()) {
       try {
-        await getOrCreateClip({ wizardId, voice, step, ownerUserId, deepgramApiKey })
+        await getOrCreateClip({ wizardId, voice, step, ownerUserId, cartesiaApiKey })
       } catch (error) {
         failed += 1
         console.warn('[wizard] clip generation failed', step.id, error)

@@ -5,6 +5,7 @@ import { AudioWaveform, KeyRound, Loader2, RotateCcw, Workflow } from 'lucide-re
 import { toast } from 'sonner'
 import { saveAgentEngineSettings } from '@/actions/agentEngine'
 import { FishVoicePicker } from '@/components/agents/FishVoicePicker'
+import { LibraryVoicePicker } from '@/components/agents/LibraryVoicePicker'
 import { OpenRouterModelPicker } from '@/components/agents/OpenRouterModelPicker'
 import { XaiModelPicker } from '@/components/agents/XaiModelPicker'
 import { Button } from '@/components/ui/button'
@@ -491,11 +492,11 @@ export function EngineComposer({
                   value={draft.voiceProvider}
                   onValueChange={(value) => {
                     const next = voiceOption(value as VoiceProvider)
-                    const keepFish = next.value === 'fish' && draft.voiceProvider === 'fish'
+                    const keep = next.value === draft.voiceProvider
                     update({
                       voiceProvider: next.value,
-                      voiceModel: keepFish ? draft.voiceModel : next.defaultVoice,
-                      voiceLabel: keepFish ? draft.voiceLabel : null,
+                      voiceModel: keep ? draft.voiceModel : next.defaultVoice,
+                      voiceLabel: keep ? draft.voiceLabel : next.defaultVoiceLabel ?? null,
                     })
                   }}
                 >
@@ -527,6 +528,14 @@ export function EngineComposer({
                       ))}
                     </SelectContent>
                   </Select>
+                ) : draft.voiceProvider === 'cartesia' || draft.voiceProvider === 'elevenlabs' ? (
+                  <LibraryVoicePicker
+                    key={draft.voiceProvider}
+                    provider={draft.voiceProvider}
+                    value={draft.voiceModel}
+                    valueLabel={draft.voiceLabel}
+                    onChange={(voiceModel, nextLabel) => update({ voiceModel, voiceLabel: nextLabel })}
+                  />
                 ) : (
                   <FishVoicePicker
                     value={draft.voiceModel}

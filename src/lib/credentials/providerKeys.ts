@@ -13,6 +13,7 @@ import type {
 } from '@/lib/usage/configProviders'
 
 const VALIDATION_TIMEOUT_MS = 8_000
+export const CARTESIA_API_VERSION = '2025-04-16'
 
 /**
  * Env var names the voice worker reads from tenant_env. Creators bring their own keys:
@@ -28,6 +29,8 @@ export const PROVIDER_ENV_NAMES: Record<VoiceCredentialProvider, string[]> = {
   kimi: ['MOONSHOT_API_KEY', 'KIMI_API_KEY'],
   deepgram: ['DEEPGRAM_API_KEY'],
   fish: ['FISH_API_KEY'],
+  cartesia: ['CARTESIA_API_KEY'],
+  elevenlabs: ['ELEVENLABS_API_KEY', 'ELEVEN_API_KEY'],
 }
 
 export const PROVIDER_LABEL: Record<VoiceCredentialProvider, string> = {
@@ -40,6 +43,8 @@ export const PROVIDER_LABEL: Record<VoiceCredentialProvider, string> = {
   kimi: 'Kimi',
   deepgram: 'Deepgram',
   fish: 'Fish Audio',
+  cartesia: 'Cartesia',
+  elevenlabs: 'ElevenLabs',
 }
 
 export const ALL_KEY_PROVIDERS = Object.keys(CREDENTIAL_COLUMNS) as VoiceCredentialProvider[]
@@ -211,6 +216,22 @@ export async function checkProviderKey(
       else details.push('No spending limit on this key')
       if (data.is_free_tier === true) details.push('Free tier: only free models will run')
       return { valid: true, code: 'VALID', message: 'OpenRouter key works.', details }
+    }
+
+    if (provider === 'cartesia') {
+      const { res } = await getJson('https://api.cartesia.ai/voices?limit=1', {
+        'X-API-Key': key,
+        'Cartesia-Version': CARTESIA_API_VERSION,
+      })
+      if (!res.ok) return failFromStatus(label, res.status)
+      return { valid: true, code: 'VALID', message: 'Cartesia key works.' }
+    }
+
+    if (provider === 'elevenlabs') {
+      // Restricted ElevenLabs keys may lack user_read; listing voices is what the picker needs.
+      const { res } = await getJson('https://api.elevenlabs.io/v2/voices?page_size=1', { 'xi-api-key': key })
+      if (!res.ok) return failFromStatus(label, res.status)
+      return { valid: true, code: 'VALID', message: 'ElevenLabs key works.' }
     }
 
     if (provider === 'deepgram') {

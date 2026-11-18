@@ -56,7 +56,7 @@ type Props =
       live: boolean
       /** Account-wide voice from AI Agents → Config (read-only here). */
       voiceLabel: string
-      /** Fish voices can speak Bangla; Deepgram Aura voices are English-only. */
+      /** Cartesia, Fish and others can speak Bangla; Deepgram Aura voices are English-only. */
       voiceSpeaksBangla: boolean
     }
 
@@ -183,7 +183,7 @@ export function SpeakConfigurator(props: Props) {
             </span>
           </Link>
         </Field>
-        <Field label="Speaking speed" hint="Applies to Fish Audio, OpenAI and Deepgram voices; Gemini voices get it as a pace hint.">
+        <Field label="Speaking speed" hint="Applies to Cartesia, ElevenLabs, Fish Audio, OpenAI and Deepgram voices; Gemini voices get it as a pace hint.">
           <Segmented
             ariaLabel="Speaking speed"
             value={config.speakingSpeed}

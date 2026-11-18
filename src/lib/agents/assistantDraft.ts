@@ -161,6 +161,7 @@ export async function draftAssistant(input: {
       businessName: input.businessName,
       description: input.businessDescription,
       vertical: site?.advanced.vertical || null,
+      location: site?.advanced.location || null,
       services: (site?.services ?? [])
         .filter((service) => service.active)
         .slice(0, 12)

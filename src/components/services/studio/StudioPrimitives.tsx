@@ -63,7 +63,7 @@ export function StudioSection({
   description?: string
   summary?: SummaryLine[]
   summaryLabel?: string
-  /** Top-right button (e.g. "Draft with AI"). */
+  /** Top-right button (e.g. "Let AI draft it"). */
   action?: ReactNode
   children: ReactNode
 }) {

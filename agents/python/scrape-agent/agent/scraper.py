@@ -19,7 +19,11 @@ Return JSON with these keys:
 - services: list of products/services offered
 - contactEmails: public emails found
 - contactPhones: public phone numbers found
-- socialLinks: social profile URLs found
+- socialLinks: social profile URLs found (Instagram, TikTok, Facebook, LinkedIn, YouTube, X, WhatsApp, Telegram)
+- address: the business's public street address, as written on the page
+- openingHours: opening hours in one short line, e.g. "Mon-Fri 9am-6pm"
+- mapUrl: a Google Maps (or other map) link to the business, if one is on the page
+- credentials: licenses, certifications, awards or years in business stated on the page
 - highlights: 3-8 talking points for a sales call
 - flags: risks, gaps, or notable opportunities
 Use empty lists when unknown. Prefer verifiable page content only."""
@@ -200,6 +204,12 @@ def _unwrap_payload(result: Any) -> dict[str, Any]:
         "phones": "contactPhones",
         "social_links": "socialLinks",
         "socials": "socialLinks",
+        "opening_hours": "openingHours",
+        "hours": "openingHours",
+        "map_url": "mapUrl",
+        "map": "mapUrl",
+        "licenses": "credentials",
+        "certifications": "credentials",
         "products": "services",
     }
     for src, dest in aliases.items():
@@ -208,6 +218,15 @@ def _unwrap_payload(result: Any) -> dict[str, Any]:
                 data[dest] = data[src]
 
     return data
+
+
+def _as_str(value: Any) -> Optional[str]:
+    """One clean line of text, or None (lists keep their first item)."""
+    if isinstance(value, list):
+        value = next((item for item in value if isinstance(item, str) and item.strip()), None)
+    if isinstance(value, str) and value.strip():
+        return " ".join(value.split())[:300]
+    return None
 
 
 def _coerce_enrichment(result: Any) -> WebsiteEnrichment:
@@ -229,6 +248,10 @@ def _coerce_enrichment(result: Any) -> WebsiteEnrichment:
         contactEmails=_as_str_list(data.get("contactEmails") or data.get("emails")),
         contactPhones=_as_str_list(data.get("contactPhones") or data.get("phones")),
         socialLinks=_as_str_list(data.get("socialLinks") or data.get("socials")),
+        address=_as_str(data.get("address")),
+        openingHours=_as_str(data.get("openingHours") or data.get("hours")),
+        mapUrl=_as_str(data.get("mapUrl")),
+        credentials=_as_str_list(data.get("credentials"), limit=6),
         highlights=_as_str_list(data.get("highlights"), limit=10),
         flags=_as_str_list(data.get("flags"), limit=10),
         raw=result if not isinstance(result, (WebsiteEnrichment, WebsiteEnrichmentSchema)) else data,

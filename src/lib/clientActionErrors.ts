@@ -1,5 +1,5 @@
 import { unstable_rethrow } from 'next/navigation'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { CONNECTION_LOST_MESSAGE, isDatabaseConnectivityError } from '@/lib/prismaErrors'
 
 /** Turns an unexpected throw from a server action / fetch into a message a user can act on. */

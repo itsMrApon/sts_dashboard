@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronLeft, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,7 +32,6 @@ export function TenantConsole({ workspaceId, connectedPartners = [] }: Props) {
         <div className="flex h-full min-h-0 w-full flex-col gap-8 overflow-y-auto">
           <Button variant="outline" size="sm" className="w-fit gap-2" asChild>
             <Link href="/integrations">
-              <ChevronLeft className="h-4 w-4" />
               All partners
             </Link>
           </Button>
@@ -58,7 +57,6 @@ export function TenantConsole({ workspaceId, connectedPartners = [] }: Props) {
         <div className="absolute top-0 right-0 left-0 z-20 flex items-center justify-between gap-2 p-1">
           <Button variant="ghost" size="sm" className="gap-2" asChild>
             <Link href="/integrations">
-              <ChevronLeft className="h-4 w-4" />
               All partners
             </Link>
           </Button>

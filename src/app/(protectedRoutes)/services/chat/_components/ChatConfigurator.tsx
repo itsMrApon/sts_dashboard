@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Gauge, MessageSquare, MessagesSquare, Palette, Plus, RotateCcw, ShieldCheck, Sparkles, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { saveAssistantBehaviour, type AssistantSummary } from '@/actions/assistants'
 import { PublicServiceShell } from '@/app/(publicRoutes)/_components/PublicServiceShell'
 import { ChatRoom } from '@/app/(publicRoutes)/chat/[roomName]/_components/ChatRoom'

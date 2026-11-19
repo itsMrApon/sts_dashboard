@@ -3,7 +3,7 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { Check, Link2, Loader2, Save, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useWebsiteGate } from '@/components/services/connection/WebsiteConnection'
@@ -106,7 +106,7 @@ function LiveStage({ live, side, origin }: { live: NonNullable<Props['live']>; s
       toast.success('Link copied')
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
-      toast.error('Could not copy')
+      toast.error("Couldn't copy that. Try again?")
     }
   }
 

@@ -27,6 +27,10 @@ class WebsiteEnrichment(BaseModel):
     contactEmails: list[str] = Field(default_factory=list)
     contactPhones: list[str] = Field(default_factory=list)
     socialLinks: list[str] = Field(default_factory=list)
+    address: Optional[str] = None
+    openingHours: Optional[str] = None
+    mapUrl: Optional[str] = None
+    credentials: list[str] = Field(default_factory=list)
     highlights: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
     raw: Any = None
@@ -40,6 +44,10 @@ class WebsiteEnrichmentSchema(BaseModel):
     contactEmails: list[str] = Field(default_factory=list)
     contactPhones: list[str] = Field(default_factory=list)
     socialLinks: list[str] = Field(default_factory=list)
+    address: Optional[str] = None
+    openingHours: Optional[str] = None
+    mapUrl: Optional[str] = None
+    credentials: list[str] = Field(default_factory=list)
     highlights: list[str] = Field(default_factory=list)
     flags: list[str] = Field(default_factory=list)
 

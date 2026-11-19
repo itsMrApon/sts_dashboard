@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { useCallback, useMemo, useState } from 'react'
-import { ArrowLeft, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { getProviderKeyStatuses } from '@/actions/voiceCredentials'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { SakugaTabs } from '@/components/sakuga/SakugaTabs'
 import type { AgentEngine } from '@/lib/agents/engineOptions'
 import {
   CONFIG_PROVIDERS,
@@ -153,6 +154,7 @@ export default function ProviderHub({
   const [openId, setOpenId] = useState<ConfigCredentialProvider | null>(initialOpenProvider)
   const [sheetOpen, setSheetOpen] = useState(Boolean(initialOpenProvider))
   const [filter, setFilter] = useState<Filter>('all')
+  const [section, setSection] = useState('providers')
   const [query, setQuery] = useState('')
 
   const refresh = useCallback(async () => {
@@ -195,7 +197,6 @@ export default function ProviderHub({
           href="/ai-agents"
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          <ArrowLeft className="size-3.5" aria-hidden />
           Agents
         </Link>
         <p className="text-xs text-muted-foreground">
@@ -217,11 +218,16 @@ export default function ProviderHub({
         }}
       />
 
-      <Tabs defaultValue="providers" className="gap-4">
-        <TabsList>
-          <TabsTrigger value="providers">Providers</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-        </TabsList>
+      <Tabs value={section} onValueChange={setSection} className="gap-4">
+        <SakugaTabs
+          label="Provider sections"
+          value={section}
+          onChange={setSection}
+          options={[
+            { value: 'providers', label: 'Providers' },
+            { value: 'usage', label: 'Usage' },
+          ]}
+        />
 
         <TabsContent value="providers" className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

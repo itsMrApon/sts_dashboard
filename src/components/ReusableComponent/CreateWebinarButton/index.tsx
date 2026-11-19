@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { useStsStore } from '@/store/useStsStore'
 import { DialogTrigger } from '@radix-ui/react-dialog'
-import { PlusIcon } from 'lucide-react'
+
 import React, { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import MultiStepForm from './MultiStepForm'
@@ -118,7 +118,6 @@ const CreateWebinarButton = ({
     resetForm()
   }
 
-
   return (
     <Dialog 
     open={isModalOpen} 
@@ -130,7 +129,6 @@ const CreateWebinarButton = ({
           className="rounded-xl flex gap-2 items-center hover: cursor-pointer px-4 py-2 border border-border bg-primary/10 backdrop-blur-sm text-sm font-normal text-primary hover:bg-primary-20"
           onClick={() => setModalOpen(true)}
         >
-          <PlusIcon />
           Add to workspace
         </button>
       </DialogTrigger>

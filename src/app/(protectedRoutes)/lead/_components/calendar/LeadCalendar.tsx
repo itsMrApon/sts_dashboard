@@ -4,15 +4,8 @@ import { openLeadSettings } from '../leadSettingsEvents'
 import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
-import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  StickyNote,
-  Video,
-  Building2,
-} from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { ChevronLeft, ChevronRight, ExternalLink, StickyNote, Video, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -648,7 +641,6 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        <Video className="mr-1.5 size-3.5" />
                         Join
                         <ExternalLink className="ml-1 size-3 opacity-70" />
                       </a>

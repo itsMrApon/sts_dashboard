@@ -41,7 +41,7 @@ export function PartnersIntro({ workspaceId, connectedPartners = [] }: Props) {
     </p>
   ) : (
     <Button asChild variant="outline" size="sm">
-      <Link href="/integrations/chat">Open partner assistant</Link>
+      <Link href="/integrations/chat">Ask the partner assistant</Link>
     </Button>
   )
 

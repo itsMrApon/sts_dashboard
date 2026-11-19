@@ -14,12 +14,19 @@ import { decryptToken } from '@/lib/messages/encrypt'
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
 import { normalizeIndustryInput, type IndustryInput } from '@/lib/tenantContext'
 import {
+  newId,
   sanitizeSiteContent,
   siteContentFromLegacy,
+  SITE_LIMITS,
   type BusinessSiteContent,
   type SiteSection,
   type SiteService,
+  type SocialAccount,
 } from '@/lib/business/siteContent'
+import { detectSocialProfiles, type DetectedSocial } from '@/lib/business/socialLinks'
+import { publicLink } from '@/lib/agents/assistantDraft'
+import { enrichWebsiteViaScrapeAgent, isScrapeAgentConfigured } from '@/lib/leads/scrapeAgentClient'
+import { resolveSerperApiKey } from '@/lib/leads/webResearch'
 
 type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string }
 
@@ -34,7 +41,7 @@ function revalidateBusiness() {
 }
 
 /**
- * Saves the Business page. Website content lives in core.site; services and socials are mirrored
+ * Saves the website services' content (Menu, Docs, Links, Contact). Website content lives in core.site; services and socials are mirrored
  * into the legacy industry/social JSON so the AI context and public profile keep working.
  */
 export async function saveBusinessSite(
@@ -55,7 +62,10 @@ export async function saveBusinessSite(
     title: service.name,
     description: service.summary,
     detailsShort: service.summary,
-    detailsLong: service.docs.map((doc) => [doc.name, doc.formCode, doc.issuer].filter(Boolean).join(' · ')).join('\n'),
+    detailsLong: content.docs
+      .filter((doc) => doc.serviceIds.includes(service.id))
+      .map((doc) => [doc.name, doc.formCode, doc.issuer].filter(Boolean).join(' · '))
+      .join('\n'),
     price: service.price,
     sortOrder: index + 1,
     isActive: service.active,
@@ -149,7 +159,6 @@ export async function importServicesFile(fileContent: string): Promise<ActionRes
       summary: row.description || row.detailsShort,
       price: row.price,
       active: row.isActive !== false,
-      docs: [],
     })),
   }
 }
@@ -174,7 +183,8 @@ export async function draftBusinessSection(
   if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
   const brief = SECTION_BRIEFS[section]
   // "Look" holds design choices, not copy: nothing for the AI to write.
-  if (!brief || section === 'look') return { ok: false, error: 'AI fill is not available for this section' }
+  // Docs holds real form codes and PDFs: never AI-made.
+  if (!brief || section === 'look' || section === 'docs') return { ok: false, error: 'AI fill is not available for this section' }
 
   let apiKey: string | null = null
   try {
@@ -234,4 +244,144 @@ export async function draftBusinessSection(
 
   const merged = sanitizeSiteContent({ ...content, ...parsed, [section]: section === 'seo' || section === 'footer' ? { ...content[section], ...(parsed[section] as object) } : parsed[section] }, business.name)
   return { ok: true, patch: { [section]: merged[section] } }
+}
+
+// ── Grab from my website (Contact + Links) ──────────────────────────
+
+export type WebsiteFillResult = {
+  /** Contact and Links with the found details added. Nothing the creator typed is replaced. */
+  patch: Pick<BusinessSiteContent, 'footer' | 'social'>
+  /** What was added, for the toast (e.g. "phone", "Instagram"). */
+  added: string[]
+  /** The page that was read. */
+  source: string
+  /** Accounts found by a Google search (Serper) rather than on the website: worth a second look. */
+  fromSearch: string[]
+}
+
+/** Platforms worth a search when the website doesn't link them. */
+const SEARCHED_PLATFORMS = ['instagram', 'tiktok', 'facebook', 'linkedin'] as const
+
+const PLATFORM_LABEL: Record<string, string> = {
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  youtube: 'YouTube',
+  x: 'X',
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+}
+
+const nameTokens = (value: string) =>
+  value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length >= 4)
+
+/** A search result only counts when its handle carries part of the business name. */
+function looksLikeBusiness(profile: DetectedSocial, businessName: string): boolean {
+  const handle = profile.handle.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return nameTokens(businessName).some((token) => handle.includes(token))
+}
+
+/** Social profiles for the platforms the website didn't link, from the creator's own Serper key. */
+async function searchMissingSocials(userId: string, businessName: string, location: string, missing: string[]): Promise<DetectedSocial[]> {
+  if (missing.length === 0) return []
+  const serperKey = await resolveSerperApiKey(userId)
+  if (!serperKey) return []
+  const query = `"${businessName}" ${location} ${missing.map((platform) => PLATFORM_LABEL[platform]).join(' OR ')}`.trim()
+  try {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query, num: 10 }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { organic?: { link?: string }[] }
+    return detectSocialProfiles((data.organic ?? []).map((item) => item.link ?? '').filter(Boolean)).filter(
+      (profile) => missing.includes(profile.platform) && looksLikeBusiness(profile, businessName),
+    )
+  } catch (error) {
+    console.error('[fillFromWebsite] Serper search failed', error instanceof Error ? error.message : error)
+    return []
+  }
+}
+
+/**
+ * Reads the creator's website with the scrape agent and fills the empty parts of Contact
+ * (email, phone, address, hours, map, trust badges) and Links (social accounts). Social accounts
+ * the website doesn't link are searched with the creator's Serper key from Lead settings. Returns a
+ * patch for the editor only: the creator reviews it and saves; nothing is saved or published here.
+ */
+export async function fillFromWebsite(current: BusinessSiteContent): Promise<ActionResult<WebsiteFillResult>> {
+  const business = await myBusiness()
+  if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
+  const content = sanitizeSiteContent(current, business.name)
+
+  const connection = await getWebsiteConnection(business.roomName)
+  const source = publicLink(content.advanced.websiteUrl || connection.origin || '')
+  if (!source) {
+    return {
+      ok: false,
+      error: connection.origin
+        ? `Your connected website (${connection.origin}) is not public, so it can't be read. Connect your public website first`
+        : 'Connect your website first (Connection, at the top of Services)',
+    }
+  }
+  if (!isScrapeAgentConfigured()) return { ok: false, error: 'The website reader is not running right now. Try again later' }
+
+  let geminiApiKey: string | null = null
+  try {
+    geminiApiKey = decryptToken((await getUserVoiceCredentialByUserId(business.userId))?.googleApiKey) || null
+  } catch {
+    geminiApiKey = null
+  }
+  const read = await enrichWebsiteViaScrapeAgent({ url: source, userId: business.userId, geminiApiKey, timeoutMs: 90_000 })
+  if (!read.ok) return { ok: false, error: `Could not read ${source}: ${read.error}` }
+  const found = read.data.enrichment
+
+  const added: string[] = []
+  const footer = { ...content.footer }
+  const fillText = (key: 'email' | 'phone' | 'address' | 'hours' | 'mapUrl', value: string | null | undefined, label: string) => {
+    if (!footer[key] && value?.trim()) {
+      footer[key] = value.trim()
+      added.push(label)
+    }
+  }
+  fillText('email', found.contactEmails?.find((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)), 'email')
+  fillText('phone', found.contactPhones?.[0], 'phone')
+  fillText('address', found.address, 'address')
+  fillText('hours', found.openingHours, 'hours')
+  fillText('mapUrl', found.mapUrl, 'map link')
+  if (footer.credentials.length === 0 && found.credentials?.length) {
+    footer.credentials = found.credentials.slice(0, SITE_LIMITS.credentials)
+    added.push('trust badges')
+  }
+
+  const accounts: SocialAccount[] = [...content.social.accounts]
+  const has = (profile: DetectedSocial) =>
+    accounts.some(
+      (account) =>
+        account.platform === profile.platform && account.handle.replace(/^@/, '').toLowerCase() === profile.handle.toLowerCase(),
+    )
+  const addAccounts = (profiles: DetectedSocial[]) => {
+    const names: string[] = []
+    for (const profile of profiles) {
+      if (accounts.length >= SITE_LIMITS.accounts || has(profile)) continue
+      accounts.push({ id: newId(), ...profile })
+      names.push(PLATFORM_LABEL[profile.platform] ?? profile.platform)
+    }
+    return names
+  }
+  added.push(...addAccounts(detectSocialProfiles(found.socialLinks ?? [])))
+
+  const covered = new Set(accounts.map((account) => account.platform))
+  const missing = SEARCHED_PLATFORMS.filter((platform) => !covered.has(platform))
+  const fromSearch = addAccounts(await searchMissingSocials(business.userId, business.name, content.advanced.location, missing))
+  added.push(...fromSearch)
+
+  const merged = sanitizeSiteContent({ ...content, footer, social: { ...content.social, accounts } }, business.name)
+  return { ok: true, patch: { footer: merged.footer, social: merged.social }, added, source, fromSearch }
 }

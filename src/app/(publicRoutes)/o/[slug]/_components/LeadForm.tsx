@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Loader2, Mail } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,7 +40,7 @@ export function LeadForm({ slug, source, submitLabel = 'Continue', onCaptured }:
       if (!result.ok) return void toast.error(result.error)
       await onCaptured(result.contact)
     } catch {
-      toast.error('Network error. Please try again.')
+      toast.error("Looks like you're offline. Try again in a moment.")
     } finally {
       setBusy(false)
     }

@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { toast } from 'sonner'
-import { CalendarDays, KeyRound, Link2 } from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { CalendarDays, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -212,10 +212,10 @@ export function LeadApiSettings(props: Props) {
                       setGoogleClientSecret('')
                       if (res.data?.requiresCalendarReconnect) {
                         toast.warning(
-                          'OAuth Client ID changed — click Connect Calendar again.',
+                          'Your Google client changed, so connect your calendar again.',
                         )
                       } else {
-                        toast.success('Google OAuth saved')
+                        toast.success('Google sign-in saved')
                       }
                       router.refresh()
                     } catch {
@@ -229,7 +229,6 @@ export function LeadApiSettings(props: Props) {
               {props.googleOAuthConfigured ? (
                 <Button asChild size="sm" variant="outline">
                   <Link href="/api/integrations/google-calendar/connect">
-                    <Link2 className="mr-1 size-3.5" />
                     {props.gcalOk && !props.gcalNeedsReconnect
                       ? 'Reconnect Calendar'
                       : 'Connect Calendar'}

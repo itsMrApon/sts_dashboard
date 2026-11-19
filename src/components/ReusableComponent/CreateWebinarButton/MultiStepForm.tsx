@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createProject } from '@/actions/webiner'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { useRouter } from 'next/navigation'
 
 type Step = {
@@ -61,7 +61,7 @@ const MultiStepForm = ({ steps, onComplete, tenantId }: Props) => {
         setSubmitting(true)
         const result = await createProject(formData, { tenantId })
         if (result.status === 201 && result.webinarId){
-          toast.success('Your webinar has been created successfully.')
+          toast.success('Your webinar is ready!')
           onComplete(result.webinarId, result.slug ?? null)
         } else {
             toast.error(
@@ -72,8 +72,8 @@ const MultiStepForm = ({ steps, onComplete, tenantId }: Props) => {
           router.refresh()    
       } catch (error) {
         console.error('Error creating webinar:', error)
-        toast.error('Failed to create webinar. Please try again.')
-        setValidationError('Failed to create webinar. Please try again.')
+        toast.error("We couldn't create that webinar. Try again?")
+        setValidationError("We couldn't create that webinar. Try again?")
       } finally {
         setSubmitting(false)
       }

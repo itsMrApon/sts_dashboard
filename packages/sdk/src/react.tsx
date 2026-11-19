@@ -4,9 +4,14 @@ import { createWizardPlayer, type WizardPlayer } from './wizardPlayer.js'
 import {
   StsError,
   type StsBusiness,
+  type StsBusinessService,
   type StsChatLinks,
+  type StsContactCard,
   type StsForm,
   type StsFormAnswer,
+  type StsLiveSession,
+  type StsOffer,
+  type StsDoc,
   type StsSessionInfo,
   type StsWizard,
   type StsWizardStep,
@@ -312,4 +317,16 @@ export function useStsBusiness() {
   return { business, error }
 }
 
-export type { StsChatLinks, StsForm, StsSessionInfo, StsWizard, StsWizardStep, StsBusiness }
+export type {
+  StsChatLinks,
+  StsForm,
+  StsSessionInfo,
+  StsWizard,
+  StsWizardStep,
+  StsBusiness,
+  StsBusinessService,
+  StsDoc,
+  StsOffer,
+  StsContactCard,
+  StsLiveSession,
+}

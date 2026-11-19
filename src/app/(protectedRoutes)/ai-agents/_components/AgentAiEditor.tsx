@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { ArrowUp, Check, Loader2, Sparkles, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { editLiveKitAgentTextWithAi } from '@/actions/livekitAgent'
 import { Button } from '@/components/ui/button'
 import {
@@ -141,7 +141,7 @@ export function AgentAiEditor({
     onApply(proposal.text)
     setProposal(null)
     setInstruction('')
-    toast.success('AI edit applied — Save changes to make it live.', {
+    toast.success('Done! Save to make it live.', {
       action: { label: 'Undo', onClick: () => onApply(previous) },
     })
   }

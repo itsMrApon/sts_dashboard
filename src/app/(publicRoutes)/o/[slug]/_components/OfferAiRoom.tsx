@@ -3,7 +3,7 @@
 import React, { useCallback, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Loader2, MessageSquare, Mic, ShoppingBag, Wand2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { startBuyerCheckout } from '@/actions/buyer'
@@ -70,7 +70,7 @@ function PaymentButton({
       }
       window.location.href = result.url
     } catch {
-      toast.error('Could not open checkout')
+      toast.error("Couldn't open checkout")
       setBusy(false)
     }
   }

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 
 import {
   ArrowDown01Icon,
@@ -78,10 +78,10 @@ function PromptCopyBlock({
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
-      toast.success(`${label} copied — paste it in the partner assistant search bar`)
+      toast.success(`${label} copied. Paste it into the partner assistant's search.`)
       window.setTimeout(() => setCopied(false), 1800)
     } catch {
-      toast.error('Could not copy prompt')
+      toast.error("Couldn't copy prompt")
     }
   }
 

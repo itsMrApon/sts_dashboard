@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { ArrowUpRight, AudioLines, Box, CheckCircle2, CheckIcon, Globe, Loader2, Megaphone, Radar, Rocket } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { StripeElements } from '@/components/ReusableComponent/Stripe/Element'
@@ -93,7 +93,7 @@ function CardCheckout({ plan, onDone }: { plan: PackageCard; onDone: () => void 
   const pay = async () => {
     if (!stripe || !elements) return toast.error('Payments are still loading')
     const card = elements.getElement(CardElement)
-    if (!card) return toast.error('Card form is not ready')
+    if (!card) return toast.error('The card form is still loading')
 
     setPaying(true)
     try {

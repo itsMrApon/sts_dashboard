@@ -1,11 +1,5 @@
-import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import { PageLoader } from '@/components/sakuga/PageLoader'
 
-export default function TenantChatLoading() {
-  return (
-    <PageViewport>
-      <div className="text-muted-foreground flex h-full min-h-0 items-center justify-center text-sm">
-        Loading partner assistant…
-      </div>
-    </PageViewport>
-  )
+export default function ChatLoading() {
+  return <PageLoader />
 }

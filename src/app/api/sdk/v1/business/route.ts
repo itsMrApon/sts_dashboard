@@ -3,6 +3,7 @@ import { prismaClient } from '@/lib/prismaClient'
 import { siteContentFromLegacy } from '@/lib/business/siteContent'
 import { accentHex } from '@/lib/services/types'
 import { loadPublishedWorkspaceProfile } from '@/lib/public/loadBusinessProfile'
+import { liveSessionsForSite, loadBusinessOffersForSite, loadUpcomingLiveSessions } from '@/lib/business/businessOffers'
 import { guardSdkRequest, sdkJson, sdkOptions, SDK_ROUTE_ERROR_CORS } from '@/lib/sdk/sdkGuard'
 import { withRouteErrors } from '@/lib/http/routeErrors'
 export const OPTIONS = withRouteErrors('api/sdk/v1/business', async function OPTIONS(request: Request) {
@@ -10,8 +11,9 @@ export const OPTIONS = withRouteErrors('api/sdk/v1/business', async function OPT
 }, SDK_ROUTE_ERROR_CORS)
 
 /**
- * Business details for the website: name, description, the published profile, and the published
- * site content (SEO, services, key dates, socials, footer, look) from Services → Business.
+ * Business details for the website: name, description, the published profile, the published
+ * site content (SEO, Menu with documents, key dates, Links, Contact, look) from
+ * Services → Business, and the products/projects with their order links (added from Projects).
  */
 export const GET = withRouteErrors('api/sdk/v1/business', async function GET(request: Request) {
   const guard = await guardSdkRequest(request, { scope: 'read', perIp: EMBED_RATE_LIMITS.read })
@@ -30,6 +32,14 @@ export const GET = withRouteErrors('api/sdk/v1/business', async function GET(req
         },
       })
     : null
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin).replace(/\/+$/, '')
+  const [offers, liveSessions] =
+    profile.ok && guard.business.publishProfileId
+      ? await Promise.all([
+          loadBusinessOffersForSite(guard.business.publishProfileId, baseUrl),
+          loadUpcomingLiveSessions(guard.business.publishProfileId, baseUrl),
+        ])
+      : [[], []]
   const site = workspace
     ? siteContentFromLegacy({
         businessName: guard.business.name,
@@ -47,6 +57,9 @@ export const GET = withRouteErrors('api/sdk/v1/business', async function GET(req
         description: guard.business.description,
         profile: profile.ok ? profile.compact : null,
         publishedAt: profile.ok ? (profile.publishedAt?.toISOString() ?? null) : null,
+        offers,
+        // Live: joinable sessions, as the Live settings allow (on/off, hidden, how many).
+        live: site ? liveSessionsForSite(liveSessions, site.live) : [],
         site: site
           ? {
               ...site,

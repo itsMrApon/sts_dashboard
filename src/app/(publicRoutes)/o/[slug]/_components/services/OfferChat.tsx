@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { Loader2, SendHorizontal } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { pollOfferChat, sendOfferChat } from '@/actions/buyer'
@@ -83,7 +83,7 @@ export function OfferChat({ offer, initialMessages, onOrderRequested }: Props) {
       setMessages((current) => [...current, { role: 'assistant', content: result.reply }])
       if (result.showOrder) onOrderRequested()
     } catch {
-      toast.error('Network error. Please try again.')
+      toast.error("Looks like you're offline. Try again in a moment.")
       setMessages((current) => current.slice(0, -1))
       setDraft(message)
     } finally {

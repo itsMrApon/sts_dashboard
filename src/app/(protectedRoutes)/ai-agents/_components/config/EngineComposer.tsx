@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition, type ReactNode } from 'react'
-import { AudioWaveform, KeyRound, Loader2, RotateCcw, Workflow } from 'lucide-react'
-import { toast } from 'sonner'
+import { AudioWaveform, Loader2, RotateCcw, Workflow } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { saveAgentEngineSettings } from '@/actions/agentEngine'
 import { FishVoicePicker } from '@/components/agents/FishVoicePicker'
 import { LibraryVoicePicker } from '@/components/agents/LibraryVoicePicker'
@@ -162,7 +162,6 @@ function MissingKey({ name, onClick }: { name: string; onClick: () => void }) {
       onClick={onClick}
       className="mt-3 flex items-center gap-1.5 rounded-md bg-rose-500/10 px-2.5 py-2 text-left text-[11px] text-rose-300 transition-colors hover:bg-rose-500/15"
     >
-      <KeyRound className="size-3.5 shrink-0" aria-hidden />
       No {name} key yet. Calls fail until you add one.
     </button>
   )

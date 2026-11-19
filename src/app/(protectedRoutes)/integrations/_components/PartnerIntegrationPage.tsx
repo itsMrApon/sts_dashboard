@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Activity, ChevronLeft, KeyRound, Link2, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { Activity, KeyRound, Link2, Trash2 } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import {
   Component as DevToolLandingPage,
@@ -318,7 +318,6 @@ export function PartnerIntegrationPage({
               href="/integrations"
               className="inline-flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
             >
-              <ChevronLeft className="h-4 w-4" />
               All partners
             </Link>
             <p className="text-sm font-medium text-zinc-200">{guide.label}</p>

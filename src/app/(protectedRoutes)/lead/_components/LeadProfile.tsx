@@ -3,15 +3,8 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
-import { toast } from 'sonner'
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from 'lucide-react'
+import { toast } from '@/lib/toast'
+import { ChevronDown, ChevronUp, Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { SakugaTabs } from '@/components/sakuga/SakugaTabs'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -251,13 +245,12 @@ export function LeadProfile(props: Props) {
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <Button asChild variant="ghost" size="sm" className="h-8 px-2">
           <Link href="/lead">
-            <ArrowLeft className="mr-1 h-4 w-4" />
             Back to list
           </Link>
         </Button>
         {!hasGeminiKey ? (
           <Button asChild size="sm" variant="secondary" className="h-8">
-            <Link href="/ai-agents/config">Open Config Agent</Link>
+            <Link href="/ai-agents/config">Get help from the Config Agent</Link>
           </Button>
         ) : null}
       </div>
@@ -395,15 +388,18 @@ export function LeadProfile(props: Props) {
           )}
         >
           <div className="shrink-0 overflow-x-auto">
-            <TabsList className="bg-muted h-auto w-max min-w-full flex-wrap justify-start p-1">
-              <TabsTrigger value="research">Web research</TabsTrigger>
-              <TabsTrigger value="scrape">ScrapeGraphAI</TabsTrigger>
-              <TabsTrigger value="score">
-                {lead.kind === 'Business' ? 'Playbook fit' : 'Call review'}
-              </TabsTrigger>
-              <TabsTrigger value="notes">Notes</TabsTrigger>
-              <TabsTrigger value="chat">Ask about call</TabsTrigger>
-            </TabsList>
+            <SakugaTabs
+              label="Lead sections"
+              value={activeTab}
+              onChange={setActiveTab}
+              options={[
+                { value: 'research', label: 'Web research' },
+                { value: 'scrape', label: 'Website scan' },
+                { value: 'score', label: lead.kind === 'Business' ? 'Playbook fit' : 'Call review' },
+                { value: 'notes', label: 'Notes' },
+                { value: 'chat', label: 'Ask about the call' },
+              ]}
+            />
           </div>
 
           <TabsContent

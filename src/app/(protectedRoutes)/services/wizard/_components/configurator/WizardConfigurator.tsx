@@ -18,7 +18,7 @@ import {
   UserRound,
   Waves,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import {
   draftVoiceWizardSteps,
   setVoiceWizardPublished,
@@ -221,8 +221,8 @@ export function WizardConfigurator({
       }
       patch({ steps: result.steps })
       setSelectedStepId(result.steps[0]?.id ?? null)
-      if (result.source === 'ai') toast.success('Draft ready — review it, then Save')
-      else toast.info('Used the built-in template', { description: result.note })
+      if (result.source === 'ai') toast.success('Your draft is ready. Have a look, then save.')
+      else toast.info('We used the starter template', { description: result.note })
     }))
   }
 
@@ -232,7 +232,7 @@ export function WizardConfigurator({
       return
     }
     if (isDirty) {
-      toast.error('Save your changes before publishing')
+      toast.error('Save your changes first, then publish.')
       return
     }
     startPublishing(guardAction(async () => {
@@ -243,11 +243,11 @@ export function WizardConfigurator({
       }
       patch({ isPublished: published })
       if (published && result.audioKeyMissing) {
-        toast.warning('Wizard is live with the browser voice. Add your Cartesia API key in AI Agents → Config for the AI voice.', {
+        toast.warning('Your tour is live with the browser voice. Add a Cartesia key in AI Agents for the AI voice.', {
           action: { label: 'Open Config', onClick: () => router.push('/ai-agents/config?provider=cartesia') },
         })
       } else if (published && result.audioFailures > 0) {
-        toast.warning(`Published, but ${result.audioFailures} clip(s) failed — they'll use the browser voice.`)
+        toast.warning(`Published, but ${result.audioFailures} clip(s) didn't record, so they'll use the browser voice.`)
       } else {
         toast.success(published ? 'Wizard is live' : 'Wizard unpublished')
       }
@@ -280,7 +280,7 @@ export function WizardConfigurator({
       audio.onended = () => setPlayingStepId(null)
       audio.onerror = () => {
         setPlayingStepId(null)
-        toast.error('Could not load the voice clip')
+        toast.error("Couldn't load the voice clip")
       }
       void audio.play().catch(() => setPlayingStepId(null))
       return
@@ -402,7 +402,7 @@ export function WizardConfigurator({
               <p>
                 <span className="text-muted-foreground">AI agent:</span>{' '}
                 {wizard.product.agentName ?? <span className="text-amber-500">none picked yet</span>}
-                <span className="text-xs text-muted-foreground"> · Draft with AI writes from its prompt</span>
+                <span className="text-xs text-muted-foreground"> · Let AI draft it writes from its prompt</span>
               </p>
             </div>
             <Link
@@ -553,7 +553,7 @@ export function WizardConfigurator({
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="outline" size="sm" onClick={draftWithAi} disabled={isDrafting}>
               {isDrafting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-              Draft with AI
+              Let AI draft it
             </Button>
             <Button variant="outline" size="sm" onClick={addStep}>
               <Plus className="mr-1.5 h-4 w-4" />
@@ -564,7 +564,7 @@ export function WizardConfigurator({
       >
         {wizard.steps.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-            No steps yet. Draft with AI or add one.
+            No steps yet. Let AI draft it or add one.
           </p>
         ) : null}
 

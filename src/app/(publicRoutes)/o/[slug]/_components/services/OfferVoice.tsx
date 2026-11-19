@@ -9,7 +9,7 @@ import {
   useVoiceAssistant,
 } from '@livekit/components-react'
 import { Loader2, Mic, PhoneOff } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { startOfferVoice } from '@/actions/buyer'
@@ -118,7 +118,7 @@ export function OfferVoice({
       if (!result.ok) return void toast.error(result.error)
       setConnection(result.connection)
     } catch {
-      toast.error('Could not start the call')
+      toast.error("Couldn't start the call")
     } finally {
       setStarting(false)
     }
@@ -136,7 +136,7 @@ export function OfferVoice({
           audio
           video={false}
           onDisconnected={() => setConnection(null)}
-          onMediaDeviceFailure={() => toast.error('Allow microphone access to talk to the assistant')}
+          onMediaDeviceFailure={() => toast.error('Let us use your microphone to talk to the assistant.')}
         >
           <RoomAudioRenderer />
           <ActiveCall onOrderRequested={onOrderRequested} onEnd={() => setConnection(null)} />

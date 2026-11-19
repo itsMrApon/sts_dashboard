@@ -411,7 +411,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
           {back('type')}
           <button type="submit" form="location-form" disabled={pending} className={CARD_PRIMARY}>
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Create workspace
+            Create my workspace
           </button>
         </>
       )

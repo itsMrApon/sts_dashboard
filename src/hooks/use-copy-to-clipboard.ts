@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react"
-import { toast } from "sonner"
+import { toast } from '@/lib/toast'
 
 type UseCopyToClipboardProps = {
   text: string
@@ -28,7 +28,7 @@ export function useCopyToClipboard({
         }, 2000)
       })
       .catch(() => {
-        toast.error("Failed to copy to clipboard.")
+        toast.error("Couldn't copy that. Try again?")
       })
   }, [text, copyMessage])
 

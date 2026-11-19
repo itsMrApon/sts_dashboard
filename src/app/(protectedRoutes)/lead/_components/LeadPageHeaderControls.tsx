@@ -1,6 +1,7 @@
 'use client'
 
-import { CalendarDays, List, Settings2 } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
+import { SakugaTabs } from '@/components/sakuga/SakugaTabs'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { openLeadSettings } from './leadSettingsEvents'
@@ -15,43 +16,20 @@ export function LeadViewToggle({
 }: {
   value: LeadViewMode
   onChange: (view: LeadViewMode) => void
-  /** Phones: smaller buttons that fit beside the page title. */
+  /** Phones: a smaller tab bar. */
   compact?: boolean
 }) {
-  const size = compact ? 'gap-1 px-2.5 py-1 text-xs' : 'gap-1.5 px-3 py-1.5 text-sm'
   return (
-    <div className="inline-flex rounded-lg border p-1" role="group" aria-label="Lead view">
-      <button
-        type="button"
-        className={cn(
-          'inline-flex items-center rounded-md transition-colors',
-          size,
-          value === 'calendar'
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-        aria-pressed={value === 'calendar'}
-        onClick={() => onChange('calendar')}
-      >
-        <CalendarDays className="size-4" />
-        Calendar
-      </button>
-      <button
-        type="button"
-        className={cn(
-          'inline-flex items-center rounded-md transition-colors',
-          size,
-          value === 'list'
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:text-foreground',
-        )}
-        aria-pressed={value === 'list'}
-        onClick={() => onChange('list')}
-      >
-        <List className="size-4" />
-        List
-      </button>
-    </div>
+    <SakugaTabs
+      label="Lead view"
+      value={value}
+      onChange={(next) => onChange(next as LeadViewMode)}
+      options={[
+        { value: 'calendar', label: 'Calendar' },
+        { value: 'list', label: 'List' },
+      ]}
+      className={compact ? '!mt-1 [zoom:0.8]' : '!mt-1'}
+    />
   )
 }
 

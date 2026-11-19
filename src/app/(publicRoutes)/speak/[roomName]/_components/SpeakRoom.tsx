@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, Mic, Phone, PhoneOff, Users } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { WizardGem } from '@/components/wizard/WizardGem'
 import type { SpeakServiceConfig } from '@/lib/services/types'
 import { cn } from '@/lib/utils'

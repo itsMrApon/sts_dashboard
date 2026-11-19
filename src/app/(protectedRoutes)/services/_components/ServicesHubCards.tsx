@@ -3,35 +3,50 @@
 import React from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'motion/react'
-import { Building2, ClipboardList, MessageSquare, Mic, Wand2 } from 'lucide-react'
+import { ClipboardList, FileCheck2, Link2, MessageSquare, Mic, PhoneCall, Radio, ShoppingBag, Wand2 } from 'lucide-react'
 import { CanvasRevealEffect } from '@/components/ui/canvas-reveal-effect'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
-import { WarpRing, useWarpRingSlot } from '@/components/ui/warp-ring'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 export type HubStatus = { label: string; on: boolean }
 
 type Props = {
-  status: { chat: HubStatus; speak: HubStatus; form: HubStatus; wizard: HubStatus; business: HubStatus }
+  status: {
+    chat: HubStatus
+    speak: HubStatus
+    form: HubStatus
+    wizard: HubStatus
+    menu: HubStatus
+    docs: HubStatus
+    links: HubStatus
+    contact: HubStatus
+    live: HubStatus
+  }
 }
 
-const SERVICE_LABELS = ['Chat AI', 'Voice AI', 'Form', 'Tour', 'Business']
-// Ring glow / flare colour per card, taken from each card's hover reveal.
-const SERVICE_ACCENTS = ['#10b981', '#ec4899', '#38bdf8', '#818cf8', '#f59e0b']
-
 /**
- * The five services (each run by its own AI Agents assistant) as canvas-reveal cards on the same
- * 3D ring the onboarding cards slide on: drag, swipe, trackpad-scroll or arrow-key to spin it.
+ * The five services (each run by its own AI Agents assistant) as canvas-reveal cards, laid out in a
+ * grid like Integrations so every service is visible at once.
  */
 export function ServicesHubCards({ status }: Props) {
   return (
-    // PageViewport: the ring fills exactly what is left of the visible screen under the header (above
-    // the tab bar on phones) and the page itself doesn't scroll. Phones need this: the layout's
-    // min-h-screen counts the area behind the address bar, so the page would scroll under the ring.
-    // max-md:-mb-8: on phones PageViewport leaves 64px for the tab bar but the layout pads 96px
-    // (pb-24), so without it the document is 32px taller than the screen and can still shift.
-    <PageViewport className="flex min-h-0 w-full flex-col overflow-hidden max-md:-mb-8">
-    <WarpRing ariaLabel="Services" labels={SERVICE_LABELS} accents={SERVICE_ACCENTS} className="h-full w-full">
+    <PageViewport scrollable>
+      <section className="mx-auto max-w-5xl px-4 py-8 sm:px-6 md:py-12">
+        <div className="text-center">
+          <h2 className="text-balance text-3xl font-semibold md:text-4xl">Your website services</h2>
+          <p className="text-muted-foreground mt-4">
+            Everything your website runs on: AI chat, voice, forms and tours, plus your menu, docs, links, live sessions and contact.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/ai-agents">Your AI assistants</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* gap-8 leaves room for the + rulers that sit 12px outside each card's corners. */}
+        <div className="mt-12 grid gap-8 px-3 sm:grid-cols-2 lg:grid-cols-3">
       <HubCard href="/services/chat" title="Chat AI" description="Text chat in your own chat box." status={status.chat} icon={<MessageSquare className="h-10 w-10" aria-hidden />}>
         <CanvasRevealEffect animationSpeed={5.1} containerClassName="bg-emerald-900" />
       </HubCard>
@@ -53,10 +68,23 @@ export function ServicesHubCards({ status }: Props) {
       <HubCard href="/services/wizard" title="Tour" description="Voice-guided tour of your website." status={status.wizard} icon={<Wand2 className="h-10 w-10" aria-hidden />}>
         <CanvasRevealEffect animationSpeed={4} containerClassName="bg-indigo-950" colors={[[129, 140, 248], [34, 211, 238]]} />
       </HubCard>
-      <HubCard href="/services/publish" title="Business" description="Profile, services and links your AI uses." status={status.business} icon={<Building2 className="h-10 w-10" aria-hidden />}>
-        <CanvasRevealEffect animationSpeed={3} containerClassName="bg-amber-900" colors={[[251, 191, 36]]} />
+      <HubCard href="/services/menu" title="Menu" description="Your products and services, with order links." status={status.menu} icon={<ShoppingBag className="h-10 w-10" aria-hidden />}>
+        <CanvasRevealEffect animationSpeed={3} containerClassName="bg-orange-950" colors={[[251, 146, 60]]} />
       </HubCard>
-    </WarpRing>
+      <HubCard href="/services/docs" title="Docs" description="Forms and PDFs your customers need." status={status.docs} icon={<FileCheck2 className="h-10 w-10" aria-hidden />}>
+        <CanvasRevealEffect animationSpeed={3} containerClassName="bg-teal-950" colors={[[45, 212, 191]]} />
+      </HubCard>
+      <HubCard href="/services/links" title="Links" description="Your socials and a link-in-bio page." status={status.links} icon={<Link2 className="h-10 w-10" aria-hidden />}>
+        <CanvasRevealEffect animationSpeed={3} containerClassName="bg-fuchsia-950" colors={[[232, 121, 249], [129, 140, 248]]} />
+      </HubCard>
+      <HubCard href="/services/live" title="Live" description="Upcoming webinars with a countdown and a Join button." status={status.live} icon={<Radio className="h-10 w-10" aria-hidden />}>
+        <CanvasRevealEffect animationSpeed={3} containerClassName="bg-red-950" colors={[[248, 113, 113]]} />
+      </HubCard>
+      <HubCard href="/services/contact" title="Contact" description="Tap to call, WhatsApp, map, hours and trust badges." status={status.contact} icon={<PhoneCall className="h-10 w-10" aria-hidden />}>
+        <CanvasRevealEffect animationSpeed={3} containerClassName="bg-cyan-950" colors={[[34, 211, 238]]} />
+      </HubCard>
+        </div>
+      </section>
     </PageViewport>
   )
 }
@@ -77,8 +105,6 @@ function HubCard({
   children?: React.ReactNode
 }) {
   const [hovered, setHovered] = React.useState(false)
-  // The reveal canvas sizes itself when it mounts, so only show it once the card sits flat in front.
-  const { active } = useWarpRingSlot()
 
   return (
     <Link
@@ -88,8 +114,7 @@ function HubCard({
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
       aria-label={`${title}: ${description} (${status.label})`}
-      // Sized by its ring slot.
-      className="group/canvas-card relative flex h-full w-full items-center justify-center border border-black/[0.2] p-4 dark:border-white/[0.2]"
+      className="group/canvas-card relative flex h-[22rem] w-full items-center justify-center border border-black/[0.2] p-4 dark:border-white/[0.2]"
     >
       <CornerIcon className="absolute -left-3 -top-3 h-6 w-6 text-black dark:text-white" />
       <CornerIcon className="absolute -bottom-3 -left-3 h-6 w-6 text-black dark:text-white" />
@@ -106,7 +131,7 @@ function HubCard({
       </span>
 
       <AnimatePresence>
-        {hovered && active && (
+        {hovered && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 h-full w-full">
             {children}
           </motion.div>

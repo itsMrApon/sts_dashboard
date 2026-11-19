@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { AudioLines, Gauge, Palette, PhoneCall, Settings2, Sparkles, Timer } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { saveAssistantBehaviour, type AssistantSummary } from '@/actions/assistants'
 import { saveServiceLook } from '@/actions/services'
 import { PublicServiceShell } from '@/app/(publicRoutes)/_components/PublicServiceShell'

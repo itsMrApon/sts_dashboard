@@ -3,19 +3,8 @@
 import React, { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import {
-  ArrowLeft,
-  ClipboardList,
-  Loader2,
-  MessageSquare,
-  Mic,
-  Package,
-  PlusIcon,
-  Video,
-  Wand2,
-  type LucideIcon,
-} from 'lucide-react'
-import { toast } from 'sonner'
+import { ArrowLeft, ClipboardList, Loader2, MessageSquare, Mic, Package, Video, Wand2, type LucideIcon } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import {
   Dialog,
   DialogContent,
@@ -70,7 +59,7 @@ function TileBody({ tile }: { tile: Tile }) {
  */
 export default function AddServiceDialog({
   initialKind,
-  triggerLabel = 'Add service',
+  triggerLabel = '+ Add service',
 }: {
   /** Open straight on the name step for this offer type (e.g. the Projects empty state). */
   initialKind?: OfferKindInput
@@ -111,7 +100,6 @@ export default function AddServiceDialog({
     >
       <DialogTrigger asChild>
         <button className="flex items-center gap-2 rounded-xl border border-border bg-primary/10 px-4 py-2 text-sm font-normal text-primary backdrop-blur-sm hover:bg-primary/20">
-          <PlusIcon className="h-4 w-4" />
           {triggerLabel}
         </button>
       </DialogTrigger>
@@ -146,7 +134,7 @@ export default function AddServiceDialog({
                 </Button>
                 <Button type="submit" className="flex-1" disabled={creating || !title.trim()}>
                   {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Create and set up
+                  Create it
                 </Button>
               </div>
             </form>

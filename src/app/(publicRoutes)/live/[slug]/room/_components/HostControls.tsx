@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useCallStateHooks, type Call } from '@stream-io/video-react-sdk'
 import type { Channel as ChatChannel } from 'stream-chat'
 import { Copy, Loader2, Mic, MicOff, Radio, Settings2, ShoppingBag, Square, Video, VideoOff } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { changeProjectStatus } from '@/actions/webiner'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -46,7 +46,7 @@ export function HostControls({ call, channel, session, live, onLive, onEnded, st
         },
         (error: unknown) => {
           const message = error instanceof Error ? error.message : ''
-          if (!message.includes('already being recorded')) toast.error('Could not start recording')
+          if (!message.includes('already being recorded')) toast.error("Couldn't start recording")
         },
       )
     })
@@ -79,7 +79,7 @@ export function HostControls({ call, channel, session, live, onLive, onEnded, st
       await sendRoomEvent(channel, 'open_cta_dialog')
       toast.success('Offer sent to everyone watching')
     } catch {
-      toast.error('Could not send the offer')
+      toast.error("Couldn't send the offer")
     } finally {
       setBusy(null)
     }
@@ -105,7 +105,7 @@ export function HostControls({ call, channel, session, live, onLive, onEnded, st
   const copy = (label: string, value: string) =>
     navigator.clipboard.writeText(value).then(
       () => toast.success(`${label} copied`),
-      () => toast.error('Could not copy'),
+      () => toast.error("Couldn't copy that. Try again?"),
     )
 
   return (

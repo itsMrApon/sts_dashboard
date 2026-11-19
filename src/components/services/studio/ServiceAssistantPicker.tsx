@@ -3,8 +3,8 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowUpRight, Bot, Loader2, Plus, Sparkles } from 'lucide-react'
-import { toast } from 'sonner'
+import { ArrowUpRight, Bot, Loader2, Sparkles } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { linkAssistantToService, type AssistantSummary } from '@/actions/assistants'
 import { ASSISTANT_SERVICE_META, canRunService, type AssistantService } from '@/lib/agents/assistantServices'
 import { guardAction } from '@/lib/clientActionErrors'
@@ -51,7 +51,6 @@ export function ServiceAssistantPicker({
       title="Assistant"
       action={
         <Link href={createHref} className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium hover:bg-muted/60">
-          <Plus className="h-3.5 w-3.5" />
           New {meta.noun}
         </Link>
       }

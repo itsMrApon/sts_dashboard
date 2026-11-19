@@ -264,3 +264,57 @@
 .str-chat__channel {
   justify-content: space-between !important;
 }
+/* ───────── Sakuga VFX (public/sakuga-vfx): the app's purple, sized for the app ───────── */
+:root {
+  --sk-card: #ffffff;
+  --sk-ink: #1d1a4a;
+  --sk-dim: #6b6690;
+  --sk-soft: #c4b5fd;
+  --sk-pri: #8731ff;
+  --sk-pri-ink: #ffffff;
+  --sk-on-pri: #ffffff;
+  --sk-acc: #c026d3;
+  --sk-fill: #8731ff;
+  --sk-track: #e4defa;
+  --sk-err: #ef4444;
+  --sk-r: 12px;
+  --sk-bw: 2.5px;
+  --sk-sh: 4px 5px 0 var(--sk-soft);
+}
+.dark {
+  --sk-card: #15121f;
+  --sk-ink: #ece8ff;
+  --sk-dim: #a39cc4;
+  --sk-soft: #5b21b6;
+  --sk-acc: #e879f9;
+  --sk-track: #2b2540;
+}
+
+/* Buttons: app-sized. The host takes layout classes (w-full, mt-2…); the drawn button fills it. */
+sakuga-button { max-width: 100%; }
+sakuga-button::part(button) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 8px 18px; font-size: 14px; line-height: 1.15; white-space: nowrap;
+}
+sakuga-button[data-size='sm']::part(button) { padding: 6px 13px; font-size: 13px; }
+sakuga-button[data-size='lg']::part(button) { padding: 11px 24px; font-size: 16px; }
+sakuga-button[data-variant='destructive'] { --sk-btn-line: var(--sk-err); --sk-soft: #7f1d1d; --sk-acc: var(--sk-err); }
+sakuga-button > svg { width: 1em; height: 1em; }
+sakuga-button:not(:defined) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 18px; border: var(--sk-bw) solid var(--sk-ink); border-radius: var(--sk-r);
+  background: var(--sk-card); color: var(--sk-ink); font: italic 800 14px/1.15 system-ui, sans-serif;
+}
+
+/* Toggle: the drawing is 108×54 with room for its splash; scaled to sit where a switch sits. */
+sakuga-toggle { zoom: 0.42; margin: 0 !important; vertical-align: middle; flex: none; }
+sakuga-toggle:not(:defined) { display: inline-block; width: 108px; height: 54px; border-radius: 27px; background: var(--sk-track); }
+
+sakuga-tabs { margin-top: 12px; max-width: 100%; }
+sakuga-progress { --sk-progress-width: min(320px, 80vw); }
+sakuga-toast { --sk-toast-max: min(380px, calc(100vw - 32px)); }
+
+/* No icons before button labels: an icon stays only when it is the whole button, or a spinner. */
+:where(button, [role='button'], a[data-slot='button'], sakuga-button) > svg:first-child:not(:only-child):not(.animate-spin) {
+  display: none;
+}

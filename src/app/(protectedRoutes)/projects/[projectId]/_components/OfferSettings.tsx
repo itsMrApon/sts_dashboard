@@ -3,8 +3,8 @@
 import React, { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Check, Copy, ExternalLink, Loader2, Lock } from 'lucide-react'
-import { toast } from 'sonner'
+import { Check, Copy, ExternalLink, Loader2, Lock } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -243,7 +243,7 @@ export function OfferSettings({ offer }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <Link href="/projects" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Projects
+            Projects
           </Link>
           <h1 className="truncate text-2xl font-bold">{offer.title}</h1>
           <p className="text-sm text-muted-foreground">
@@ -463,7 +463,7 @@ export function OfferSettings({ offer }: Props) {
                           href={`/live/${offer.slug}/room`}
                           className="inline-flex items-center gap-1.5 text-sm font-medium underline-offset-2 hover:underline"
                         >
-                          <ExternalLink className="h-3.5 w-3.5" /> Open your host room
+                          Open your host room
                         </Link>
                       ) : null}
                     </div>
@@ -473,12 +473,12 @@ export function OfferSettings({ offer }: Props) {
             })}
           </Section>
 
-          <Section title="Business & website" description="Where else this offer shows up.">
+          <Section title="Website" description="Where else this offer shows up.">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium">Show on my business</p>
+                <p className="text-sm font-medium">Show on my Menu</p>
                 <p className="text-xs text-muted-foreground">
-                  Lists it on your business page and website SDK, and lets your business AI recommend it.
+                  Lists it on your Menu (hosted page and website SDK) and lets your AI recommend it.
                 </p>
               </div>
               {offer.hasBusiness ? (
@@ -486,11 +486,11 @@ export function OfferSettings({ offer }: Props) {
                   checked={onBusiness}
                   disabled={locked || savingBusiness}
                   onCheckedChange={toggleBusiness}
-                  aria-label="Show on my business"
+                  aria-label="Show on my Menu"
                 />
               ) : (
-                <Link href="/services/publish" className="shrink-0 text-sm underline underline-offset-2">
-                  Set up business
+                <Link href="/services/menu" className="shrink-0 text-sm underline underline-offset-2">
+                  Set up Menu
                 </Link>
               )}
             </div>

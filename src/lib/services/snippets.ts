@@ -11,7 +11,7 @@ export type GuideStep = {
   code: string
 }
 
-export type GuideService = 'chat' | 'speak' | 'form' | 'tour' | 'business'
+export type GuideService = 'chat' | 'speak' | 'form' | 'tour' | 'live' | 'menu' | 'docs' | 'links' | 'contact'
 
 /** Services → Connection: done once per website, covers every service. */
 export function connectionGuide(appUrl: string): GuideStep[] {
@@ -124,25 +124,178 @@ export function TourButton() {
   )
 }`
 
-const BUSINESS_SERVICES = `import { useStsBusiness } from '@sts-ai/sdk/react'
+const SERVICE_MENU = `import { useStsBusiness } from '@sts-ai/sdk/react'
 
-// Everything you publish on the Business page: SEO, services,
-// key dates, socials, footer and your look settings.
-export function Services() {
-  const { business } = useStsBusiness()
-  const site = business?.site // null until you publish
-  if (!site) return null
+// Products from Projects arrive on their own (with their links);
+// services are what you list on the Menu page.
+export function ServiceMenu() {
+  const business = useStsBusiness().business
+  if (!business?.site) return null // publish first
 
   return (
-    <section style={{ ['--accent' as string]: site.appearance.accent }}>
-      {site.services.map((s) => (
-        <article key={s.id}>
-          <h3>{s.name}</h3>
-          <p>{s.summary}</p>
-          {s.price && <strong>{s.price}</strong>}
+    <section>
+      {business.offers.map((offer) => (
+        <article key={offer.primaryUrl}>
+          <h3>{offer.title}</h3>
+          <p>{offer.description}</p>
+          <a href={offer.primaryUrl}>Get started</a>
+          {offer.links.pay && <a href={offer.links.pay}>Buy now</a>}
+        </article>
+      ))}
+      {business.site.services.map((service) => (
+        <article key={service.id}>
+          <h3>{service.name}</h3>
+          <p>{service.summary}</p>
+          {service.price && <strong>{service.price}</strong>}
         </article>
       ))}
     </section>
+  )
+}`
+
+const DOC_CHECKLIST = `import { useStsBusiness } from '@sts-ai/sdk/react'
+
+// Every document you list on Docs, or only those "Used for" one service.
+export function DocChecklist({ serviceId }: { serviceId?: string }) {
+  const site = useStsBusiness().business?.site
+  const docs = (site?.docs ?? []).filter((doc) => !serviceId || doc.serviceIds.includes(serviceId))
+  if (!docs.length) return null
+
+  return (
+    <ul>
+      {docs.map((doc) => (
+        <li key={doc.id}>
+          {doc.name} {doc.formCode && <code>{doc.formCode}</code>}
+          {doc.pdfUrl && <a href={doc.pdfUrl} download>PDF</a>}
+        </li>
+      ))}
+    </ul>
+  )
+}`
+
+const LINK_HUB = `import { useStsBusiness } from '@sts-ai/sdk/react'
+
+export function LinkHub() {
+  const site = useStsBusiness().business?.site
+  if (!site) return null
+
+  return (
+    <nav aria-label={site.social.followLabel}>
+      {site.social.accounts.map((account) => (
+        <a key={account.id} href={account.url} target="_blank" rel="noopener">
+          {account.platform} · @{account.handle}
+        </a>
+      ))}
+    </nav>
+  )
+}`
+
+const LINK_IN_BIO = `import { LinkHub } from '@/components/LinkHub'
+import { ServiceMenu } from '@/components/ServiceMenu'
+
+// Put yoursite.com/links in your Instagram and TikTok bio.
+export default function LinksPage() {
+  return (
+    <main>
+      <LinkHub />
+      <ServiceMenu />
+    </main>
+  )
+}`
+
+const CONTACT_CARD = `import { useStsBusiness } from '@sts-ai/sdk/react'
+
+export function ContactCard() {
+  const contact = useStsBusiness().business?.site?.footer
+  if (!contact) return null
+  const whatsapp = contact.phone.replace(/\\D/g, '')
+  const map = contact.mapUrl || \`https://maps.google.com/?q=\${encodeURIComponent(contact.address)}\`
+
+  return (
+    <aside>
+      {contact.phone && <a href={\`tel:\${contact.phone}\`}>Call {contact.phone}</a>}
+      {whatsapp && <a href={\`https://wa.me/\${whatsapp}\`}>WhatsApp</a>}
+      {contact.email && <a href={\`mailto:\${contact.email}\`}>{contact.email}</a>}
+      {contact.address && <a href={map}>{contact.address}</a>}
+      {contact.hours && <p>{contact.hours}</p>}
+      {contact.credentials.map((badge) => <span key={badge}>{badge}</span>)}
+    </aside>
+  )
+}`
+
+const CONTACT_FOOTER = `import { useStsBusiness } from '@sts-ai/sdk/react'
+
+export function Footer() {
+  const contact = useStsBusiness().business?.site?.footer
+  if (!contact) return null
+  return (
+    <footer>
+      <p>{contact.tagline}</p>
+      {contact.privacyUrl && <a href={contact.privacyUrl}>Privacy</a>}
+      {contact.termsUrl && <a href={contact.termsUrl}>Terms</a>}
+      <small>{contact.copyright}</small>
+    </footer>
+  )
+}`
+
+const LIVE_SESSIONS = `import { useEffect, useState } from 'react'
+import { useStsBusiness, type StsLiveSession } from '@sts-ai/sdk/react'
+
+function useCountdown(iso: string) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  const ms = new Date(iso).getTime() - now
+  if (ms <= 0) return null
+  const days = Math.floor(ms / 86_400_000)
+  const hours = Math.floor(ms / 3_600_000) % 24
+  const minutes = Math.floor(ms / 60_000) % 60
+  const seconds = Math.floor(ms / 1000) % 60
+  return \`\${days}d \${hours}h \${minutes}m \${seconds}s\`
+}
+
+function Session({ session, joinLabel }: { session: StsLiveSession; joinLabel: string }) {
+  const countdown = useCountdown(session.startsAt)
+  return (
+    <article>
+      <h3>{session.title}</h3>
+      <p>{new Date(session.startsAt).toLocaleString()}</p>
+      <strong>{session.status === 'live' ? 'Live now' : countdown ?? 'Starting soon'}</strong>
+      <a href={session.joinUrl}>{joinLabel}</a>
+      {session.shareUrl && <a href={session.shareUrl}>Save a seat</a>}
+    </article>
+  )
+}
+
+// Upcoming webinars from Projects, soonest first, as your Live settings allow.
+export function LiveSessions() {
+  const business = useStsBusiness().business
+  const live = business?.live ?? []
+  const settings = business?.site?.live
+  if (!live.length || !settings) return null
+  return (
+    <section>
+      <h2>{settings.title}</h2>
+      {live.map((session) => (
+        <Session key={session.slug} session={session} joinLabel={settings.joinLabel} />
+      ))}
+    </section>
+  )
+}`
+
+const LIVE_NEXT = `import { useStsBusiness } from '@sts-ai/sdk/react'
+
+// Just the next session, for your hero or a top bar.
+export function NextLive() {
+  const next = useStsBusiness().business?.live[0]
+  if (!next) return null
+  return (
+    <a href={next.joinUrl}>
+      {next.status === 'live' ? 'Live now: ' : 'Next live: '}
+      {next.title}
+    </a>
   )
 }`
 
@@ -213,21 +366,41 @@ export function serviceGuide(service: GuideService, hostedUrl: string): GuideSte
           code: `import { TourButton } from '@/components/TourButton'\n\n<TourButton />\n\n// No code:\n<a href="${hostedUrl}" target="_blank" rel="noopener">Take the tour</a>`,
         },
       ]
-    case 'business':
+    case 'live':
       return [
-        { title: 'Show your services', body: 'Reads what you publish here.', file: 'components/Services.tsx', code: BUSINESS_SERVICES },
+        { title: 'List your live sessions', body: 'Each one with a countdown and a Join button.', file: 'components/LiveSessions.tsx', code: LIVE_SESSIONS },
+        { title: 'Show the next one', body: 'A single link for your hero or a top bar.', file: 'components/NextLive.tsx', code: LIVE_NEXT },
         {
-          title: 'Fill your footer',
-          body: 'Email, tagline, socials and legal links.',
-          file: 'components/Footer.tsx',
-          code: `import { useStsBusiness } from '@sts-ai/sdk/react'\n\nexport function Footer() {\n  const site = useStsBusiness().business?.site\n  if (!site) return null\n  return (\n    <footer>\n      <p>{site.footer.tagline}</p>\n      <a href={\`mailto:\${site.footer.email}\`}>{site.footer.email}</a>\n      <small>{site.footer.copyright}</small>\n    </footer>\n  )\n}`,
+          title: 'Or link your hosted page',
+          body: 'Each session also has its own live link with a waiting room.',
+          file: 'components/LiveLink.tsx',
+          code: `<a href="${hostedUrl}" target="_blank" rel="noopener">\n  Join us live\n</a>`,
         },
+      ]
+    case 'menu':
+      return [
+        { title: 'Show your Menu', body: 'Your products and services, with order links.', file: 'components/ServiceMenu.tsx', code: SERVICE_MENU },
         {
           title: 'Or link the hosted site',
-          body: 'Your business page, ready to share.',
+          body: 'Your services are on your hosted page too.',
           file: 'components/SiteLink.tsx',
-          code: `<a href="${hostedUrl}" target="_blank" rel="noopener">\n  Visit our page\n</a>`,
+          code: `<a href="${hostedUrl}" target="_blank" rel="noopener">\n  See our services\n</a>`,
         },
+      ]
+    case 'docs':
+      return [
+        { title: 'Add your Docs', body: 'Your forms and PDFs, all or for one service.', file: 'components/DocChecklist.tsx', code: DOC_CHECKLIST },
+        { title: 'Show it under each service', body: 'Next to the service on your menu.', file: 'components/ServiceMenu.tsx', code: `import { DocChecklist } from '@/components/DocChecklist'\n\n<article>\n  <h3>{service.name}</h3>\n  <DocChecklist serviceId={service.id} />\n</article>` },
+      ]
+    case 'links':
+      return [
+        { title: 'Show your Links', body: 'Every social account you list here.', file: 'components/LinkHub.tsx', code: LINK_HUB },
+        { title: 'Make a link-in-bio page', body: 'One link for Instagram and TikTok bios.', file: 'app/links/page.tsx', code: LINK_IN_BIO },
+      ]
+    case 'contact':
+      return [
+        { title: 'Add your Contact', body: 'Tap to call, WhatsApp, map, hours and trust badges.', file: 'components/ContactCard.tsx', code: CONTACT_CARD },
+        { title: 'Fill your footer', body: 'Tagline, legal links and copyright.', file: 'components/Footer.tsx', code: CONTACT_FOOTER },
       ]
   }
 }

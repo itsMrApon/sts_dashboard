@@ -14,7 +14,7 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { removeProviderKey, saveProviderKey, testProviderKey } from '@/actions/voiceCredentials'
 import { Button } from '@/components/ui/button'
 import {
@@ -164,7 +164,7 @@ export function ProviderKeySheet({
       if (!res.ok) return void toast.error(res.error)
       setConfirmRemove(false)
       setCheckState(null)
-      toast.success(`Saved ${provider.name} key removed.`)
+      toast.success(`${provider.name} key removed.`)
       await onChanged()
     })
 
@@ -212,14 +212,14 @@ export function ProviderKeySheet({
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={retest} disabled={busy !== null}>
                       {busy === 'retest' ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                      Re-test
+                      Test again
                     </Button>
                     {status.source === 'database' ? (
                       confirmRemove ? (
                         <>
                           <Button size="sm" variant="destructive" onClick={remove} disabled={busy !== null}>
                             {busy === 'remove' ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                            Confirm remove
+                            Yes, remove it
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(false)} disabled={busy !== null}>
                             Keep it

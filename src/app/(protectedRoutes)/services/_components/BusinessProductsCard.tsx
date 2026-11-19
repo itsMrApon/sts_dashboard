@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { setBusinessProducts } from '@/actions/services'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'

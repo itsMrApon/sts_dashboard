@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -106,7 +106,7 @@ export function ScoreResultPanel({
       await navigator.clipboard.writeText(buildCoachingNote(score))
       toast.success('Copied')
     } catch {
-      toast.error('Could not copy')
+      toast.error("Couldn't copy that. Try again?")
     }
   }
 
@@ -331,7 +331,7 @@ export function ScoreResultPanel({
               disabled={pending}
               onClick={() => onRunScore(false)}
             >
-              Run again
+              Try again
             </Button>
             <Button
               size="sm"

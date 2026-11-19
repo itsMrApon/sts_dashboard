@@ -14,8 +14,8 @@ import {
 } from '@stream-io/video-react-sdk'
 import { StreamChat, type Channel as ChatChannel, type Event as ChatEvent } from 'stream-chat'
 import { Channel, Chat, MessageInput, MessageList } from 'stream-chat-react'
-import { Loader2, MessageSquare, Radio, Users, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { Loader2, Radio, Users, X } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { HostControls } from './HostControls'
 import { OfferDropDialog } from './OfferDropDialog'
@@ -193,7 +193,6 @@ export function LiveRoom({ role, apiKey, token, user, hostUserId, attendeeId, se
             chatOpen ? 'bg-white text-zinc-900' : 'border border-white/15 hover:bg-white/10',
           )}
         >
-          <MessageSquare className="h-3.5 w-3.5" aria-hidden />
           Chat
         </button>
       </header>

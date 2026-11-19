@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronRight, Loader2, ShoppingBag } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { startLiveCheckout } from '@/actions/buyer'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -31,7 +31,7 @@ export function OfferDropDialog({ open, onOpenChange, webinarId, attendeeId, tit
       window.open(result.url, '_blank', 'noopener,noreferrer')
       onOpenChange(false)
     } catch {
-      toast.error('Could not open checkout')
+      toast.error("Couldn't open checkout")
     } finally {
       setLoading(false)
     }

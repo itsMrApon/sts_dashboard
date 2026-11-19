@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, Loader2, RefreshCw, Save } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -40,7 +40,7 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
       setConfig(data)
       setDomain(data.allowedOrigins[0] || '')
     } catch {
-      toast.error('Could not load the connection')
+      toast.error("Couldn't load the connection")
     } finally {
       setLoading(false)
     }
@@ -71,7 +71,7 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
       setConfig(data)
       if (data.siteKey) {
         setSiteKeyOnce(data.siteKey)
-        toast.success('Website connected. Copy the key now, it is shown once.')
+        toast.success("Website connected! Copy the key now, you'll only see it once.")
       } else {
         toast.success('Website saved')
       }
@@ -79,7 +79,7 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
       // The header's connection pill is server-rendered.
       router.refresh()
     } catch {
-      toast.error('Could not save the website')
+      toast.error("Couldn't save the website")
     } finally {
       setSaving(false)
     }
@@ -102,7 +102,7 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
       toast.success('New key ready. Copy it now.')
       await loadConfig()
     } catch {
-      toast.error('Could not rotate the key')
+      toast.error("Couldn't rotate the key")
     } finally {
       setRotating(false)
     }
@@ -115,7 +115,7 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
-      toast.error('Copy failed')
+      toast.error("Couldn't copy that. Try again?")
     }
   }
 

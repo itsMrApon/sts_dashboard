@@ -2,8 +2,8 @@
 
 import { useCallback, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Check, Loader2, Pencil } from 'lucide-react'
-import { toast } from 'sonner'
+import { Check, Loader2, Pencil } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { deleteAssistant, linkAssistantToService, renameAssistant, type AssistantSummary } from '@/actions/assistants'
 import {
   AlertDialog,
@@ -109,7 +109,7 @@ export function AssistantWorkspace(props: Props) {
             onClick={() => go('/ai-agents?list')}
             className="mx-4 mt-3 inline-flex items-center gap-1 self-start text-sm text-muted-foreground hover:text-foreground md:hidden"
           >
-            <ArrowLeft className="h-4 w-4" /> Assistants
+            Assistants
           </button>
         ) : null}
 

@@ -70,7 +70,7 @@ const SuccessStep = ({ links, onCreateNew }: Props) => {
               className=" border-gray-700 text-white hover: bg-gray-800"
             >
               <PlusCircle className="mr-2 h-4 w-4" />
-              Create Another Project
+              Make another one
             </Button>
           </div>
         )}

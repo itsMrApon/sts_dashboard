@@ -145,7 +145,7 @@ export async function setBusinessProducts(input: { add: string[]; remove: string
 }
 
 
-/** "Build with AI": drafts the form from the business details, its services and this assistant's prompt. Nothing is saved. */
+/** "Let AI build it": drafts the form from the business details, its services and this assistant's prompt. Nothing is saved. */
 export async function draftFormWithAI(agentId: string): Promise<
   | {
       ok: true

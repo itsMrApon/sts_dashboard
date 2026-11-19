@@ -5,8 +5,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
-import { CalendarPlus, CheckCircle2, Clock, Loader2, Radio } from 'lucide-react'
-import { toast } from 'sonner'
+import { CheckCircle2, Clock, Loader2, Radio } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAttendeeStore } from '@/store/useAttendeeStore'
@@ -275,7 +275,7 @@ export function LiveWaitingRoom({ offer, contact: initialContact, registered: in
             {registered && !isLive && now != null ? (
               <Button asChild variant="outline" className="w-full">
                 <a href={calendarUrl({ ...offer, startTime })} target="_blank" rel="noreferrer">
-                  <CalendarPlus className="mr-2 h-4 w-4" /> Add to Google Calendar
+                  Add to Google Calendar
                 </a>
               </Button>
             ) : null}

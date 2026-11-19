@@ -4,8 +4,8 @@ import "./globals.css";
 
 import { ThemeProvider } from "@/providers/theme-provider"
 import { ClerkProvider } from "@clerk/nextjs";
-// Themed wrapper: follows light/dark and the app's popover colors (raw sonner is always light).
-import { Toaster } from "@/components/ui/sonner";
+// Toasts: the Sakuga toast (public/sakuga-vfx), themed in globals.css.
+import { SakugaToaster } from "@/components/sakuga/SakugaToaster";
 import { ConsoleBanner } from "@/components/ReusableComponent/ConsoleBanner";
  
 const manrope = Manrope ({
@@ -37,7 +37,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
-            <Toaster position="top-center" richColors closeButton />
+            <SakugaToaster />
             <ConsoleBanner />
           </ThemeProvider>
         </body>

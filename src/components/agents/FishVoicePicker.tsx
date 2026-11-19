@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import {
   listFishVoices,
   type FishVoiceLanguageFilter,
@@ -44,13 +44,13 @@ export function FishVoicePicker({
     try {
       const result = await listFishVoices({ search: query.trim() || undefined, language: filter })
       if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to load Fish voices.')
+        toast.error(result.error || "Couldn't load the voices right now.")
         setVoices([])
         return
       }
       setVoices(result.data)
     } catch {
-      toast.error('Failed to load Fish voices.')
+      toast.error("Couldn't load the voices right now.")
       setVoices([])
     } finally {
       setLoading(false)

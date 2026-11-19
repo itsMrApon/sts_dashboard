@@ -10,7 +10,11 @@ const SECTIONS: { href: string; label: string; exact?: boolean }[] = [
   { href: '/services/speak', label: 'Voice AI' },
   { href: '/services/form', label: 'Form' },
   { href: '/services/wizard', label: 'Tour' },
-  { href: '/services/publish', label: 'Business' },
+  { href: '/services/menu', label: 'Menu' },
+  { href: '/services/docs', label: 'Docs' },
+  { href: '/services/links', label: 'Links' },
+  { href: '/services/live', label: 'Live' },
+  { href: '/services/contact', label: 'Contact' },
 ]
 
 export function ServicesSubnav() {

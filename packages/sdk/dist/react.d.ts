@@ -1,12 +1,12 @@
 import { type ReactNode } from 'react';
 import { type StsClient } from './core.js';
-import { type StsBusiness, type StsChatLinks, type StsForm, type StsFormAnswer, type StsSessionInfo, type StsWizard, type StsWizardStep } from './types.js';
+import { type StsBusiness, type StsBusinessService, type StsChatLinks, type StsContactCard, type StsForm, type StsFormAnswer, type StsLiveSession, type StsOffer, type StsDoc, type StsSessionInfo, type StsWizard, type StsWizardStep } from './types.js';
 /** Wrap your site once. Every hook below talks to your STS-AI business through this client. */
 export declare function StsProvider({ apiBase, siteKey, children }: {
     apiBase: string;
     siteKey: string;
     children: ReactNode;
-}): import("react/jsx-runtime").JSX.Element;
+}): import("react").JSX.Element;
 export declare function useSts(): StsClient;
 /** Business name + which services are turned on. */
 export declare function useStsInfo(): {
@@ -73,4 +73,4 @@ export declare function useStsBusiness(): {
     business: StsBusiness | null;
     error: string | null;
 };
-export type { StsChatLinks, StsForm, StsSessionInfo, StsWizard, StsWizardStep, StsBusiness };
+export type { StsChatLinks, StsForm, StsSessionInfo, StsWizard, StsWizardStep, StsBusiness, StsBusinessService, StsDoc, StsOffer, StsContactCard, StsLiveSession, };

@@ -3,10 +3,10 @@ import { updateLiveKitAgent } from '@/actions/livekitAgent'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { AlertTriangle, ChevronDown, Info, Loader2, RotateCcw, Sparkles } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Info, Loader2, RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 import { AGENT_LANGUAGES, isAgentLanguage, type AgentLanguage } from '@/lib/agents/engineOptions'
 import { estimateTokens, lintAgentText, outlinePrompt } from '@/lib/agents/promptLint'
@@ -132,7 +132,7 @@ export function AssistantPromptCard({
       router.refresh()
     } catch (error) {
       console.error('Error updating model configuration:', error)
-      toast.error('Failed to save. Please try again.')
+      toast.error("That didn't save. Try again?")
     } finally {
       setSaving(false)
     }
@@ -164,7 +164,6 @@ export function AssistantPromptCard({
         aiOpen[field] ? 'bg-violet-500/15 text-violet-300' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
-      <Sparkles className="h-3.5 w-3.5" />
       {label}
     </button>
   )

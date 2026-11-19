@@ -18,7 +18,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { saveAssistantBehaviour, type AssistantSummary } from '@/actions/assistants'
 import { draftFormWithAI, saveServiceLook, submitFormPreview } from '@/actions/services'
 import { FormFlow } from '@/components/services/form/FormFlow'
@@ -249,12 +249,12 @@ export function FormConfigurator(props: Props) {
         action={
           <Button size="sm" onClick={buildWithAI} disabled={isDrafting}>
             {isDrafting ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
-            Build with AI
+            Let AI build it
           </Button>
         }
       >
         <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <strong className="text-foreground">Build with AI</strong> writes the title, intro and questions from your business
+          <strong className="text-foreground">Let AI build it</strong> writes the title, intro and questions from your business
           details, services and this assistant&apos;s prompt. It replaces the current questions; nothing is saved until you press Save.
         </p>
         <div className="grid gap-5 sm:grid-cols-2">

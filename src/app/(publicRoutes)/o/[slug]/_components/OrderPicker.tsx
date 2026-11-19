@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { startBuyerCheckout } from '@/actions/buyer'
@@ -34,7 +34,7 @@ export function OrderPicker({ offer, source, via, label = 'Continue to payment' 
       }
       window.location.href = result.url
     } catch {
-      toast.error('Could not open checkout')
+      toast.error("Couldn't open checkout")
       setBusy(false)
     }
   }

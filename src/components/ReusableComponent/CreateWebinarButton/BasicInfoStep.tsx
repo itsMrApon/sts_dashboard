@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CalendarIcon, Clock, Upload } from 'lucide-react'
 import { Calendar } from '@/components/ui/calendar'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { hasProjectVariant } from '@/lib/webinarLinkVariants'
 
@@ -53,7 +53,7 @@ const BasicInfoStep = () => {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      toast.error('Please upload an image file')
+      toast.error("That's not an image. Pick a JPG or PNG.")
       return
     }
 
@@ -203,7 +203,7 @@ const BasicInfoStep = () => {
           variant="outline"
           className="ml-auto relative border border-input hover:bg-background"
         >
-          Upload File
+          Upload a file
           <Input
             className="absolute inset-0 opacity-0 cursor-pointer"
             type="file"

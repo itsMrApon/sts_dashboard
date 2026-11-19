@@ -6,7 +6,7 @@ import { prismaClient } from '@/lib/prismaClient'
  * creating an offer) needs a platform package. `User.subscription` is kept in sync by
  * syncPlatformAccess, so this is a single indexed read.
  */
-export const PAID_ACCESS_ERROR = 'Choose a package in Settings → Payment Integration to go live.'
+export const PAID_ACCESS_ERROR = 'Subscribe in Settings → Payment Integration to go live.'
 
 export async function userHasPaidAccess(userId: string): Promise<boolean> {
   const user = await prismaClient.user.findUnique({ where: { id: userId }, select: { subscription: true } })

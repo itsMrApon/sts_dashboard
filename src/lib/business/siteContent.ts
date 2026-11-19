@@ -8,8 +8,16 @@ import { ACCENTS, type AccentId } from '@/lib/services/types'
 
 export type SiteSeo = { title: string; description: string; ogImage: string }
 
+/** The Contact: how visitors reach the business, plus the footer's tagline and legal links. */
 export type SiteFooter = {
   email: string
+  phone: string
+  address: string
+  /** Free text, e.g. "Mon–Fri 9am–6pm, Sat 10am–2pm". */
+  hours: string
+  mapUrl: string
+  /** Trust badges, e.g. "Licensed in NY", "10 years in business". */
+  credentials: string[]
   tagline: string
   copyright: string
   privacyUrl: string
@@ -20,7 +28,11 @@ export type SocialAccount = { id: string; platform: string; handle: string; url:
 export type SocialMedia = { id: string; type: 'image' | 'video'; url: string; caption: string }
 export type SiteSocial = { followLabel: string; accounts: SocialAccount[]; media: SocialMedia[] }
 
-export type ServiceDoc = { id: string; name: string; formCode: string; issuer: string; pdfUrl: string }
+/**
+ * A document customers need (Docs): a form, a checklist item, a PDF. It stands on its own;
+ * serviceIds optionally ties it to Menu services ("Used for"), so a site can show it under them.
+ */
+export type SiteDoc = { id: string; name: string; formCode: string; issuer: string; pdfUrl: string; serviceIds: string[] }
 export type SiteService = {
   id: string
   name: string
@@ -28,8 +40,20 @@ export type SiteService = {
   summary: string
   price: string
   active: boolean
-  docs: ServiceDoc[]
 }
+
+/** Live: how upcoming webinars show on the website. Sessions themselves are scheduled in Projects. */
+export type SiteLive = {
+  enabled: boolean
+  /** Heading above the sessions, e.g. "Join us live". */
+  title: string
+  joinLabel: string
+  maxSessions: number
+  /** Webinars (by slug) kept off the website. */
+  hiddenSlugs: string[]
+}
+
+export const LIVE_MAX_OPTIONS = [1, 3, 5, 10] as const
 
 export type KeyDate = {
   id: string
@@ -79,12 +103,20 @@ export type BusinessSiteContent = {
   footer: SiteFooter
   social: SiteSocial
   services: SiteService[]
+  docs: SiteDoc[]
+  live: SiteLive
   keyDates: KeyDate[]
   advanced: SiteAdvanced
   appearance: SiteAppearance
 }
 
-export type SiteSection = 'look' | 'seo' | 'footer' | 'social' | 'services' | 'keyDates' | 'advanced'
+export type SiteSection = 'look' | 'seo' | 'footer' | 'social' | 'services' | 'docs' | 'live' | 'keyDates' | 'advanced'
+
+const SITE_SECTION_IDS: readonly SiteSection[] = ['look', 'seo', 'footer', 'social', 'services', 'docs', 'live', 'keyDates', 'advanced']
+
+export function isSiteSection(value: unknown): value is SiteSection {
+  return SITE_SECTION_IDS.includes(value as SiteSection)
+}
 
 export const SITE_LIMITS = {
   seoTitle: 70,
@@ -96,9 +128,10 @@ export const SITE_LIMITS = {
   accounts: 20,
   media: 24,
   services: 40,
-  docs: 12,
+  docs: 60,
   keyDates: 150,
   lookupTags: 12,
+  credentials: 6,
 } as const
 
 export const SOCIAL_PLATFORMS: { id: string; label: string; urlFor: (handle: string) => string }[] = [
@@ -149,9 +182,22 @@ export function defaultCopyright(businessName: string): string {
 export function emptySiteContent(businessName: string): BusinessSiteContent {
   return {
     seo: { title: businessName, description: '', ogImage: '' },
-    footer: { email: '', tagline: '', copyright: defaultCopyright(businessName), privacyUrl: '', termsUrl: '' },
+    footer: {
+      email: '',
+      phone: '',
+      address: '',
+      hours: '',
+      mapUrl: '',
+      credentials: [],
+      tagline: '',
+      copyright: defaultCopyright(businessName),
+      privacyUrl: '',
+      termsUrl: '',
+    },
     social: { followLabel: 'Follow on', accounts: [], media: [] },
     services: [],
+    docs: [],
+    live: { enabled: true, title: 'Join us live', joinLabel: 'Join', maxSessions: 5, hiddenSlugs: [] },
     keyDates: [],
     advanced: { vertical: '', location: '', lookupTags: [], websiteUrl: '', termsAndConditions: '' },
     appearance: {
@@ -201,6 +247,7 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
   const footer = rec(input.footer)
   const social = rec(input.social)
   const advanced = rec(input.advanced)
+  const live = rec(input.live)
   const appearance = rec(input.appearance)
   const ids = new Set<string>()
   const flags = <K extends string>(value: unknown, defaults: Record<K, boolean>): Record<K, boolean> => {
@@ -210,35 +257,40 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
     ) as Record<K, boolean>
   }
 
+  // Older content kept documents inside each service; they move to the Docs list, tied to that service.
+  const legacyDocs: unknown[] = []
   const services: SiteService[] = arr(input.services)
     .slice(0, SITE_LIMITS.services)
     .map((item) => {
       const row = rec(item)
+      const id = idOf(row.id, ids)
+      for (const doc of arr(row.docs)) legacyDocs.push({ ...rec(doc), serviceIds: [id] })
       return {
-        id: idOf(row.id, ids),
+        id,
         name: str(row.name),
         category: str(row.category),
         summary: str(row.summary, SITE_LIMITS.text),
         price: str(row.price, 60),
         active: row.active !== false,
-        docs: arr(row.docs)
-          .slice(0, SITE_LIMITS.docs)
-          .map((doc) => {
-            const d = rec(doc)
-            return {
-              id: idOf(d.id, ids),
-              name: str(d.name),
-              formCode: str(d.formCode, 60),
-              issuer: str(d.issuer),
-              pdfUrl: safeUrl(d.pdfUrl),
-            }
-          })
-          .filter((doc) => doc.name || doc.formCode),
       }
     })
     .filter((service) => service.name)
 
   const serviceIds = new Set(services.map((service) => service.id))
+  const docs: SiteDoc[] = (Array.isArray(input.docs) ? input.docs : legacyDocs)
+    .slice(0, SITE_LIMITS.docs)
+    .map((item) => {
+      const row = rec(item)
+      return {
+        id: idOf(row.id, ids),
+        name: str(row.name),
+        formCode: str(row.formCode, 60),
+        issuer: str(row.issuer),
+        pdfUrl: safeUrl(row.pdfUrl),
+        serviceIds: [...new Set(arr(row.serviceIds).map((value) => str(value, 32)))].filter((value) => serviceIds.has(value)),
+      }
+    })
+    .filter((doc) => doc.name || doc.formCode)
   const keyDates: KeyDate[] = arr(input.keyDates)
     .slice(0, SITE_LIMITS.keyDates)
     .map((item) => {
@@ -267,6 +319,11 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
     },
     footer: {
       email: isEmail(email) ? email : '',
+      phone: str(footer.phone, 40),
+      address: str(footer.address, 200),
+      hours: str(footer.hours, 200),
+      mapUrl: safeUrl(footer.mapUrl),
+      credentials: [...new Set(arr(footer.credentials).map((item) => str(item, 80)).filter(Boolean))].slice(0, SITE_LIMITS.credentials),
       tagline: str(footer.tagline, 200),
       copyright: 'copyright' in footer ? str(footer.copyright, 200) : base.footer.copyright,
       privacyUrl: safeUrl(footer.privacyUrl),
@@ -297,6 +354,16 @@ export function sanitizeSiteContent(raw: unknown, businessName: string): Busines
         .filter((row) => row.url),
     },
     services,
+    docs,
+    live: {
+      enabled: typeof live.enabled === 'boolean' ? live.enabled : base.live.enabled,
+      title: str(live.title, 80) || base.live.title,
+      joinLabel: str(live.joinLabel, 30) || base.live.joinLabel,
+      maxSessions: LIVE_MAX_OPTIONS.includes(Number(live.maxSessions) as (typeof LIVE_MAX_OPTIONS)[number])
+        ? Number(live.maxSessions)
+        : base.live.maxSessions,
+      hiddenSlugs: [...new Set(arr(live.hiddenSlugs).map((slug) => str(slug, 80)).filter(Boolean))].slice(0, 100),
+    },
     keyDates,
     advanced: {
       vertical: VERTICALS.some((v) => v.id === advanced.vertical) ? String(advanced.vertical) : '',

@@ -10,7 +10,7 @@ const SERVICE_META: Record<LinkKind, { label: string; icon: LucideIcon; dashboar
   chat: { label: 'Chat', icon: MessageCircle, dashboard: '/services/chat' },
   speak: { label: 'Speak', icon: Mic, dashboard: '/services/speak' },
   form: { label: 'Form', icon: ClipboardList, dashboard: '/services/form' },
-  business: { label: 'Business', icon: Globe, dashboard: '/services/publish' },
+  business: { label: 'Business', icon: Globe, dashboard: '/services/menu' },
   wizard: { label: 'Tour', icon: Compass, dashboard: '/services/wizard' },
 }
 

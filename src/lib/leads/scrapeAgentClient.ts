@@ -9,6 +9,10 @@ export type WebsiteEnrichmentPayload = {
   contactEmails?: string[]
   contactPhones?: string[]
   socialLinks?: string[]
+  address?: string | null
+  openingHours?: string | null
+  mapUrl?: string | null
+  credentials?: string[]
   highlights?: string[]
   flags?: string[]
   raw?: unknown

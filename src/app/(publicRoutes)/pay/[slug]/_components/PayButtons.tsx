@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { startDirectPay } from '@/actions/buyer'
 import { describePrice, type PublicOfferView } from '@/lib/offers/publicOfferTypes'
@@ -23,7 +23,7 @@ export function PayButtons({ offer, source }: { offer: PublicOfferView; source: 
       }
       window.location.href = result.url
     } catch {
-      toast.error('Could not open checkout')
+      toast.error("Couldn't open checkout")
       setBusy(null)
     }
   }

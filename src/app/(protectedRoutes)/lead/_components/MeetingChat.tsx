@@ -153,7 +153,7 @@ export function MeetingChat({
         <p>{emptyHint}</p>
         {!hasGeminiKey ? (
           <Link href="/ai-agents/config" className="text-primary underline">
-            Open Config Agent
+            Get help from the Config Agent
           </Link>
         ) : null}
       </div>

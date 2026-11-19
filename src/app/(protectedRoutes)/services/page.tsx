@@ -1,6 +1,7 @@
-import { ContextStatusEnum } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { getBusinessServices, type ServiceAssistant } from '@/lib/services/serviceConfig'
+import { liveSessionsForSite, loadBusinessOffers, loadUpcomingLiveSessions } from '@/lib/business/businessOffers'
+import { siteContentFromLegacy } from '@/lib/business/siteContent'
 import { loadServicesContext } from './_lib/servicesContext'
 import { ServicesHubCards, type HubStatus } from './_components/ServicesHubCards'
 
@@ -10,15 +11,37 @@ function serviceStatus(on: boolean, agent: ServiceAssistant | null): HubStatus {
   return { on, label: `${on ? 'On' : 'Off'} · ${agent.name}` }
 }
 
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+
+/** A count-based card status: on once there is at least one item. */
+function countStatus(count: number, word: string, empty: string): HubStatus {
+  return count > 0 ? { on: true, label: plural(count, word) } : { on: false, label: empty }
+}
+
 /** Services home: the website services. Each one is run by its own AI Agents assistant. */
 export default async function ServicesPage() {
   const { business } = await loadServicesContext()
-  const [services, wizard, workspace] = await Promise.all([
+  const [services, wizard, workspace, offers, liveSessions] = await Promise.all([
     getBusinessServices(business.workspaceId),
     prismaClient.voiceWizard.findFirst({ where: { userId: business.userId, webinarId: null }, select: { isPublished: true } }),
-    prismaClient.workspace.findUnique({ where: { id: business.workspaceId }, select: { contextStatus: true } }),
+    prismaClient.workspace.findUnique({
+      where: { id: business.workspaceId },
+      select: { contextVertical: true, contextCoreJson: true, contextIndustryJson: true, contextSocialJson: true },
+    }),
+    loadBusinessOffers(business.publishProfileId),
+    loadUpcomingLiveSessions(business.publishProfileId, ''),
   ])
-  const published = workspace?.contextStatus === ContextStatusEnum.PUBLISHED
+  const site = siteContentFromLegacy({
+    businessName: business.name,
+    vertical: workspace?.contextVertical ?? null,
+    core: workspace?.contextCoreJson,
+    industry: workspace?.contextIndustryJson,
+    social: workspace?.contextSocialJson,
+  })
+  const menuItems = offers.length + site.services.filter((service) => service.active).length
+  const docCount = site.docs.length
+  const shownLive = liveSessionsForSite(liveSessions, site.live).length
+  const contactReady = Boolean(site.footer.phone || site.footer.email)
   const tourLive = Boolean(wizard?.isPublished && services.tour.agent)
 
   return (
@@ -31,7 +54,17 @@ export default async function ServicesPage() {
           wizard: services.tour.agent
             ? { on: tourLive, label: `${tourLive ? 'Live' : wizard ? 'Draft' : 'Off'} · ${services.tour.agent.name}` }
             : { on: false, label: 'Needs assistant' },
-          business: { on: published, label: published ? 'Published' : 'Draft' },
+          menu: countStatus(menuItems, 'item', 'Empty'),
+          docs: countStatus(docCount, 'document', 'No documents'),
+          links: countStatus(site.social.accounts.length, 'account', 'No accounts'),
+          live: !site.live.enabled
+            ? { on: false, label: 'Off' }
+            : shownLive > 0
+              ? { on: true, label: `${shownLive} upcoming` }
+              : liveSessions.length > 0
+                ? { on: false, label: 'None on website' }
+                : { on: false, label: 'None scheduled' },
+          contact: contactReady ? { on: true, label: 'Ready' } : { on: false, label: 'Add phone or email' },
         }}
       />
     </div>

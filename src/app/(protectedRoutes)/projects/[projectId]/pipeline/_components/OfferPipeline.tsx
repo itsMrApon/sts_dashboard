@@ -4,8 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNowStrict, format } from 'date-fns'
-import { ArrowLeft, Bot, Loader2, Mail, MessageSquare, Mic, Phone, Search, SendHorizontal, Settings2, Users } from 'lucide-react'
-import { toast } from 'sonner'
+import { ArrowLeft, Bot, Loader2, Mail, MessageSquare, Mic, Phone, Search, SendHorizontal, Users } from 'lucide-react'
+import { toast } from '@/lib/toast'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
@@ -193,7 +193,7 @@ function Conversation({
       setDraft('')
       setThread((current) => (current ? { ...current, messages: [...current.messages, result.message] } : current))
     } catch {
-      toast.error('Could not send. Try again.')
+      toast.error("Couldn't send. Try again.")
     } finally {
       setSending(false)
     }
@@ -425,7 +425,7 @@ export function OfferPipeline({ view }: { view: PipelineView }) {
             href={`/projects/${view.offer.id}`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
           >
-            <Settings2 className="h-4 w-4" /> Offer settings
+            Offer settings
           </Link>
         </div>
 

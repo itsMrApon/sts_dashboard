@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, CalendarDays, ClipboardList, Compass, FileText, Mail, MessageCircle, Mic, Radio } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, ClipboardList, Compass, MessageCircle, Mic, Radio } from 'lucide-react'
 import type { BusinessOffer } from '@/lib/business/businessOffers'
 import type { BusinessSiteContent, KeyDate } from '@/lib/business/siteContent'
 import { SOCIAL_PLATFORMS, VERTICALS, socialUrl } from '@/lib/business/siteContent'
@@ -140,7 +140,7 @@ export function BusinessSite({ businessName, description, content, offers, links
                   ) : (
                     <span />
                   )}
-                  {service.docs.filter((doc) => doc.pdfUrl).map((doc) => (
+                  {content.docs.filter((doc) => doc.pdfUrl && doc.serviceIds.includes(service.id)).map((doc) => (
                     <a
                       key={doc.id}
                       href={doc.pdfUrl}
@@ -148,7 +148,6 @@ export function BusinessSite({ businessName, description, content, offers, links
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs text-zinc-300 underline-offset-2 hover:underline"
                     >
-                      <FileText className="h-3.5 w-3.5" aria-hidden />
                       {doc.formCode || doc.name}
                     </a>
                   ))}
@@ -242,7 +241,6 @@ export function BusinessSite({ businessName, description, content, offers, links
         <div className="flex flex-wrap items-center gap-4 text-xs">
           {footer.email ? (
             <a href={`mailto:${footer.email}`} className="flex items-center gap-1.5 hover:text-white">
-              <Mail className="h-3.5 w-3.5" aria-hidden />
               {footer.email}
             </a>
           ) : null}

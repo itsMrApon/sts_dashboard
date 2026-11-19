@@ -123,14 +123,68 @@ export type StsWizard = {
   steps: StsWizardStep[]
 }
 
-export type StsBusinessService = { id: string; name: string; category: string; summary: string; price: string }
+/** A document customers need (Docs). serviceIds ties it to Menu services ("Used for"); may be empty. */
+export type StsDoc = { id: string; name: string; formCode: string; issuer: string; pdfUrl: string; serviceIds: string[] }
+
+/** One entry on the Menu. Products you sell online come as `offers` instead. */
+export type StsBusinessService = {
+  id: string
+  name: string
+  category: string
+  summary: string
+  price: string
+}
+
+/** A product or project from Projects, with every way to order that is on. */
+export type StsOffer = {
+  title: string
+  description: string | null
+  kind: 'PRODUCT' | 'PROJECT'
+  featured: boolean
+  /** The single link to use for one button. */
+  primaryUrl: string
+  links: { share: string | null; pay: string | null; live: string | null }
+}
+
+/** An upcoming or running live session (a webinar from Projects). */
+export type StsLiveSession = {
+  slug: string
+  title: string
+  description: string | null
+  thumbnail: string | null
+  /** ISO times. */
+  startsAt: string
+  endsAt: string | null
+  status: 'scheduled' | 'waiting' | 'live'
+  /** Waiting room with a countdown, then the session. */
+  joinUrl: string
+  /** Sign up or buy first, when that way to order is on. */
+  shareUrl: string | null
+}
+
+/** Contact: how visitors reach the business, plus the footer's tagline and legal links. */
+export type StsContactCard = {
+  email: string
+  phone: string
+  address: string
+  hours: string
+  mapUrl: string
+  credentials: string[]
+  tagline: string
+  copyright: string
+  privacyUrl: string
+  termsUrl: string
+}
 
 export type StsBusinessSite = {
   seo: { title: string; description: string; ogImage: string }
   services: StsBusinessService[]
+  docs: StsDoc[]
+  /** Live settings: the heading and button text to use around `business.live`. */
+  live: { enabled: boolean; title: string; joinLabel: string; maxSessions: number }
   keyDates: { id: string; date: string; title: string }[]
   social: { followLabel: string; accounts: { id: string; platform: string; handle: string; url: string }[] }
-  footer: { email: string; tagline: string; copyright: string; privacyUrl: string; termsUrl: string }
+  footer: StsContactCard
   appearance: {
     accent: StsAccent
     heroAlign: 'center' | 'left'
@@ -144,6 +198,10 @@ export type StsBusiness = {
   description: string | null
   profile: Record<string, unknown> | null
   publishedAt: string | null
+  /** Products and projects from Projects (added automatically when created). Empty until published. */
+  offers: StsOffer[]
+  /** Live: upcoming and running webinars with a Join link, soonest first. Empty until published. */
+  live: StsLiveSession[]
   /** Published content from Messages → Business; null until the business is published. */
   site: StsBusinessSite | null
 }

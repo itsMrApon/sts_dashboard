@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import type { GuideStep } from '@/lib/services/snippets'
 import { cn } from '@/lib/utils'
 import { StudioWindow } from './StudioPrimitives'
@@ -41,7 +41,7 @@ export function CodeWalkthrough({ steps, notice }: { steps: GuideStep[]; notice?
       toast.success(`${step.file} copied`)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
-      toast.error('Could not copy')
+      toast.error("Couldn't copy that. Try again?")
     }
   }
 

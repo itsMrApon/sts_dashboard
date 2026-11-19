@@ -7,7 +7,7 @@ import { generateReply } from '@/lib/messages/geminiText'
 import { getUserVoiceCredentialByUserId } from '@/lib/voiceCredentialsRepo'
 import { ASSISTANT_SERVICE_META, type AssistantService } from '@/lib/agents/assistantServices'
 
-/** Shared with Form → "Build with AI" so both write forms the same way. */
+/** Shared with Form → "Let AI build it" so both write forms the same way. */
 export const FORM_DRAFT_BRIEF = [
   'Design a short lead form for this business that a visitor fills in one question at a time (Typeform style).',
   'Return JSON: {"title","description","submitLabel","successMessage","fields":[{"label","type","required","options","multiple","scale","placeholder","helpText"}]}.',

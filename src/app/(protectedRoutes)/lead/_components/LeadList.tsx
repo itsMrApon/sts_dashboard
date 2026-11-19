@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { format } from 'date-fns'
-import { toast } from 'sonner'
+import { toast } from '@/lib/toast'
 import {
   Building2,
   CalendarDays,
@@ -241,7 +241,7 @@ export function LeadList(props: Props) {
 
   function syncBusiness() {
     if (!props.serperConfigured) {
-      toast.error('Serper API key missing — add it in Lead settings', {
+      toast.error('Add your Serper key in Lead settings first.', {
         action: {
           label: 'Lead settings',
           onClick: openLeadSettings,
@@ -251,7 +251,7 @@ export function LeadList(props: Props) {
     }
     if (!hasBusinessPrefs) {
       setSearchOpen(true)
-      toast.error('Set location and type in Find first')
+      toast.error('Pick a location and type in Find first.')
       return
     }
     startTransition(guardAction(async () => {
@@ -261,7 +261,7 @@ export function LeadList(props: Props) {
           const count = res.data?.count ?? 0
           const created = res.data?.created ?? 0
           toast.success(
-            `Business · ${created} new / ${count} in batch (scrape on open)`,
+            `Found ${count} businesses, ${created} new. Open one to scan its website.`,
           )
           setBatchFilter('TODAY')
           router.refresh()
@@ -288,7 +288,7 @@ export function LeadList(props: Props) {
         setSearchOpen(false)
 
         if (!props.serperConfigured) {
-          toast.success('Find prefs saved', {
+          toast.success('Search settings saved', {
             description: 'Add a Serper key in Lead settings to pull leads.',
             action: {
               label: 'Lead settings',
@@ -302,7 +302,7 @@ export function LeadList(props: Props) {
         const res = await syncBusinessLeads()
         if (res.ok) {
           toast.success(
-            `Pulled ${res.data?.count ?? 0} leads (websites scrape when you open a lead)`,
+            `Found ${res.data?.count ?? 0} leads. Open one to scan its website.`,
           )
           setBatchFilter('TODAY')
           router.refresh()
@@ -336,7 +336,7 @@ export function LeadList(props: Props) {
               research.
             </p>
             <Button asChild size="sm">
-              <Link href="/ai-agents/config">Open Config Agent</Link>
+              <Link href="/ai-agents/config">Get help from the Config Agent</Link>
             </Button>
           </div>
         </Card>
@@ -349,7 +349,7 @@ export function LeadList(props: Props) {
               Google Calendar access expired or was revoked. Reconnect it in Lead settings.
             </p>
             <Button size="sm" variant="secondary" onClick={openLeadSettings}>
-              Open Lead settings
+              Lead settings
             </Button>
           </div>
         </Card>

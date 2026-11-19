@@ -46,7 +46,7 @@ export default function PackagesDialog() {
         <DialogHeader className="sr-only">
           <DialogTitle>Choose your plan</DialogTitle>
           <DialogDescription>
-            Flip the two switches: just your site or every AI tool, set up once or run with you every month.
+            Six plans, all starting with Launchpad. Pick a plan or switch on the add-on modules you need.
           </DialogDescription>
         </DialogHeader>
         {cards === null ? (

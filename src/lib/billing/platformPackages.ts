@@ -2,139 +2,85 @@ import 'server-only'
 import type Stripe from 'stripe'
 import { stripe } from '@/lib/stripe'
 import { prismaClient } from '@/lib/prismaClient'
+import {
+  isOneTimePackage,
+  isPlatformPackageId,
+  LEGACY_ONE_TIME_PACKAGES,
+  PLATFORM_PACKAGE_IDS,
+  PLATFORM_PACKAGES,
+  type PlatformPackageId,
+} from '@/lib/billing/planCatalog'
+
+export * from '@/lib/billing/planCatalog'
 
 /**
- * The four plans sold to creators (charged on the platform Stripe account, not on Connect), on two
- * switches: what they get (SITE: the business site; FULL: every AI tool) and how they get it
- * (INTEGRATION: one-time, the team sets it up; SOLUTIONS: monthly, the team runs it with them).
- *  - SETUP:     Site · Integration          one-time (the original "Setup & Integrate" price)
- *  - SITE_CARE: Site · Business Solutions   monthly
- *  - AI_SETUP:  Full AI · Integration       one-time
- *  - BUSINESS:  Full AI · Business Solutions monthly (the original "Run My Business" price)
- * Prices live in Stripe (one env price id each). `User.subscription` stays the one access flag the
- * app checks; it is always derived here.
+ * Billing for the six creator plans (catalog in planCatalog.ts), charged on the platform Stripe
+ * account, not on Connect. Stripe is the record of what was bought: a monthly plan is a subscription
+ * on the plan's lookup-key price, a one-time plan is a succeeded PaymentIntent tagged with the plan.
+ * `User.subscription` stays the one access flag the app checks; it is always derived here.
  */
-export type PlatformPackageId = 'SETUP' | 'SITE_CARE' | 'AI_SETUP' | 'BUSINESS'
-export type PlanTier = 'SITE' | 'FULL'
-export type PlanMode = 'INTEGRATION' | 'SOLUTIONS'
-
-export const PLATFORM_PACKAGE_IDS: readonly PlatformPackageId[] = ['SETUP', 'SITE_CARE', 'AI_SETUP', 'BUSINESS']
-
-/** One-time packages (a PaymentIntent, recorded as a SetupRequest for the team). */
-export const ONE_TIME_PACKAGE_IDS: readonly PlatformPackageId[] = ['SETUP', 'AI_SETUP']
-
-export type PlatformPackageMeta = {
-  name: string
-  tagline: string
-  features: string[]
-  priceEnv: string
-  billing: 'one_time' | 'month'
-  tier: PlanTier
-  mode: PlanMode
-}
-
-export const PLATFORM_PACKAGES: Record<PlatformPackageId, PlatformPackageMeta> = {
-  SETUP: {
-    name: 'Site Launch',
-    tagline: 'We build and publish your business site.',
-    features: [
-      'Business site built and published for you',
-      'Your products, services and links on it',
-      'Lead form that sends callbacks to your inbox',
-      'Share link ready for WhatsApp, email and social',
-    ],
-    priceEnv: 'STRIPE_SETUP_PRICE_ID',
-    billing: 'one_time',
-    tier: 'SITE',
-    mode: 'INTEGRATION',
-  },
-  SITE_CARE: {
-    name: 'Site Care',
-    tagline: 'Your site, kept fresh and followed up every month.',
-    features: [
-      'Everything in Site Launch',
-      'Monthly edits to your site and offers',
-      'We follow up on new leads with you',
-      'Monthly report: visits, leads and sales',
-    ],
-    priceEnv: 'STRIPE_SITE_CARE_PRICE_ID',
-    billing: 'month',
-    tier: 'SITE',
-    mode: 'SOLUTIONS',
-  },
-  AI_SETUP: {
-    name: 'AI Launch',
-    tagline: 'Every AI tool, set up for your business.',
-    features: [
-      'Everything in Site Launch',
-      'Chat AI and Voice AI trained on your business',
-      'Voice-guided tour of your website',
-      'Products, webinars and Stripe payments set up',
-      'Website embed installed, plus a handover call',
-    ],
-    priceEnv: 'STRIPE_AI_SETUP_PRICE_ID',
-    billing: 'one_time',
-    tier: 'FULL',
-    mode: 'INTEGRATION',
-  },
-  BUSINESS: {
-    name: 'Run My Business',
-    tagline: 'Your AI business, run with you every month.',
-    features: [
-      'Everything in AI Launch',
-      'We tune your AI and offers every month',
-      'Lead research and outreach for you',
-      'Monthly strategy call and priority support',
-    ],
-    priceEnv: 'STRIPE_BUSINESS_PRICE_ID',
-    billing: 'month',
-    tier: 'FULL',
-    mode: 'SOLUTIONS',
-  },
-}
-
-/** The one-time package whose fee a monthly plan of the same tier waives (shown crossed out). */
-export const WAIVED_SETUP: Partial<Record<PlatformPackageId, PlatformPackageId>> = {
-  SITE_CARE: 'SETUP',
-  BUSINESS: 'AI_SETUP',
-}
 
 /** Subscription states that keep access. past_due keeps access while Stripe retries the card. */
 const ACCESS_STATUSES = new Set<Stripe.Subscription.Status>(['active', 'trialing', 'past_due'])
 
-export function isPlatformPackageId(value: unknown): value is PlatformPackageId {
-  return PLATFORM_PACKAGE_IDS.includes(value as PlatformPackageId)
-}
+const LOOKUP_KEY_PLANS = new Map<string, PlatformPackageId>(
+  PLATFORM_PACKAGE_IDS.map((id) => [PLATFORM_PACKAGES[id].lookupKey, id]),
+)
 
-export function isOneTimePackage(packageId: PlatformPackageId): boolean {
-  return PLATFORM_PACKAGES[packageId].billing === 'one_time'
-}
+/** Monthly price ids already resolved in this server instance (they never change for a lookup key). */
+const resolvedMonthlyPrices = new Map<PlatformPackageId, string>()
 
-export type PackagePrice = {
-  priceId: string
-  unitAmount: number
-  currency: string
-  billing: 'one_time' | 'month'
-}
-
-/** Resolves and validates the Stripe price behind a package. Returns null when not configured. */
-export async function getPackagePrice(packageId: PlatformPackageId): Promise<PackagePrice | null> {
+/**
+ * The Stripe price a monthly plan subscribes to: found by lookup key, created once when missing,
+ * and checked against the catalog amount so the price shown is the price charged.
+ */
+export async function ensureMonthlyPlanPrice(packageId: PlatformPackageId): Promise<string> {
   const meta = PLATFORM_PACKAGES[packageId]
-  const priceId = process.env[meta.priceEnv]?.trim()
-  if (!priceId) return null
-  try {
-    const price = await stripe.prices.retrieve(priceId)
-    if (!price.active || price.unit_amount == null) return null
-    const billing = price.recurring ? price.recurring.interval : 'one_time'
-    if (billing !== meta.billing) {
-      console.error(`[platformPackages] ${meta.priceEnv} must be ${meta.billing}, got ${billing}`)
-      return null
+  if (meta.billing !== 'month') throw new Error(`${packageId} is not a monthly plan`)
+  const cached = resolvedMonthlyPrices.get(packageId)
+  if (cached) return cached
+
+  const find = async () =>
+    (await stripe.prices.list({ lookup_keys: [meta.lookupKey], active: true, limit: 1 })).data[0]
+  let price = await find()
+  if (!price) {
+    try {
+      const product = await stripe.products.create({ name: `sts-ai ${meta.name}`, description: meta.tagline })
+      price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: meta.amountCents,
+        currency: 'usd',
+        recurring: { interval: 'month' },
+        lookup_key: meta.lookupKey,
+      })
+    } catch (error) {
+      // Another request created it first (lookup keys are unique): use that one.
+      price = await find()
+      if (!price) throw error
     }
-    return { priceId, unitAmount: price.unit_amount, currency: price.currency, billing: meta.billing }
-  } catch (error) {
-    console.error('[platformPackages] price lookup failed', packageId, error instanceof Error ? error.message : error)
-    return null
   }
+  if (price.unit_amount !== meta.amountCents || price.recurring?.interval !== 'month') {
+    throw new Error(`Stripe price ${meta.lookupKey} does not match the catalog (${meta.amountCents}/month)`)
+  }
+  resolvedMonthlyPrices.set(packageId, price.id)
+  return price.id
+}
+
+/** The monthly plan a subscription is on, read from its price lookup key (or the metadata we set). */
+function planOfSubscription(sub: Stripe.Subscription): PlatformPackageId | null {
+  for (const item of sub.items.data) {
+    const plan = item.price.lookup_key ? LOOKUP_KEY_PLANS.get(item.price.lookup_key) : undefined
+    if (plan) return plan
+  }
+  const tagged = sub.metadata?.package
+  return isPlatformPackageId(tagged) && !isOneTimePackage(tagged) ? tagged : null
+}
+
+/** The one-time plan a payment bought, including payments made under the earlier catalog. */
+function planOfPayment(intent: Stripe.PaymentIntent): PlatformPackageId | null {
+  const tagged = intent.metadata?.package
+  if (isPlatformPackageId(tagged)) return isOneTimePackage(tagged) ? tagged : null
+  return (tagged && LEGACY_ONE_TIME_PACKAGES[tagged]) || null
 }
 
 export async function ensureStripeCustomer(user: {
@@ -159,22 +105,11 @@ export type PlatformAccess = {
   businessSubscriptionStatus: string | null
 }
 
-/** Stripe price id → monthly plan, for the monthly plans whose price is configured. */
-export function monthlyPlanPriceIds(): Map<string, PlatformPackageId> {
-  const ids = new Map<string, PlatformPackageId>()
-  for (const id of PLATFORM_PACKAGE_IDS) {
-    const meta = PLATFORM_PACKAGES[id]
-    const priceId = process.env[meta.priceEnv]?.trim()
-    if (meta.billing === 'month' && priceId) ids.set(priceId, id)
-  }
-  return ids
-}
-
 /**
  * Recomputes access from the DB setup payment and the customer's Stripe subscriptions.
  * Idempotent: safe to call from the webhook and after a client-side confirmation.
- * `businessSubscription*` hold the monthly plan subscription (Run My Business wins over Site Care).
- * Any other active platform subscription (the legacy $49/month price) keeps access too,
+ * `businessSubscription*` hold the monthly plan subscription (the higher-priced plan wins).
+ * Any other active platform subscription (prices from earlier catalogs) keeps access too,
  * and so does access granted by hand to a customer Stripe has no subscriptions for.
  */
 export async function syncPlatformAccess(userId: string): Promise<PlatformAccess | null> {
@@ -184,12 +119,11 @@ export async function syncPlatformAccess(userId: string): Promise<PlatformAccess
   })
   if (!user) return null
 
-  const planPrices = monthlyPlanPriceIds()
-  const planOf = (sub: Stripe.Subscription) =>
-    sub.items.data.map((item) => planPrices.get(item.price.id)).find(Boolean) ?? null
-  // Higher is better: an access-granting subscription first, then Run My Business over Site Care.
-  const rank = (sub: Stripe.Subscription) =>
-    (ACCESS_STATUSES.has(sub.status) ? 2 : 0) + (planOf(sub) === 'BUSINESS' ? 1 : 0)
+  // Higher is better: an access-granting subscription first, then the higher-priced plan.
+  const rank = (sub: Stripe.Subscription) => {
+    const plan = planOfSubscription(sub)
+    return (ACCESS_STATUSES.has(sub.status) ? 1_000_000 : 0) + (plan ? PLATFORM_PACKAGES[plan].amountCents : 0)
+  }
   let business: Stripe.Subscription | null = null
   let legacyActive = false
   let sawAnySubscription = false
@@ -199,7 +133,7 @@ export async function syncPlatformAccess(userId: string): Promise<PlatformAccess
     const subs = await stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'all', limit: 20 })
     sawAnySubscription = subs.data.length > 0
     for (const sub of subs.data) {
-      if (planOf(sub)) {
+      if (planOfSubscription(sub)) {
         // Prefer a subscription that grants access over an abandoned incomplete one.
         if (!business || rank(sub) > rank(business)) business = sub
       } else if (ACCESS_STATUSES.has(sub.status)) {
@@ -242,18 +176,13 @@ export async function syncPlatformAccessByCustomer(customerId: string): Promise<
 }
 
 /**
- * Records a succeeded one-time plan payment (Site Launch or AI Launch): stamps setupPaidAt (first
+ * Records a succeeded one-time plan payment (Launchpad or Liftoff): stamps setupPaidAt (first
  * payment wins) and opens a SetupRequest for the team, noting the plan. Idempotent per PaymentIntent.
  */
 export async function applySetupPayment(paymentIntent: Stripe.PaymentIntent): Promise<boolean> {
   const userId = paymentIntent.metadata?.userId
   const packageId = paymentIntent.metadata?.package
-  if (
-    !isPlatformPackageId(packageId) ||
-    !isOneTimePackage(packageId) ||
-    !userId ||
-    paymentIntent.status !== 'succeeded'
-  ) {
+  if (!isPlatformPackageId(packageId) || !isOneTimePackage(packageId) || !userId || paymentIntent.status !== 'succeeded') {
     return false
   }
   await prismaClient.$transaction([
@@ -272,9 +201,9 @@ export async function applySetupPayment(paymentIntent: Stripe.PaymentIntent): Pr
 }
 
 /**
- * The plans this creator holds, read from Stripe: monthly plans by an access-granting subscription
- * on their price, one-time plans by a succeeded payment tagged with the package. Purchases made
- * before AI Launch existed were all Site Launch, so setupPaidAt alone still counts as SETUP.
+ * The plans this creator bought, read from Stripe: monthly plans by an access-granting subscription
+ * on their price, one-time plans by a succeeded payment tagged with the plan. setupPaidAt alone
+ * (a setup paid before payments were tagged) counts as Launchpad.
  */
 export async function loadOwnedPackages(user: {
   stripeCustomerId: string | null
@@ -283,26 +212,36 @@ export async function loadOwnedPackages(user: {
   const owned = new Set<PlatformPackageId>()
   if (user.stripeCustomerId) {
     try {
-      const planPrices = monthlyPlanPriceIds()
       const [subs, intents] = await Promise.all([
         stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'all', limit: 20 }),
         stripe.paymentIntents.list({ customer: user.stripeCustomerId, limit: 50 }),
       ])
       for (const sub of subs.data) {
-        if (!ACCESS_STATUSES.has(sub.status)) continue
-        for (const item of sub.items.data) {
-          const plan = planPrices.get(item.price.id)
-          if (plan) owned.add(plan)
-        }
+        const plan = ACCESS_STATUSES.has(sub.status) ? planOfSubscription(sub) : null
+        if (plan) owned.add(plan)
       }
       for (const intent of intents.data) {
-        const plan = intent.metadata?.package
-        if (intent.status === 'succeeded' && isPlatformPackageId(plan) && isOneTimePackage(plan)) owned.add(plan)
+        const plan = intent.status === 'succeeded' ? planOfPayment(intent) : null
+        if (plan) owned.add(plan)
       }
     } catch (error) {
       console.error('[platformPackages] owned lookup failed', error instanceof Error ? error.message : error)
     }
   }
-  if (user.setupPaidAt && !owned.has('AI_SETUP')) owned.add('SETUP')
+  if (user.setupPaidAt && !owned.has('LIFTOFF')) owned.add('LAUNCHPAD')
   return owned
+}
+
+/** The plan (bought) that already covers `packageId`, if any, so it is not sold twice. */
+export function coveringPlan(packageId: PlatformPackageId, owned: Set<PlatformPackageId>): PlatformPackageId | null {
+  return PLATFORM_PACKAGE_IDS.find((id) => owned.has(id) && PLATFORM_PACKAGES[id].includes.includes(packageId)) ?? null
+}
+
+/** What a one-time plan costs after credit for the one-time plans it includes that were already bought. */
+export function oneTimeAmountDue(packageId: PlatformPackageId, owned: Set<PlatformPackageId>): number {
+  const meta = PLATFORM_PACKAGES[packageId]
+  const credit = meta.includes
+    .filter((id) => isOneTimePackage(id) && owned.has(id))
+    .reduce((sum, id) => sum + PLATFORM_PACKAGES[id].amountCents, 0)
+  return Math.max(meta.amountCents - credit, 0)
 }

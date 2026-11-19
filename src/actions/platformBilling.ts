@@ -6,17 +6,18 @@ import { onAuthenticateUser } from '@/actions/auth'
 import { stripe } from '@/lib/stripe'
 import {
   applySetupPayment,
+  coveringPlan,
+  ensureMonthlyPlanPrice,
   ensureStripeCustomer,
-  getPackagePrice,
   isOneTimePackage,
   isPlatformPackageId,
   loadOwnedPackages,
+  oneTimeAmountDue,
   PLATFORM_PACKAGE_IDS,
   PLATFORM_PACKAGES,
   syncPlatformAccess,
-  WAIVED_SETUP,
-  type PlanMode,
-  type PlanTier,
+  type PlanBilling,
+  type PlanModuleId,
   type PlatformAccess,
   type PlatformPackageId,
 } from '@/lib/billing/platformPackages'
@@ -27,8 +28,9 @@ type PurchaseStart =
 
 /**
  * Starts a plan purchase and returns a PaymentIntent client secret for the card form.
- * One-time plans (Site Launch, AI Launch) are a PaymentIntent; monthly plans (Site Care, Run My
- * Business) are a subscription created as default_incomplete (the app's original subscription flow).
+ * One-time plans (Launchpad, Liftoff) are a PaymentIntent for the catalog amount, less credit for
+ * an included plan already bought; monthly plans are a subscription created as default_incomplete
+ * (the app's original subscription flow).
  */
 export async function startPackagePurchase(packageId: PlatformPackageId): Promise<PurchaseStart> {
   if (!isPlatformPackageId(packageId)) return { ok: false, error: 'Unknown package' }
@@ -40,41 +42,41 @@ export async function startPackagePurchase(packageId: PlatformPackageId): Promis
   const meta = PLATFORM_PACKAGES[packageId]
   const owned = await loadOwnedPackages(user)
   if (owned.has(packageId)) return { ok: false, error: `${meta.name} is already ${isOneTimePackage(packageId) ? 'purchased' : 'active'}` }
+  const coveredBy = coveringPlan(packageId, owned)
+  if (coveredBy) return { ok: false, error: `${meta.name} is already included in ${PLATFORM_PACKAGES[coveredBy].name}` }
   // One monthly plan at a time: switching between them is done by the team, not a second subscription.
   const otherMonthly = PLATFORM_PACKAGE_IDS.find((id) => id !== packageId && !isOneTimePackage(id) && owned.has(id))
   if (!isOneTimePackage(packageId) && otherMonthly) {
     return { ok: false, error: `You already have ${PLATFORM_PACKAGES[otherMonthly].name}. Contact us to switch plans.` }
   }
 
-  const price = await getPackagePrice(packageId)
-  if (!price) {
-    return { ok: false, error: `${meta.name} is not available yet` }
-  }
-
   try {
     const customerId = await ensureStripeCustomer(user)
-    const metadata = { userId: user.id, package: packageId }
+    const metadata: Record<string, string> = { userId: user.id, package: packageId }
 
     if (isOneTimePackage(packageId)) {
       const intent = await stripe.paymentIntents.create({
-        amount: price.unitAmount,
-        currency: price.currency,
+        amount: oneTimeAmountDue(packageId, owned),
+        currency: 'usd',
         customer: customerId,
         payment_method_types: ['card'],
-        description: meta.name,
-        metadata: { ...metadata, priceId: price.priceId },
+        description: `sts-ai ${meta.name}`,
+        metadata: { ...metadata, lookupKey: meta.lookupKey },
       })
       if (!intent.client_secret) throw new Error('Missing client secret')
       return { ok: true, clientSecret: intent.client_secret, paymentIntentId: intent.id }
     }
 
+    const priceId = await ensureMonthlyPlanPrice(packageId)
+    if (meta.minimumMonths) metadata.minimumMonths = String(meta.minimumMonths)
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
-      items: [{ price: price.priceId }],
+      items: [{ price: priceId }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
       expand: ['latest_invoice.payment_intent'],
       metadata,
+      ...(meta.minimumMonths ? { description: `${meta.minimumMonths}-month minimum term` } : {}),
     })
     const invoice = subscription.latest_invoice as Stripe.Invoice | null
     const intent = invoice?.payment_intent as Stripe.PaymentIntent | null
@@ -117,56 +119,60 @@ export async function confirmPackagePurchase(input: {
 export type PackageCard = {
   id: PlatformPackageId
   name: string
+  track: string
   tagline: string
   features: string[]
-  tier: PlanTier
-  mode: PlanMode
-  billing: 'one_time' | 'month'
-  /** Smallest currency unit; null when the plan's Stripe price is not configured. */
-  amountCents: number | null
+  modules: PlanModuleId[]
+  billing: PlanBilling
+  /** Catalog price in cents (USD). */
+  amountCents: number
+  /** What this creator pays now: one-time plans less credit for an included plan already bought. */
+  dueCents: number
   currency: string
-  priceLabel: string | null
-  /** Monthly plans: the one-time setup fee they waive (shown crossed out). */
-  waivedSetupCents: number | null
+  priceLabel: string
+  /** Monthly plans: the one-time plan whose fee they waive (shown crossed out). */
+  waivedSetup: { name: string; amountCents: number } | null
+  minimumMonths: number | null
   owned: boolean
+  /** Name of a bought plan that already includes this one. */
+  includedIn: string | null
 }
 
-function formatAmount(cents: number, currency: string): string {
+function formatAmount(cents: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency.toUpperCase(),
+    currency: 'USD',
     maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
   }).format(cents / 100)
 }
 
-/** The four plan cards for the settings page and the header dialog. priceLabel is null when not configured. */
+/** The six plan cards for the settings page and the header dialog, priced from the catalog. */
 export async function getPackageCards(): Promise<PackageCard[]> {
   const auth = await onAuthenticateUser()
   const user = auth.user
-  const [prices, owned] = await Promise.all([
-    Promise.all(PLATFORM_PACKAGE_IDS.map((id) => getPackagePrice(id))),
-    user ? loadOwnedPackages(user) : Promise.resolve(new Set<PlatformPackageId>()),
-  ])
-  const priceOf = (id: PlatformPackageId) => prices[PLATFORM_PACKAGE_IDS.indexOf(id)]
+  const owned = user ? await loadOwnedPackages(user) : new Set<PlatformPackageId>()
 
   return PLATFORM_PACKAGE_IDS.map((id) => {
     const meta = PLATFORM_PACKAGES[id]
-    const price = priceOf(id)
-    const waived = WAIVED_SETUP[id]
-    const amount = price ? formatAmount(price.unitAmount, price.currency) : null
+    const coveredBy = coveringPlan(id, owned)
+    const waived = meta.waivesSetup ? PLATFORM_PACKAGES[meta.waivesSetup] : null
+    const amount = formatAmount(meta.amountCents)
     return {
       id,
       name: meta.name,
+      track: meta.track,
       tagline: meta.tagline,
       features: meta.features,
-      tier: meta.tier,
-      mode: meta.mode,
+      modules: meta.modules,
       billing: meta.billing,
-      amountCents: price?.unitAmount ?? null,
-      currency: price?.currency ?? 'usd',
-      priceLabel: amount ? (meta.billing === 'month' ? `${amount}/month` : `${amount} one-time`) : null,
-      waivedSetupCents: waived ? (priceOf(waived)?.unitAmount ?? null) : null,
+      amountCents: meta.amountCents,
+      dueCents: meta.billing === 'one_time' ? oneTimeAmountDue(id, owned) : meta.amountCents,
+      currency: 'usd',
+      priceLabel: meta.billing === 'month' ? `${amount}/month` : `${amount} one-time`,
+      waivedSetup: waived ? { name: waived.name, amountCents: waived.amountCents } : null,
+      minimumMonths: meta.minimumMonths ?? null,
       owned: owned.has(id),
+      includedIn: coveredBy ? PLATFORM_PACKAGES[coveredBy].name : null,
     }
   })
 }

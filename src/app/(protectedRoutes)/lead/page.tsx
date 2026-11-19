@@ -1,7 +1,5 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import PageHeader from '@/components/ReusableComponent/PageHeader'
-import { Brain, CalendarDays, PhoneCall } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { LeadPageHeaderControls } from './_components/LeadPageHeaderControls'
 import { LeadViewport } from './_components/LeadViewport'
@@ -18,19 +16,16 @@ export default async function LeadCallIntelPage() {
   if (!auth.user) redirect('/sign-in')
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <PageHeader
-        leftIcon={<CalendarDays className="h-3 w-3" />}
-        mainIcon={<PhoneCall className="h-12 w-12" />}
-        rightIcon={<Brain className="h-4 w-4" />}
-        heading="The home to all your Leads"
-        mobileHeading="Your Leads"
-        mobileAside={<LeadPageHeaderControls compact />}
-        hideSearchOnMobile
-        placeholder="Search option..."
-      >
-        <LeadPageHeaderControls />
-      </PageHeader>
+    <div className="flex w-full flex-col gap-3">
+      {/* Just the view toggle and settings: the calendar and list get the rest of the height. */}
+      <div className="flex shrink-0 justify-end">
+        <div className="sm:hidden">
+          <LeadPageHeaderControls compact />
+        </div>
+        <div className="hidden sm:block">
+          <LeadPageHeaderControls />
+        </div>
+      </div>
 
       <LeadViewport>
         <Suspense fallback={<LeadDashboardSkeleton />}>

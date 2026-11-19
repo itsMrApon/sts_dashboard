@@ -3,13 +3,11 @@ import React from 'react'
 import STS from '@/icons/sts'
 import { usePathname } from 'next/navigation'
 import { sidebarData } from '@/lib/data'
-import { Tooltip, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import Link from 'next/link'
 import { UserButton } from '@clerk/nextjs'
-import { TooltipContent } from '@radix-ui/react-tooltip'
-type Props = {}
 
-const Sidebar = (props: Props) => {
+const Sidebar = () => {
   const pathname = usePathname()
   return (
     // Side rail from md up; phones use MobileNav (bottom tab bar).
@@ -26,6 +24,7 @@ const Sidebar = (props: Props) => {
             <TooltipTrigger asChild>
               <Link 
               href={item.link}
+              aria-label={item.title}
               className={`flex items-center gap-2 cursor-pointer rounded-lg p-2 ${pathname.includes(item.link) ? 'iconBackground' : ''}`}
               >
                 <item.icon
@@ -33,7 +32,7 @@ const Sidebar = (props: Props) => {
                  />
               </Link>
             </TooltipTrigger>
-            < TooltipContent side="right" >
+            <TooltipContent side="right" sideOffset={8}>
               <span className="text-sm">{item.title}</span>
             </TooltipContent>
           </Tooltip>

@@ -11,25 +11,17 @@
 
 export type PlatformPackageId = 'LAUNCHPAD' | 'LIFTOFF' | 'SIGNAL' | 'AUTOPILOT' | 'MISSION_CONTROL' | 'SUPERNOVA'
 
-export type PlanModuleId =
-  | 'SITEFORGE'
-  | 'LEADRADAR'
-  | 'VOICEPILOT'
-  | 'REELHOUSE'
-  | 'SOCIALPULSE'
-  | 'ADMIND'
-  | 'DEPTH3D'
-  | 'CAMPAIGNDROP'
+/** The five add-on modules on top of Launchpad; each one is the step up to one plan. */
+export type PlanModuleId = 'SITEFORGE' | 'LEADRADAR' | 'OMNIAGENT' | 'BUZZENGINE' | 'DEPTH3D'
 
 export type PlanBilling = 'one_time' | 'month'
 
 export type PlanModuleMeta = {
   name: string
   description: string
-  group: PlanModuleGroup
+  /** Shown while the switch is off. */
+  offDescription: string
 }
-
-export type PlanModuleGroup = 'Website & leads' | 'AI' | 'Agency marketing' | 'Brand marketing'
 
 export type PlatformPackageMeta = {
   name: string
@@ -61,61 +53,35 @@ export const PLATFORM_PACKAGE_IDS: readonly PlatformPackageId[] = [
   'SUPERNOVA',
 ]
 
-export const PLAN_MODULE_IDS: readonly PlanModuleId[] = [
-  'SITEFORGE',
-  'LEADRADAR',
-  'VOICEPILOT',
-  'REELHOUSE',
-  'SOCIALPULSE',
-  'ADMIND',
-  'DEPTH3D',
-  'CAMPAIGNDROP',
-]
+export const PLAN_MODULE_IDS: readonly PlanModuleId[] = ['SITEFORGE', 'LEADRADAR', 'OMNIAGENT', 'BUZZENGINE', 'DEPTH3D']
 
 export const PLAN_MODULES: Record<PlanModuleId, PlanModuleMeta> = {
   SITEFORGE: {
     name: 'SiteForge',
     description: 'Business website: 5 pages, mobile, your domain, SEO basics',
-    group: 'Website & leads',
+    offDescription: 'Off: no website, just your share link',
   },
   LEADRADAR: {
     name: 'LeadRadar',
-    description: '200 researched leads a month, AI email & WhatsApp follow-ups',
-    group: 'Website & leads',
+    description: '200 researched leads a month with AI email & WhatsApp follow-ups',
+    offDescription: 'Off: you bring your own leads',
   },
-  VOICEPILOT: {
-    name: 'VoicePilot',
-    description: 'Chat + Voice AI on your own server, voice website tour',
-    group: 'AI',
+  OMNIAGENT: {
+    name: 'OmniAgent',
+    description: '24/7 AI agents that chat, talk and guide visitors through your site',
+    offDescription: 'Off: AI chat assistant only',
   },
-  REELHOUSE: {
-    name: 'ReelHouse',
-    description: '3 short marketing videos a month',
-    group: 'Agency marketing',
-  },
-  SOCIALPULSE: {
-    name: 'SocialPulse',
-    description: '12 social posts a month on 3 channels',
-    group: 'Agency marketing',
-  },
-  ADMIND: {
-    name: 'AdMind',
-    description: 'AI ad copy and an email campaign every month',
-    group: 'Agency marketing',
+  BUZZENGINE: {
+    name: 'BuzzEngine',
+    description: 'Video, social and AI marketing done for you every month',
+    offDescription: 'Off: you run your own marketing',
   },
   DEPTH3D: {
     name: 'Depth3D',
-    description: '3D brand website built with GSAP and three.js',
-    group: 'Brand marketing',
-  },
-  CAMPAIGNDROP: {
-    name: 'CampaignDrop',
-    description: 'One brand campaign every month',
-    group: 'Brand marketing',
+    description: '3D brand website (GSAP + three.js) and a monthly campaign',
+    offDescription: 'Off: no 3D brand site or campaigns',
   },
 }
-
-export const PLAN_MODULE_GROUPS: readonly PlanModuleGroup[] = ['Website & leads', 'AI', 'Agency marketing', 'Brand marketing']
 
 /** What Launchpad sets up; shown as the row that is always on. */
 export const LAUNCHPAD_SUMMARY = 'Stripe payments, products & webinars, AI chat, share link and lead capture'
@@ -173,18 +139,19 @@ export const PLATFORM_PACKAGES: Record<PlatformPackageId, PlatformPackageMeta> =
   AUTOPILOT: {
     name: 'Autopilot',
     track: 'Full integration',
-    tagline: 'Every AI tool on your own server, run with you every month.',
+    tagline: 'Your AI team answers, talks and sells for you, 24/7.',
     features: [
       'Everything in Signal',
-      'VoicePilot: Chat AI and Voice AI trained on your business',
-      'Your own VPS: hosting, database, backups and monitoring',
-      'Voice-guided tour of your website',
+      'OmniAgent: AI chat and voice agents trained on your business',
+      'Answers questions and captures leads, day and night',
+      'Guided voice tour of your website',
+      'Dedicated hosting with database, backups and monitoring',
       '400 voice minutes a month, then $0.08 a minute',
     ],
     amountCents: 19900,
     billing: 'month',
     lookupKey: 'sts_autopilot_monthly_v1',
-    modules: ['SITEFORGE', 'LEADRADAR', 'VOICEPILOT'],
+    modules: ['SITEFORGE', 'LEADRADAR', 'OMNIAGENT'],
     includes: ['LAUNCHPAD', 'LIFTOFF', 'SIGNAL'],
     waivesSetup: 'LIFTOFF',
   },
@@ -194,15 +161,15 @@ export const PLATFORM_PACKAGES: Record<PlatformPackageId, PlatformPackageMeta> =
     tagline: 'Your full digital agency: AI, video, social and marketing.',
     features: [
       'Everything in Autopilot',
-      'ReelHouse: 3 short marketing videos a month',
-      'SocialPulse: 12 posts a month on 3 channels',
-      'AdMind: AI ad copy and a monthly email campaign',
+      'BuzzEngine video marketing: 3 short videos a month',
+      'BuzzEngine social marketing: 12 posts a month on 3 channels',
+      'BuzzEngine AI marketing: ad copy and a monthly email campaign',
       'Monthly strategy call',
     ],
     amountCents: 39900,
     billing: 'month',
     lookupKey: 'sts_mission_control_monthly_v1',
-    modules: ['SITEFORGE', 'LEADRADAR', 'VOICEPILOT', 'REELHOUSE', 'SOCIALPULSE', 'ADMIND'],
+    modules: ['SITEFORGE', 'LEADRADAR', 'OMNIAGENT', 'BUZZENGINE'],
     includes: ['LAUNCHPAD', 'LIFTOFF', 'SIGNAL', 'AUTOPILOT'],
     waivesSetup: 'LIFTOFF',
   },
@@ -214,13 +181,13 @@ export const PLATFORM_PACKAGES: Record<PlatformPackageId, PlatformPackageMeta> =
       'Everything in Launchpad',
       'Depth3D: 3D brand website with GSAP and three.js',
       'Custom 3D scene and scroll animations, build included',
-      'CampaignDrop: one brand campaign a month',
+      'One brand campaign a month',
       'Ad creatives and a launch video for each campaign',
     ],
     amountCents: 44900,
     billing: 'month',
     lookupKey: 'sts_supernova_monthly_v1',
-    modules: ['DEPTH3D', 'CAMPAIGNDROP'],
+    modules: ['DEPTH3D'],
     includes: ['LAUNCHPAD'],
     minimumMonths: 6,
   },

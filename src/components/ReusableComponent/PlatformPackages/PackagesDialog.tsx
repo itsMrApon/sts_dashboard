@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -36,9 +37,7 @@ export default function PackagesDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="flex items-center gap-2 rounded-xl border border-border bg-primary/10 px-4 py-2 text-sm font-normal text-primary backdrop-blur-sm hover:bg-primary/20">
-          + Subscribe
-        </button>
+        <Button>+ Subscribe</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[920px]">
         {/* The plan picker has its own visible heading; this one is for screen readers. */}

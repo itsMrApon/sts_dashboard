@@ -99,9 +99,7 @@ export default function AddServiceDialog({
       }}
     >
       <DialogTrigger asChild>
-        <button className="flex items-center gap-2 rounded-xl border border-border bg-primary/10 px-4 py-2 text-sm font-normal text-primary backdrop-blur-sm hover:bg-primary/20">
-          {triggerLabel}
-        </button>
+        <Button>{triggerLabel}</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
         {offerKind ? (

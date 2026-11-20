@@ -471,6 +471,8 @@ model MessageConversation {
   externalId String
   platform   Platform
   messages   Json
+  /// Set while a person handles the chat (pipeline "Take over", or replying): the AI stays quiet.
+  aiPausedAt DateTime?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
   channel    MessageChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)

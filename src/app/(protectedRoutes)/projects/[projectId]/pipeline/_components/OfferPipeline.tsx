@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import { cn } from '@/lib/utils'
-import { getPipelineThread, sendPipelineReply } from '@/actions/pipeline'
+import { getPipelineThread, sendPipelineReply, setPipelineAiPaused } from '@/actions/pipeline'
+import { Button } from '@/components/ui/button'
 import {
   CHATTING_NOW_MS,
   type PipelineOrderStatus,
@@ -191,11 +192,27 @@ function Conversation({
       const result = await sendPipelineReply({ webinarId: view.offer.id, contactId, text: draft })
       if (!result.ok) return void toast.error(result.error)
       setDraft('')
-      setThread((current) => (current ? { ...current, messages: [...current.messages, result.message] } : current))
+      // Replying takes the chat over (the server pauses the AI too).
+      setThread((current) => (current ? { ...current, aiPaused: true, messages: [...current.messages, result.message] } : current))
     } catch {
       toast.error("Couldn't send. Try again.")
     } finally {
       setSending(false)
+    }
+  }
+
+  const [switching, setSwitching] = useState(false)
+  const toggleAi = async () => {
+    if (!contactId || !thread || switching) return
+    const paused = !thread.aiPaused
+    setSwitching(true)
+    try {
+      const result = await setPipelineAiPaused({ webinarId: view.offer.id, contactId, paused })
+      if (!result.ok) return void toast.error(result.error)
+      setThread((current) => (current ? { ...current, aiPaused: paused } : current))
+      toast.success(paused ? 'You have the chat. The AI will stay quiet.' : 'The AI is answering again.')
+    } finally {
+      setSwitching(false)
     }
   }
 
@@ -223,6 +240,11 @@ function Conversation({
             {person.registeredAt ? <span>Registered {format(new Date(person.registeredAt), 'MMM d, h:mm a')}</span> : null}
           </div>
         </div>
+        {contactId && thread && view.offer.canChat ? (
+          <Button size="sm" variant={thread.aiPaused ? 'default' : 'outline'} onClick={toggleAi} disabled={switching} className="shrink-0">
+            {thread.aiPaused ? 'Hand back to AI' : 'Take over'}
+          </Button>
+        ) : null}
         {person.order ? (
           <span className={cn('shrink-0 rounded-full px-2.5 py-1 text-xs', ORDER_BADGE[person.order.status].className)}>
             {ORDER_BADGE[person.order.status].label}
@@ -342,7 +364,7 @@ function Conversation({
                   }}
                   rows={1}
                   maxLength={2000}
-                  placeholder={`Reply as ${view.offer.businessName}. They see it in their chat.`}
+                  placeholder={`Reply as ${view.offer.businessName}. The AI goes quiet while you're in the chat.`}
                   className="max-h-32 min-h-10 resize-none"
                   aria-label="Reply"
                 />

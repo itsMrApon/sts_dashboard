@@ -39,12 +39,34 @@ export async function loadOfferChatHistory(offer: PublicOfferRecord, contactId: 
     .map(({ role, content, from }) => (from === 'creator' ? { role, content, from } : { role, content }))
 }
 
+/** When a person has taken the chat over, stores the buyer's message and returns true (the AI stays quiet). */
+async function saveIfTakenOver(roomName: string, sessionId: string, message: string): Promise<boolean> {
+  const channel = await prismaClient.messageChannel.findUnique({
+    where: { roomName_platform: { roomName, platform: Platform.WEB } },
+    select: { id: true },
+  })
+  if (!channel) return false
+  const conversation = await prismaClient.messageConversation.findFirst({
+    where: { channelId: channel.id, externalId: sessionId },
+    select: { id: true, messages: true, aiPausedAt: true },
+  })
+  if (!conversation?.aiPausedAt) return false
+  const stored = Array.isArray(conversation.messages) ? (conversation.messages as object[]) : []
+  const messages = [...stored, { role: 'user', content: message, timestamp: new Date().toISOString() }].slice(-100)
+  await prismaClient.messageConversation.update({ where: { id: conversation.id }, data: { messages } })
+  return true
+}
+
 export async function replyToOfferChat(
   offer: PublicOfferRecord,
   contactId: string,
   message: string,
-): Promise<{ ok: true; reply: string; showOrder: boolean } | { ok: false; error: string }> {
+): Promise<{ ok: true; reply: string | null; showOrder: boolean } | { ok: false; error: string }> {
   if (!offer.agentRoomName) return { ok: false, error: 'Chat is not set up for this offer' }
+  // A person has taken this chat over (pipeline): keep the buyer's message for them, no AI reply.
+  if (await saveIfTakenOver(offer.agentRoomName, offerChatSessionId(offer.slug, contactId), message)) {
+    return { ok: true, reply: null, showOrder: false }
+  }
   // In the business room the Chat AI assistant from Services answers, in its style; a product's own
   // agent (an override) answers as itself. Either way the offer's brief is added.
   const business = await getBusinessByRoomName(offer.agentRoomName)

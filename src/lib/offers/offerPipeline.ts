@@ -267,7 +267,7 @@ export async function loadPipelineThread(webinarId: string, userId: string, cont
     channel
       ? prismaClient.messageConversation.findFirst({
           where: { channelId: channel.id, externalId: offerChatSessionId(offer.slug, contact.id) },
-          select: { messages: true },
+          select: { messages: true, aiPausedAt: true },
         })
       : null,
     prismaClient.callTranscript.findMany({
@@ -283,6 +283,7 @@ export async function loadPipelineThread(webinarId: string, userId: string, cont
 
   return {
     messages: readMessages(conversation?.messages),
+    aiPaused: Boolean(conversation?.aiPausedAt),
     calls: calls.map(
       (call): PipelineCall => ({
         id: call.id,
@@ -344,8 +345,31 @@ export async function appendCreatorReply(
   const messages = [...stored, message].slice(-MESSAGE_LIMIT) as object[]
   await prismaClient.messageConversation.upsert({
     where: { channelId_externalId: { channelId: channel.id, externalId } },
-    create: { channelId: channel.id, externalId, platform: channel.platform, messages },
-    update: { messages },
+    // Replying takes the chat over: the AI stays quiet until the creator hands it back.
+    create: { channelId: channel.id, externalId, platform: channel.platform, messages, aiPausedAt: new Date() },
+    update: { messages, aiPausedAt: new Date() },
   })
   return { ok: true, message }
+}
+
+/** "Take over" / "Hand back to AI" for one buyer's chat. */
+export async function setOfferChatPaused(
+  webinarId: string,
+  userId: string,
+  contactId: string,
+  paused: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const offer = await loadOwnedOffer(webinarId, userId)
+  if (!offer?.slug || !offer.agentRoomName) return { ok: false, error: 'Offer not found' }
+  const contact = await prismaClient.contact.findFirst({ where: { id: contactId, userId }, select: { id: true } })
+  if (!contact) return { ok: false, error: 'Buyer not found' }
+  const channel = await chatChannel(offer.agentRoomName)
+  if (!channel) return { ok: false, error: "This buyer hasn't chatted yet" }
+  const externalId = offerChatSessionId(offer.slug, contact.id)
+  await prismaClient.messageConversation.upsert({
+    where: { channelId_externalId: { channelId: channel.id, externalId } },
+    create: { channelId: channel.id, externalId, platform: Platform.WEB, messages: [], aiPausedAt: paused ? new Date() : null },
+    update: { aiPausedAt: paused ? new Date() : null },
+  })
+  return { ok: true }
 }

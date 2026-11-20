@@ -1,7 +1,7 @@
 'use server'
 
 import { onAuthenticateUser } from '@/actions/auth'
-import { appendCreatorReply, loadPipelineThread } from '@/lib/offers/offerPipeline'
+import { appendCreatorReply, loadPipelineThread, setOfferChatPaused } from '@/lib/offers/offerPipeline'
 import type { PipelineMessage, PipelineThread } from '@/lib/offers/offerPipelineTypes'
 
 /** Creator-side pipeline actions: read a buyer's conversation, and reply into their chat. */
@@ -31,4 +31,12 @@ export async function sendPipelineReply(input: {
   if (!auth.user) return { ok: false, error: 'Please sign in again' }
   const result = await appendCreatorReply(input.webinarId, auth.user.id, input.contactId, input.text ?? '')
   return result.ok ? { ok: true, message: result.message } : result
+}
+
+/** Take a buyer's chat over (the AI stays quiet) or hand it back to the AI. */
+export async function setPipelineAiPaused(input: { webinarId: string; contactId: string; paused: boolean }): Promise<Result> {
+  if (!UUID_RE.test(input.webinarId) || !UUID_RE.test(input.contactId)) return { ok: false, error: 'Not found' }
+  const auth = await onAuthenticateUser()
+  if (!auth.user) return { ok: false, error: 'Please sign in again' }
+  return setOfferChatPaused(input.webinarId, auth.user.id, input.contactId, !!input.paused)
 }

@@ -66,6 +66,8 @@ export function OfferChat({ offer, initialMessages, onOrderRequested }: Props) {
     }
   }, [offer.slug])
 
+  const [handoff, setHandoff] = useState(false)
+
   const send = async (text: string) => {
     const message = text.trim()
     if (!message || thinking) return
@@ -80,7 +82,12 @@ export function OfferChat({ offer, initialMessages, onOrderRequested }: Props) {
         setDraft(message)
         return
       }
-      setMessages((current) => [...current, { role: 'assistant', content: result.reply }])
+      // No reply: a person has taken the chat over; their answer arrives with the next poll.
+      const reply = result.reply
+      if (reply) {
+        setMessages((current) => [...current, { role: 'assistant', content: reply }])
+        setHandoff(false)
+      } else setHandoff(true)
       if (result.showOrder) onOrderRequested()
     } catch {
       toast.error("Looks like you're offline. Try again in a moment.")
@@ -119,6 +126,9 @@ export function OfferChat({ offer, initialMessages, onOrderRequested }: Props) {
           </div>
         ))}
         {thinking ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Thinking" /> : null}
+        {handoff ? (
+          <p className="px-1 text-center text-xs text-muted-foreground">{offer.business.name} will reply here in person.</p>
+        ) : null}
       </div>
       {messages.length === 0 ? (
         <div className="flex flex-wrap gap-1.5 px-4 pb-2">

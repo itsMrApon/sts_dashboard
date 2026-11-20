@@ -52,6 +52,8 @@ export type PipelineCall = {
 export type PipelineThread = {
   messages: PipelineMessage[]
   calls: PipelineCall[]
+  /** A person has taken over this chat: the AI stays quiet until handed back. */
+  aiPaused: boolean
 }
 
 /** A chat touched in the last two minutes counts as "chatting now". */

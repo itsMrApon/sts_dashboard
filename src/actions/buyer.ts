@@ -168,7 +168,7 @@ const CHAT_MESSAGE_MAX = 2000
 export async function sendOfferChat(input: {
   slug: string
   message: string
-}): Promise<Result<{ reply: string; showOrder: boolean }>> {
+}): Promise<Result<{ reply: string | null; showOrder: boolean }>> {
   const message = input.message?.trim().slice(0, CHAT_MESSAGE_MAX)
   if (!message) return { ok: false, error: 'Type a message' }
   if (!(await allow('chat', 20))) return { ok: false, error: TOO_MANY }

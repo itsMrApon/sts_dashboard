@@ -54,7 +54,13 @@ export async function startOfferCheckout(input: CheckoutInput): Promise<Checkout
   let amountTotalCents = 0
   const currency = price?.currency ?? 'usd'
 
-  if (price?.amountCents) {
+  if (price?.stripePriceId && price.amountCents && price.kind !== OfferPriceKind.DEPOSIT) {
+    // Picked from the creator's Stripe catalog: charge that exact price, so Stripe's products and
+    // reports match what was sold.
+    amountTotalCents = price.amountCents
+    if (price.kind === OfferPriceKind.MONTHLY) mode = 'subscription'
+    lineItem = { quantity: 1, price: price.stripePriceId }
+  } else if (price?.amountCents) {
     amountTotalCents = price.amountCents
     if (price.kind === OfferPriceKind.MONTHLY) {
       mode = 'subscription'

@@ -103,7 +103,7 @@ export function validatePricing(input: OfferPricingInput): string | null {
 
 type PriceRow = Pick<
   OfferPrice,
-  'id' | 'kind' | 'amountCents' | 'currency' | 'depositCents' | 'balanceDueDays' | 'stripePriceId' | 'isDefault' | 'active'
+  'id' | 'kind' | 'amountCents' | 'currency' | 'depositCents' | 'balanceDueDays' | 'stripePriceId' | 'stripeProductId' | 'isDefault' | 'active'
 >
 
 /** The buyer-facing default (what "Buy now" charges today). Shared with the client-safe summary. */
@@ -125,7 +125,15 @@ function pricingFromRows(prices: PriceRow[]): OfferPricingInput & { legacyPriceU
       depositCents: deposit?.depositCents ?? Math.round(amountCents / 4),
       balanceDueDays: deposit?.balanceDueDays ?? 14,
     },
-    monthlyOption: { enabled: !!monthlyOption, amountCents: monthlyOption?.amountCents ?? 0 },
+    stripe: main?.stripePriceId && main.stripeProductId ? { priceId: main.stripePriceId, productId: main.stripeProductId } : null,
+    monthlyOption: {
+      enabled: !!monthlyOption,
+      amountCents: monthlyOption?.amountCents ?? 0,
+      stripe:
+        monthlyOption?.stripePriceId && monthlyOption.stripeProductId
+          ? { priceId: monthlyOption.stripePriceId, productId: monthlyOption.stripeProductId }
+          : null,
+    },
     legacyPriceUnsynced: !!main && main.amountCents == null,
   }
 }
@@ -165,7 +173,16 @@ export async function writePricing(webinarId: string, input: OfferPricingInput):
   const wanted: Array<{ kind: OfferPriceKind; data: Prisma.OfferPriceUncheckedCreateInput }> = [
     {
       kind: mainKind,
-      data: { webinarId, kind: mainKind, amountCents: input.amountCents, currency: input.currency, isDefault: true, sortOrder: 0 },
+      data: {
+        webinarId,
+        kind: mainKind,
+        amountCents: input.amountCents,
+        currency: input.currency,
+        isDefault: true,
+        sortOrder: 0,
+        stripePriceId: input.stripe?.priceId ?? null,
+        stripeProductId: input.stripe?.productId ?? null,
+      },
     },
   ]
   if (input.deposit.enabled) {
@@ -185,7 +202,15 @@ export async function writePricing(webinarId: string, input: OfferPricingInput):
   if (input.monthlyOption.enabled) {
     wanted.push({
       kind: OfferPriceKind.MONTHLY,
-      data: { webinarId, kind: OfferPriceKind.MONTHLY, amountCents: input.monthlyOption.amountCents, currency: input.currency, sortOrder: 2 },
+      data: {
+        webinarId,
+        kind: OfferPriceKind.MONTHLY,
+        amountCents: input.monthlyOption.amountCents,
+        currency: input.currency,
+        sortOrder: 2,
+        stripePriceId: input.monthlyOption.stripe?.priceId ?? null,
+        stripeProductId: input.monthlyOption.stripe?.productId ?? null,
+      },
     })
   }
 
@@ -193,8 +218,14 @@ export async function writePricing(webinarId: string, input: OfferPricingInput):
   const ops: Prisma.PrismaPromise<unknown>[] = []
   for (const item of wanted) {
     const current = byKind(item.kind)
-    // A creator-set amount replaces any legacy Stripe price on that row.
-    const data = { ...item.data, active: true, isDefault: item.data.isDefault ?? false, stripePriceId: null }
+    // The row keeps the Stripe price it was picked from (null for an amount typed in the app).
+    const data = {
+      ...item.data,
+      active: true,
+      isDefault: item.data.isDefault ?? false,
+      stripePriceId: item.data.stripePriceId ?? null,
+      stripeProductId: item.data.stripeProductId ?? null,
+    }
     ops.push(
       current
         ? prismaClient.offerPrice.update({ where: { id: current.id }, data })
@@ -276,6 +307,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
     description: webinar.description ?? '',
     kind: toOfferKind(webinar.kind),
     startTime: webinar.startTime.toISOString(),
+    thumbnail: webinar.thumbnail ?? null,
     slug: webinar.slug,
     pricing: pricingFromRows(webinar.prices),
     modes,

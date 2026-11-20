@@ -30,6 +30,7 @@ const ProjectCard = ({ project, shareBaseUrl }: Props) => {
     <div className="flex w-full flex-col items-start gap-3">
       <Link href={roomHref} className="relative w-full max-w-[400px]">
         <Image
+            unoptimized
           src={project.thumbnail || '/darkthumbnail.png'}
           alt=""
           width={400}
@@ -82,9 +83,10 @@ const ProjectCard = ({ project, shareBaseUrl }: Props) => {
         </Link>
         <div className="flex shrink-0 items-center gap-1">
           <Link
-            href={`/projects/${project.id}`}
+            href={`/projects?edit=${project.id}`}
+            scroll={false}
             className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-secondary"
-            aria-label="Offer settings"
+            aria-label="Edit"
           >
             <Settings2 className="h-5 w-5" />
           </Link>

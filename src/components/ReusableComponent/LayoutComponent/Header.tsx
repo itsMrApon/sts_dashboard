@@ -8,10 +8,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import PurpleIcon from '../PurpleIcon'
 import STS2 from '@/icons/sts-2'
 import { cn } from '@/lib/utils'
-const AddServiceDialog = dynamic(
-  () => import('../AddService/AddServiceDialog').then((m) => m.default),
-  { ssr: false, loading: () => <div className="h-9 w-28 rounded-xl bg-muted animate-pulse" /> }
-)
 
 const HeaderSubscription = dynamic(
   () => import('./HeaderSubscription').then((m) => m.default),
@@ -53,7 +49,11 @@ const Header = ({ user }: Props) => {
             <STS2 className="w-8 h-8" />
           </PurpleIcon>
           {/* Paid creators add offers and services here; everyone else sees the packages. */}
-          {user.subscription ? <AddServiceDialog /> : <HeaderSubscription />}
+          {user.subscription ? (
+            <Button onClick={() => router.push('/projects?new=1', { scroll: false })}>+ Add service</Button>
+          ) : (
+            <HeaderSubscription />
+          )}
 
         </div>
     </div>

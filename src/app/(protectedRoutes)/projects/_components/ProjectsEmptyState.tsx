@@ -1,13 +1,6 @@
-'use client'
-
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import type { OfferFilter } from '@/lib/offers/creatorOffers'
-
-const AddServiceDialog = dynamic(() => import('@/components/ReusableComponent/AddService/AddServiceDialog'), {
-  ssr: false,
-  loading: () => <div className="h-9 w-36 animate-pulse rounded-xl bg-muted" />,
-})
 
 const COPY: Record<OfferFilter, string> = {
   all: 'No products or webinars yet.',
@@ -16,9 +9,9 @@ const COPY: Record<OfferFilter, string> = {
   ended: 'No ended webinars yet.',
 }
 
-/** Empty list: say what is missing for this filter and offer the matching Create button. */
+/** Empty list: say what is missing for this filter and open the project popup on the matching type. */
 export default function ProjectsEmptyState({ filter, canCreate }: { filter: OfferFilter; canCreate: boolean }) {
-  const kind = filter === 'products' ? 'PRODUCT' : filter === 'webinars' ? 'WEBINAR' : undefined
+  const type = filter === 'products' ? 'product' : filter === 'webinars' ? 'webinar' : null
   return (
     <div className="flex min-h-[200px] w-full flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border p-8 text-center">
       <p className="text-lg font-semibold text-primary">{COPY[filter]}</p>
@@ -27,12 +20,13 @@ export default function ProjectsEmptyState({ filter, canCreate }: { filter: Offe
           See all projects
         </Link>
       ) : canCreate ? (
-        <AddServiceDialog
-          initialKind={kind}
-          triggerLabel={kind === 'PRODUCT' ? 'Create a product' : kind === 'WEBINAR' ? 'Create a webinar' : 'Create'}
-        />
+        <Button asChild>
+          <Link href={`/projects?new=1${type ? `&type=${type}` : ''}`} scroll={false}>
+            {type === 'product' ? '+ Create a product' : type === 'webinar' ? '+ Create a webinar' : '+ Create one'}
+          </Link>
+        </Button>
       ) : (
-        <p className="text-sm text-muted-foreground">Pick a package (top right) to start selling.</p>
+        <p className="text-sm text-muted-foreground">Subscribe (top right) to start selling.</p>
       )}
     </div>
   )

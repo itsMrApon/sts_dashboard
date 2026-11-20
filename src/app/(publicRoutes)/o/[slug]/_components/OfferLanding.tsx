@@ -97,7 +97,8 @@ export function OfferLanding({ offer, contact: initialContact, source, orderStat
     <main className="relative isolate mx-auto w-full max-w-xl space-y-6 px-4 py-8 sm:py-12">
       {offer.thumbnail ? (
         <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden">
-          <Image src={offer.thumbnail} alt="" fill sizes="100vw" className="scale-110 object-cover opacity-25 blur-3xl" />
+          <Image
+            unoptimized src={offer.thumbnail} alt="" fill sizes="100vw" className="scale-110 object-cover opacity-25 blur-3xl" />
           <div className="absolute inset-0 bg-background/70" />
         </div>
       ) : null}
@@ -117,6 +118,7 @@ export function OfferLanding({ offer, contact: initialContact, source, orderStat
       <header className="space-y-4">
         {offer.thumbnail ? (
           <Image
+            unoptimized
             src={offer.thumbnail}
             alt=""
             width={1120}

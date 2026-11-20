@@ -39,12 +39,17 @@ export const PRICE_LIMITS = {
   maxBalanceDays: 90,
 } as const
 
+/** A price in the creator's Stripe catalog (their connected account). */
+export type StripePriceRef = { priceId: string; productId: string }
+
 export type OfferPricingInput = {
   currency: 'usd'
   billing: 'ONE_TIME' | 'MONTHLY'
   amountCents: number
+  /** The Stripe price this amount comes from (picked in Price). Null = an amount typed in the app. */
+  stripe?: StripePriceRef | null
   deposit: { enabled: boolean; depositCents: number; balanceDueDays: number }
-  monthlyOption: { enabled: boolean; amountCents: number }
+  monthlyOption: { enabled: boolean; amountCents: number; stripe?: StripePriceRef | null }
 }
 
 export type OfferSettingsView = {
@@ -55,6 +60,8 @@ export type OfferSettingsView = {
   /** ISO string */
   startTime: string
   slug: string | null
+  /** Card and share-page image (a link). */
+  thumbnail: string | null
   pricing: OfferPricingInput & { legacyPriceUnsynced: boolean }
   modes: OrderModesInput
   aiServices: AiService[]

@@ -6,18 +6,14 @@ import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { onAuthenticateUser } from '@/actions/auth'
 import ProjectCard from './_components/ProjectCard '
 import ProjectsEmptyState from './_components/ProjectsEmptyState'
-import ProjectIntentLauncher from './_components/ProjectIntentLauncher'
+import { ProjectWizard } from './_components/ProjectWizard'
+import { Button } from '@/components/ui/button'
 import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
 import { listCreatorOffers, parseOfferFilter, type OfferFilter } from '@/lib/offers/creatorOffers'
 import { cn } from '@/lib/utils'
 
 type Props = {
-  searchParams: Promise<{
-    filter?: string
-    tenantId?: string
-    intent?: string
-    openAdd?: string
-  }>
+  searchParams: Promise<{ filter?: string }>
 }
 
 const FILTER_TABS: { value: OfferFilter; label: string }[] = [
@@ -27,9 +23,9 @@ const FILTER_TABS: { value: OfferFilter; label: string }[] = [
   { value: 'ended', label: 'Ended' },
 ]
 
-/** Products and webinars: one card each, filtered by type (or ended webinars) via ?filter=. */
+/** Products and webinars: one card each, filtered via ?filter=. The project popup opens with ?new=1 or ?edit=<id>. */
 const page = async ({ searchParams }: Props) => {
-  const [{ filter: filterParam, tenantId, intent, openAdd }, checkUser] = await Promise.all([
+  const [{ filter: filterParam }, checkUser] = await Promise.all([
     searchParams,
     onAuthenticateUser(),
   ])
@@ -39,42 +35,15 @@ const page = async ({ searchParams }: Props) => {
   }
 
   const filter = parseOfferFilter(filterParam)
-  const shouldAutoLaunch = openAdd === '1' && (intent === 'product' || intent === 'webinar')
 
   // Default path: offers list only (cached). Stripe/LiveKit only when the legacy launcher opens.
   const offers = await listCreatorOffers(checkUser.user.id, filter)
-
-  let stripeProducts: unknown[] = []
-  let livekitAgents: unknown[] = []
-
-  if (shouldAutoLaunch) {
-    const [{ getAllProductsFromStripe }, { getLiveKitAgents }] = await Promise.all([
-      import('@/actions/stripe'),
-      import('@/actions/livekitAgent'),
-    ])
-    const launcherData = await Promise.all([getAllProductsFromStripe(), getLiveKitAgents()])
-    stripeProducts =
-      launcherData[0]?.success && Array.isArray(launcherData[0].products)
-        ? launcherData[0].products
-        : []
-    livekitAgents =
-      launcherData[1]?.success && Array.isArray(launcherData[1].data)
-        ? launcherData[1].data
-        : []
-  }
 
   const shareBaseUrl = publicBaseUrl()
 
   return (
     <>
-      {shouldAutoLaunch ? (
-        <ProjectIntentLauncher
-          intent={intent as 'product' | 'webinar'}
-          tenantId={tenantId}
-          stripeProducts={stripeProducts as never}
-          livekitAgents={livekitAgents as never}
-        />
-      ) : null}
+      <ProjectWizard canCreate={!!checkUser.user.subscription} />
       <div className="flex w-full flex-col gap-8">
         <PageHeader
           leftIcon={<HomeIcon className="h-3 w-3" />}
@@ -98,6 +67,13 @@ const page = async ({ searchParams }: Props) => {
                 {tab.label}
               </Link>
             ))}
+            {checkUser.user.subscription ? (
+              <Button asChild size="sm">
+                <Link href={`/projects?${filter === 'all' ? '' : `filter=${filter}&`}new=1`} scroll={false}>
+                  + New
+                </Link>
+              </Button>
+            ) : null}
           </nav>
         </PageHeader>
 

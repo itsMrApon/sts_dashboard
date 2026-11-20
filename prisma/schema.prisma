@@ -611,6 +611,7 @@ model Workspace {
   partnerConnectors WorkspacePartnerConnector[]
   webinars          Webinar[]
   telegram          TelegramConnection?
+  phoneLine         PhoneLine?
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -636,6 +637,25 @@ model TelegramConnection {
   linkedAt      DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// The creator's own Twilio number, answered by their Voice AI through LiveKit SIP.
+model PhoneLine {
+  workspaceId           String   @id @db.Uuid
+  userId                String   @db.Uuid
+  twilioAccountSid      String   @db.VarChar(64)
+  twilioAuthTokenEnc    String
+  phoneNumber           String   @db.VarChar(32)
+  twilioNumberSid       String   @db.VarChar(64)
+  twilioTrunkSid        String?  @db.VarChar(64)
+  livekitInboundTrunkId String?  @db.VarChar(64)
+  livekitDispatchRuleId String?  @db.VarChar(64)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

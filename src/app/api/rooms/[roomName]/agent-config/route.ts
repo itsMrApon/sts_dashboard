@@ -14,6 +14,10 @@ import { baseAgentRoomName } from '@/lib/credentials/voiceKeyCheck';
 import { getBusinessByRoomName } from '@/lib/business/creatorBusiness';
 import { getBusinessServices } from '@/lib/services/serviceConfig';
 import { speakStyleInstruction } from '@/lib/services/persona';
+import { PHONE_ROOM_SEPARATOR } from '@/lib/phone/livekitSip';
+
+const PHONE_CALL_INSTRUCTION =
+  'This is a phone call. The caller can only hear you: keep each answer to one or two short sentences and do not read out links or lists. If they want details in writing, ask for their email or WhatsApp number and say the team will send it.';
 
 export async function GET(
   req: Request,
@@ -71,7 +75,11 @@ export async function GET(
 
       const agentInstructions =
         context.systemInstruction || voiceAssistant?.systemPrompt || livekitAgent.systemPrompt || aiAgentPrompt;
-      const baseInstructions = speak ? `${agentInstructions}\n\n${speakStyleInstruction(speak.config)}` : agentInstructions;
+      const styledInstructions = speak ? `${agentInstructions}\n\n${speakStyleInstruction(speak.config)}` : agentInstructions;
+      // Twilio phone calls (LiveKit SIP): the caller only hears you, so no links, buttons or lists.
+      const baseInstructions = roomName.includes(PHONE_ROOM_SEPARATOR)
+        ? `${styledInstructions}\n\n${PHONE_CALL_INSTRUCTION}`
+        : styledInstructions;
       const config = {
         // Offer calls keep the full room name so their transcript can be matched to the buyer.
         room_name: offerForAgent ? roomName : livekitAgent.roomName,

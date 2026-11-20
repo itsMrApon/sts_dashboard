@@ -14,13 +14,17 @@ const page = async () => {
   const business = await getCreatorBusiness(auth.user.id)
   if (!business) redirect('/onboarding')
 
-  const [connectors, telegram] = await Promise.all([
+  const [connectors, telegram, phoneLine] = await Promise.all([
     timeAsync('route.integrations.getPartnerConnectors', () =>
       getPartnerConnectorsForWorkspace(business.workspaceId, auth.user.id),
     ),
     prismaClient.telegramConnection.findFirst({
       where: { workspaceId: business.workspaceId, userId: auth.user.id, chatId: { not: null } },
       select: { workspaceId: true },
+    }),
+    prismaClient.phoneLine.findFirst({
+      where: { workspaceId: business.workspaceId, userId: auth.user.id },
+      select: { phoneNumber: true },
     }),
   ])
   const connectedPartners = connectors
@@ -33,6 +37,7 @@ const page = async () => {
       workspaceId={business.workspaceId}
       connectedPartners={connectedPartners}
       telegramLinked={Boolean(telegram)}
+      phoneNumber={phoneLine?.phoneNumber ?? null}
     />
   )
 }

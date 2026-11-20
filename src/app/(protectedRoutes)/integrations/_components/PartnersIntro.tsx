@@ -18,6 +18,8 @@ type Props = {
   connectedPartners?: ConnectedPartnerOption[]
   /** The creator's Telegram bot is set up and linked to a chat. */
   telegramLinked?: boolean
+  /** The creator's Twilio number is answered by their Voice AI. */
+  phoneNumber?: string | null
 }
 
 function introKind(kind: string): string {
@@ -25,7 +27,7 @@ function introKind(kind: string): string {
   return normalized === 'custom' || normalized.startsWith('custom:') ? 'custom' : normalized
 }
 
-export function PartnersIntro({ workspaceId, connectedPartners = [], telegramLinked = false }: Props) {
+export function PartnersIntro({ workspaceId, connectedPartners = [], telegramLinked = false, phoneNumber = null }: Props) {
   const connectedKinds = new Set(connectedPartners.map((partner) => introKind(partner.kind)))
   const partnersHref = (kind: string) => {
     const params = new URLSearchParams({ kind })
@@ -62,6 +64,19 @@ export function PartnersIntro({ workspaceId, connectedPartners = [], telegramLin
           badge={telegramLinked ? 'Connected' : undefined}
         >
           <PartnerLogo kind="telegram" />
+        </IntegrationCard>
+        <IntegrationCard
+          title="Phone"
+          description={
+            phoneNumber
+              ? `Your Voice AI answers ${phoneNumber}`
+              : 'Your Voice AI answers calls to your own Twilio number'
+          }
+          link="/integrations/phone"
+          cta={phoneNumber ? 'Manage' : 'Set up'}
+          badge={phoneNumber ? 'Connected' : undefined}
+        >
+          <PartnerLogo kind="twilio" />
         </IntegrationCard>
         {PARTNER_PRESETS.map((preset) => {
           const connected = connectedKinds.has(preset.kind)

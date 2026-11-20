@@ -75,6 +75,18 @@ export function TelegramLogo() {
   )
 }
 
+export function TwilioLogo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="text-rose-500" aria-hidden>
+      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 17.2a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4z" />
+      <circle cx="9.3" cy="9.3" r="1.9" />
+      <circle cx="14.7" cy="9.3" r="1.9" />
+      <circle cx="9.3" cy="14.7" r="1.9" />
+      <circle cx="14.7" cy="14.7" r="1.9" />
+    </svg>
+  )
+}
+
 const PARTNER_LOGOS: Record<string, ComponentType> = {
   medusa: MedusaLogo,
   erpnext: ErpnextLogo,
@@ -83,6 +95,7 @@ const PARTNER_LOGOS: Record<string, ComponentType> = {
   firecrawl: FirecrawlLogo,
   custom: CustomMcpLogo,
   telegram: TelegramLogo,
+  twilio: TwilioLogo,
 }
 
 export function PartnerLogo({ kind }: { kind: string }) {

@@ -25,7 +25,8 @@ export type VoiceKeyCheck =
 export function baseAgentRoomName(roomName: string): string {
   const offerRoom = parseOfferRoomName(roomName)
   if (offerRoom) return offerRoom.baseRoomName
-  return roomName.split('__voice__')[0].replace(/-v\d+$/u, '')
+  // Phone calls: <agentRoom>__phone___<caller>_<random> (LiveKit SIP dispatch rule).
+  return roomName.split('__phone__')[0].split('__voice__')[0].replace(/-v\d+$/u, '')
 }
 
 /** Keys a call on this engine needs. Mirrors agents/python/livekit-agent/agent/pipeline.py. */

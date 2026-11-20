@@ -27,7 +27,9 @@ class SakugaInput extends fx.Base {
   get validity() { return this.internals.validity; }
   get validationMessage() { return this.internals.validationMessage; }
   get form() { return this.internals.form; }
+  set form(v) { if (v == null || v === false) this.removeAttribute('form'); else this.setAttribute('form', String(v)); }
   get name() { return this.getAttribute('name') || ''; }
+  set name(v) { if (v == null || v === false) this.removeAttribute('name'); else this.setAttribute('name', String(v)); }
   checkValidity() { return this.internals.checkValidity(); }
   reportValidity() { return this.internals.reportValidity(); }
   setCustomValidity(msg) { this.f?.setCustomValidity(msg); this.sync(); }

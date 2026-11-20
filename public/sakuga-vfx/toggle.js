@@ -26,6 +26,7 @@ class SakugaToggle extends fx.Base {
   get disabled() { return this.hasAttribute('disabled'); }
   set disabled(v) { this.toggleAttribute('disabled', !!v); }
   get value() { return this.getAttribute('value') || 'on'; }
+  set value(v) { if (v == null || v === false) this.removeAttribute('value'); else this.setAttribute('value', String(v)); }
   attributeChangedCallback(name) {
     if (!this.b) return;
     if (name === 'checked') { const on = this.checked; this.b.setAttribute('aria-checked', String(on)); if (!this.flipping) { this.seq = [on ? N - 1 : 0]; this.pos = 0; } this.form(); }

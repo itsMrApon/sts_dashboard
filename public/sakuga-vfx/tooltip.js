@@ -16,6 +16,7 @@ class SakugaTooltip extends fx.Base {
     :host { display: inline-block; max-width: 280px; }
     .bub { display: block; padding: 6px 10px; border: 2.2px solid var(--sk-ink); border-radius: 10px; background: var(--sk-card); color: var(--sk-ink); box-shadow: 3px 3px 0 var(--sk-soft); font-family: inherit; font-size: 12.5px; font-weight: 700; line-height: 1.35; text-align: center; overflow-wrap: anywhere; transform: scale(0); will-change: transform; }`;
   get side() { return SIDES[this.getAttribute('side')] ? this.getAttribute('side') : 'top'; }
+  set side(v) { if (v == null || v === false) this.removeAttribute('side'); else this.setAttribute('side', String(v)); }
   attributeChangedCallback() { if (this.b) this.b.style.transformOrigin = SIDES[this.side][0]; }
   render() { return '<span class="bub" part="bubble"><slot></slot></span>'; }
   setup() {

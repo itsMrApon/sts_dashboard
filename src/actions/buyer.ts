@@ -1,5 +1,6 @@
 'use server'
 
+import { latestReplayUrl } from '@/lib/stream/replays'
 import { headers } from 'next/headers'
 import { AttendedTypeEnum, OrderModeKind, type Attendee } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
@@ -221,6 +222,14 @@ export async function startOfferVoice(input: { slug: string }): Promise<Result<{
   const connection = await createOfferVoiceSession(offer, contact)
   if (!connection) return { ok: false, error: 'Voice is not set up for this offer' }
   return { ok: true, connection }
+}
+
+/** The replay of an ended live session, when the host's recording is ready. */
+export async function getLiveReplay(input: { slug: string }): Promise<Result<{ url: string | null }>> {
+  if (!(await allow('replay', 10))) return { ok: false, error: TOO_MANY }
+  const offer = await loadPublicOffer(input.slug)
+  if (!offer?.live || offer.webinarStatus !== 'ENDED') return { ok: true, url: null }
+  return { ok: true, url: await latestReplayUrl(offer.id) }
 }
 
 /**

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCallStateHooks, type Call } from '@stream-io/video-react-sdk'
 import type { Channel as ChatChannel } from 'stream-chat'
 import { Copy, Loader2, Mic, MicOff, Radio, Settings2, ShoppingBag, Square, Video, VideoOff } from 'lucide-react'
@@ -33,33 +33,38 @@ export function HostControls({ call, channel, session, live, onLive, onEnded, st
   const [obsOpen, setObsOpen] = useState(false)
   const recordingRef = useRef(false)
 
-  // Record the session once an OBS (RTMP) broadcast starts.
+  // The recording is the replay buyers watch after the session (Stream keeps it; we keep nothing).
+  const startRecording = useCallback(() => {
+    if (recordingRef.current) return
+    call.startRecording().then(
+      () => {
+        recordingRef.current = true
+      },
+      (error: unknown) => {
+        const message = error instanceof Error ? error.message : ''
+        if (message.includes('already being recorded')) recordingRef.current = true
+        else toast.error("Couldn't start recording the replay")
+      },
+    )
+  }, [call])
+
+  // Record when the host goes live from the browser (goLive) or an OBS (RTMP) broadcast starts.
   useEffect(() => {
     const offStarted = call.on('call.recording_started', () => {
       recordingRef.current = true
     })
-    const offBroadcast = call.on('call.rtmp_broadcast_started', () => {
-      if (recordingRef.current) return
-      call.startRecording().then(
-        () => {
-          recordingRef.current = true
-        },
-        (error: unknown) => {
-          const message = error instanceof Error ? error.message : ''
-          if (!message.includes('already being recorded')) toast.error("Couldn't start recording")
-        },
-      )
-    })
+    const offBroadcast = call.on('call.rtmp_broadcast_started', startRecording)
     return () => {
       offStarted()
       offBroadcast()
     }
-  }, [call])
+  }, [call, startRecording])
 
   const goLive = async () => {
     setBusy('live')
     try {
       await call.goLive()
+      startRecording()
       const result = await changeProjectStatus(session.id, 'LIVE')
       if (!result.success) throw new Error(result.message)
       if (channel) await sendRoomEvent(channel, 'start_live')

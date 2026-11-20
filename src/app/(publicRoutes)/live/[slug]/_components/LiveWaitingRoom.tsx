@@ -10,7 +10,7 @@ import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAttendeeStore } from '@/store/useAttendeeStore'
-import { forgetBuyer, getLiveStatus, joinLiveWaitlist } from '@/actions/buyer'
+import { forgetBuyer, getLiveReplay, getLiveStatus, joinLiveWaitlist } from '@/actions/buyer'
 import type { BuyerContactView, PublicOfferView } from '@/lib/offers/publicOfferTypes'
 import { LeadForm } from '@/app/(publicRoutes)/o/[slug]/_components/LeadForm'
 
@@ -86,6 +86,20 @@ export function LiveWaitingRoom({ offer, contact: initialContact, registered: in
   const left = now == null ? null : startsAt - now
   const isLive = status === 'LIVE'
   const isOver = status === 'ENDED' || status === 'CANCELLED'
+  // After the session: the host's recording, fetched fresh from Stream (its links expire).
+  const [replayUrl, setReplayUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (status !== 'ENDED') return
+    let active = true
+    getLiveReplay({ slug: offer.slug })
+      .then((result) => {
+        if (active && result.ok) setReplayUrl(result.url)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [status, offer.slug])
   const pastStart = left != null && left <= 0
 
   const saveSeat = useCallback(async () => {
@@ -194,6 +208,12 @@ export function LiveWaitingRoom({ offer, contact: initialContact, registered: in
         {isOver ? (
           <div className="space-y-3 text-center text-sm text-muted-foreground">
             <p>{status === 'CANCELLED' ? 'This session was cancelled.' : 'This session has ended. Thanks for coming.'}</p>
+            {replayUrl ? (
+              <div className="space-y-2">
+                <p className="font-medium text-foreground">Watch the replay</p>
+                <video src={replayUrl} controls playsInline preload="metadata" className="aspect-video w-full rounded-xl border border-border bg-black" />
+              </div>
+            ) : null}
             {hasSharePage ? (
               <Button asChild variant="outline" className="w-full">
                 <Link href={`/o/${offer.slug}`}>See the offer</Link>

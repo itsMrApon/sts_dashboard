@@ -41,8 +41,9 @@ export async function GET(
       // Only brief the agent on an offer it actually sells (the slug comes from the room name).
       const offer = offerRoom ? await loadPublicOffer(offerRoom.offerSlug) : null;
       const offerForAgent = offer?.live && offer.agentRoomName === baseRoomName ? offer : null;
-      // Business calls (Voice AI) are run by the voice assistant picked in Services, in its style.
-      const business = offerForAgent ? null : await getBusinessByRoomName(baseRoomName);
+      // Calls in the business room (Voice AI, and offers that use the Services assistants) are run by
+      // the voice assistant picked in Services, in its style; an offer's own agent answers as itself.
+      const business = await getBusinessByRoomName(baseRoomName);
       const speak = business ? (await getBusinessServices(business.workspaceId)).speak : null;
       const voiceAssistant = speak?.agent ?? null;
       const context = await buildAgentContext(baseRoomName, { persona: voiceAssistant });

@@ -181,15 +181,17 @@ export async function saveOfferOrderModes(input: {
   const aiServices = AI_SERVICES.filter((service) => input.aiServices?.includes(service))
   let livekitAgentId: string | null = null
   if (modes.AI_ASSISTANT) {
-    if (aiServices.length === 0) return { ok: false, error: 'Pick at least one AI service' }
-    // One agent answers on every panel (chat and voice); the tour is the offer's own.
-    if (!input.livekitAgentId) return { ok: false, error: 'Pick the AI agent that sells this offer' }
-    const agent = await prismaClient.liveKitAgent.findFirst({
-      where: { id: input.livekitAgentId, ...agentVisibleTo(owner.user.id) },
-      select: { id: true },
-    })
-    if (!agent) return { ok: false, error: 'Pick one of your AI agents' }
-    livekitAgentId = agent.id
+    if (aiServices.length === 0) return { ok: false, error: 'Pick at least one way to talk (chat, tour or voice)' }
+    // No agent = the Services assistants answer (Chat AI on chat, Voice AI on voice). An agent here
+    // is this product's own override; the tour is always the product's own.
+    if (input.livekitAgentId) {
+      const agent = await prismaClient.liveKitAgent.findFirst({
+        where: { id: input.livekitAgentId, ...agentVisibleTo(owner.user.id) },
+        select: { id: true },
+      })
+      if (!agent) return { ok: false, error: 'Pick one of your AI agents' }
+      livekitAgentId = agent.id
+    }
   }
   const aiConfig = { services: aiServices }
 
@@ -230,8 +232,9 @@ export async function saveOfferOrderModes(input: {
       data: {
         ...legacyLinkFields(owner.webinar.kind, modes),
         ...liveSchedule,
-        // Keep the current agent when AI is switched off, so turning it back on is one click.
-        ...(livekitAgentId ? { livekitAgentId } : {}),
+        // With AI on, save the pick (null = use the Services assistants). With AI off, keep it, so
+        // turning AI back on is one click.
+        ...(modes.AI_ASSISTANT ? { livekitAgentId } : {}),
       },
     }),
   ])

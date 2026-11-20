@@ -1,4 +1,7 @@
 import 'server-only'
+import { getBusinessByRoomName } from '@/lib/business/creatorBusiness'
+import { getBusinessServices } from '@/lib/services/serviceConfig'
+import { chatStyleInstruction } from '@/lib/services/persona'
 import { randomBytes } from 'node:crypto'
 import { Platform } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
@@ -42,14 +45,20 @@ export async function replyToOfferChat(
   message: string,
 ): Promise<{ ok: true; reply: string; showOrder: boolean } | { ok: false; error: string }> {
   if (!offer.agentRoomName) return { ok: false, error: 'Chat is not set up for this offer' }
+  // In the business room the Chat AI assistant from Services answers, in its style; a product's own
+  // agent (an override) answers as itself. Either way the offer's brief is added.
+  const business = await getBusinessByRoomName(offer.agentRoomName)
+  const chat = business ? (await getBusinessServices(business.workspaceId)).chat : null
+  const brief = buildOfferBrief(
+    { title: offer.title, description: offer.description, businessName: offer.business.name, prices: offer.prices },
+    'chat',
+  )
   const result = await generateRoomChatReply({
     roomName: offer.agentRoomName,
     message,
     sessionId: offerChatSessionId(offer.slug, contactId),
-    extraInstruction: buildOfferBrief(
-      { title: offer.title, description: offer.description, businessName: offer.business.name, prices: offer.prices },
-      'chat',
-    ),
+    extraInstruction: chat ? `${chatStyleInstruction(chat.config)}\n\n${brief}` : brief,
+    persona: chat?.agent ?? null,
     marker: CHAT_ORDER_MARKER,
   })
   if (!result.ok) {

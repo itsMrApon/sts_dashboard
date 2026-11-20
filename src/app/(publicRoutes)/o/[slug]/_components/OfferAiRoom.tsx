@@ -10,6 +10,8 @@ import { startBuyerCheckout } from '@/actions/buyer'
 import { describePrice, type OfferChatMessage, type PublicOfferView } from '@/lib/offers/publicOfferTypes'
 import { AI_SERVICE_LABEL, AI_SERVICE_ORDER, type AiService } from '@/lib/offers/offerTypes'
 import type { PublicWizard } from '@/lib/wizard/types'
+import type { BuyerContactView } from '@/lib/offers/publicOfferTypes'
+import { LeadForm } from './LeadForm'
 // The three panels are separate services, each on the agent (or tour) the creator picked for it.
 import { OfferChat } from './services/OfferChat'
 import { OfferTour, type OfferTourControl } from './services/OfferTour'
@@ -24,6 +26,40 @@ type Props = {
   services: AiService[]
   /** A one-line note above the payment button (checkout canceled, payment processing). */
   notice: string | null
+  /** The buyer, once they left an email or WhatsApp. Asked for only when they chat, call or pay. */
+  contact: BuyerContactView | null
+  onContact: (contact: BuyerContactView) => void
+  /** "Not you?": forget the buyer on this device. */
+  onForget: () => void
+}
+
+/** Shown in the Chat or Voice panel until the buyer leaves a way to reach them (the tour needs nothing). */
+function ContactFirst({
+  slug,
+  source,
+  businessName,
+  kind,
+  onContact,
+}: {
+  slug: string
+  source: string | null
+  businessName: string
+  kind: 'chat' | 'voice'
+  onContact: (contact: BuyerContactView) => void
+}) {
+  return (
+    <div className="h-full overflow-y-auto p-4">
+      <div className="mx-auto max-w-sm space-y-3">
+        <div>
+          <p className="font-medium">{kind === 'chat' ? 'Before we chat' : 'Before the call'}</p>
+          <p className="text-sm text-muted-foreground">
+            Where can {businessName} reach you if you get cut off? Nothing else is needed.
+          </p>
+        </div>
+        <LeadForm slug={slug} source={source} submitLabel={kind === 'chat' ? 'Start chatting' : 'Go to the call'} onCaptured={onContact} />
+      </div>
+    </div>
+  )
 }
 
 /** Ring order: chat, guided tour, voice. The tour starts in front. */
@@ -48,12 +84,20 @@ function PaymentButton({
   source,
   highlighted,
   notice,
+  contact,
+  onContact,
+  onForget,
 }: {
   offer: PublicOfferView
   source: string | null
   highlighted: boolean
   notice: string | null
+  contact: BuyerContactView | null
+  onContact: (contact: BuyerContactView) => void
+  onForget: () => void
 }) {
+  // Stripe needs a way to reach the buyer: ask here, only if they haven't left one yet.
+  const [askContact, setAskContact] = useState(false)
   const [priceId, setPriceId] = useState<string | null>(
     offer.prices.find((price) => price.isDefault)?.id ?? offer.prices[0]?.id ?? null,
   )
@@ -103,9 +147,23 @@ function PaymentButton({
           })}
         </div>
       ) : null}
+      {askContact && !contact ? (
+        <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-card/90 p-4 backdrop-blur-xl">
+          <p className="mb-3 text-sm text-muted-foreground">Where should we send your receipt?</p>
+          <LeadForm
+            slug={offer.slug}
+            source={source}
+            submitLabel="Continue to payment"
+            onCaptured={async (captured) => {
+              onContact(captured)
+              await checkout()
+            }}
+          />
+        </div>
+      ) : null}
       <Button
         size="lg"
-        onClick={checkout}
+        onClick={() => (contact ? checkout() : setAskContact(true))}
         disabled={!offer.acceptingPayments || busy}
         className={cn(
           'h-12 w-full max-w-sm rounded-full text-base shadow-xl',
@@ -118,6 +176,14 @@ function PaymentButton({
       {!offer.acceptingPayments ? (
         <p className="text-xs text-muted-foreground">Online payment isn&apos;t set up yet. {offer.business.name} will contact you.</p>
       ) : null}
+      {contact ? (
+        <p className="text-xs text-muted-foreground">
+          {contact.name || contact.email || contact.phone} ·{' '}
+          <button type="button" onClick={onForget} className="underline underline-offset-2">
+            Not you?
+          </button>
+        </p>
+      ) : null}
     </footer>
   )
 }
@@ -128,7 +194,7 @@ function PaymentButton({
  * tab, or swiping) rotates it to the front and starts it: the tour plays, voice starts the call,
  * and whatever was in front stops. Continue to payment sits centred underneath.
  */
-export function OfferAiRoom({ offer, source, chatHistory, wizard, services, notice }: Props) {
+export function OfferAiRoom({ offer, source, chatHistory, wizard, services, notice, contact, onContact, onForget }: Props) {
   const panels = AI_SERVICE_ORDER.filter((service) => services.includes(service) && (service !== 'WIZARD' || !!wizard))
   const [active, setActive] = useState(() => Math.max(0, panels.indexOf('WIZARD')))
   const [orderPrompt, setOrderPrompt] = useState(false)
@@ -236,11 +302,20 @@ export function OfferAiRoom({ offer, source, chatHistory, wizard, services, noti
                 {PANEL_META[service].label}
               </div>
               <div className="min-h-0 flex-1" inert={!front}>
-                {service === 'CHAT' ? <OfferChat offer={offer} initialMessages={chatHistory} onOrderRequested={requestOrder} /> : null}
+                {service === 'CHAT' ? (
+                  contact ? (
+                    <OfferChat offer={offer} initialMessages={chatHistory} onOrderRequested={requestOrder} />
+                  ) : (
+                    <ContactFirst slug={offer.slug} source={source} businessName={offer.business.name} kind="chat" onContact={onContact} />
+                  )
+                ) : null}
                 {service === 'WIZARD' && wizard ? (
                   <OfferTour wizard={wizard} controlRef={tourRef} onPlay={stopVoice} onOrderRequested={requestOrder} />
                 ) : null}
-                {service === 'SPEAK' ? (
+                {service === 'SPEAK' && !contact ? (
+                  <ContactFirst slug={offer.slug} source={source} businessName={offer.business.name} kind="voice" onContact={onContact} />
+                ) : null}
+                {service === 'SPEAK' && contact ? (
                   <OfferVoice
                     slug={offer.slug}
                     businessName={offer.business.name}
@@ -276,7 +351,7 @@ export function OfferAiRoom({ offer, source, chatHistory, wizard, services, noti
       </div>
 
       {orderPrompt ? <p className="relative z-10 pt-1 text-center text-xs font-medium text-primary">Ready when you are</p> : null}
-      <PaymentButton offer={offer} source={source} highlighted={orderPrompt} notice={notice} />
+      <PaymentButton offer={offer} source={source} highlighted={orderPrompt} notice={notice} contact={contact} onContact={onContact} onForget={onForget} />
     </div>
   )
 }

@@ -70,7 +70,8 @@ export function OfferLanding({ offer, contact: initialContact, source, orderStat
       setContact(null)
     }))
 
-  if (contact && aiServices.length && !paid) {
+  // The AI room opens straight away; it asks for an email or WhatsApp only when the buyer chats, calls or pays.
+  if (aiServices.length && !paid) {
     return (
       <OfferAiRoom
         offer={offer}
@@ -78,6 +79,9 @@ export function OfferLanding({ offer, contact: initialContact, source, orderStat
         chatHistory={chatHistory}
         wizard={wizard}
         services={aiServices}
+        contact={contact}
+        onContact={setContact}
+        onForget={notMe}
         notice={
           orderStatus === 'PENDING'
             ? 'Your payment is still processing.'

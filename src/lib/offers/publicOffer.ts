@@ -1,4 +1,5 @@
 import 'server-only'
+import { offerAgentRoomName } from '@/lib/offers/offerAgent'
 import { cache } from 'react'
 import { OfferPriceKind, OrderModeKind } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
@@ -92,9 +93,7 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
   const aiConfig = readAiAssistantConfig(
     offer.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)?.config,
   )
-  const agent = offer.livekitAgentId
-    ? await prismaClient.liveKitAgent.findUnique({ where: { id: offer.livekitAgentId }, select: { roomName: true } })
-    : null
+  const agentRoomName = await offerAgentRoomName({ livekitAgentId: offer.livekitAgentId, presenterId: offer.presenterId })
   const live = offer.presenter.subscription
   const prices = buyerPrices(offer.prices)
   const hasPrice = prices.length > 0 || !!offer.priceId
@@ -119,7 +118,7 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
     aiServices: aiConfig.services,
     wizardSlug: offer.tour?.slug ?? null,
     creatorUserId: offer.presenterId,
-    agentRoomName: agent?.roomName ?? null,
+    agentRoomName,
     stripeAccount: offer.presenter.stripeConnectId,
     legacyPriceId: offer.priceId,
   }

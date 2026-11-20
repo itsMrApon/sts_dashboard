@@ -1,4 +1,5 @@
 import 'server-only'
+import { offerAgentRoomName } from '@/lib/offers/offerAgent'
 import { ChannelStatus, Platform } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { contactIdFromOfferRoom, offerChatSessionId } from './offerAi'
@@ -41,15 +42,13 @@ async function loadOwnedOffer(webinarId: string, userId: string): Promise<OwnedO
     },
   })
   if (!webinar) return null
-  const agent = webinar.livekitAgentId
-    ? await prismaClient.liveKitAgent.findUnique({ where: { id: webinar.livekitAgentId }, select: { roomName: true } })
-    : null
+  const agentRoomName = await offerAgentRoomName({ livekitAgentId: webinar.livekitAgentId, presenterId: userId })
   return {
     id: webinar.id,
     title: webinar.title,
     slug: webinar.slug,
     businessName: webinar.presenter.publishProfile?.name || webinar.presenter.name,
-    agentRoomName: agent?.roomName ?? null,
+    agentRoomName,
     userId,
   }
 }

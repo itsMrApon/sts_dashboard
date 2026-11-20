@@ -1,5 +1,6 @@
 'use client'
 
+import { PlainControls } from '@/components/sakuga/SakugaScope'
 import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { Check, Link2, Loader2, Save, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -134,7 +135,8 @@ function LiveStage({ live, side, origin }: { live: NonNullable<Props['live']>; s
         className="relative z-10 h-[580px] w-full max-w-[400px] overflow-hidden rounded-[2rem] border border-white/5 bg-black/20 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-sm"
         onClickCapture={keepLinksOutside}
       >
-        {live.content}
+        {/* What buyers see: plain controls, like the real page. */}
+        <PlainControls>{live.content}</PlainControls>
       </motion.div>
 
       {/* Status label */}

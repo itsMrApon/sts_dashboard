@@ -1,16 +1,39 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
+import { toast as sonner } from 'sonner'
+import { Toaster as PlainToaster } from '@/components/ui/sonner'
 import { subscribeToasts, type ToastMessage } from '@/lib/toast'
 import { loadSakuga } from './load'
+import { isPublicSurface } from './SakugaScope'
 
 type ToastElement = HTMLElement & {
   show: (text: string, options?: { description?: string; action?: string; variant?: string; duration?: number }) => void
   hide: () => void
 }
 
-/** The one place toasts appear: the Sakuga toast, fixed at the bottom left (it streaks in from the left). */
+/** Buyer-facing pages: the same toast calls, shown by the plain toaster. */
+function PublicToaster() {
+  useEffect(
+    () =>
+      subscribeToasts((item) => {
+        if (!item) return void sonner.dismiss()
+        const { description, duration, action, id } = item.options
+        sonner[item.variant](item.message, { description, duration, id, action })
+      }),
+    [],
+  )
+  return <PlainToaster position="top-center" richColors closeButton />
+}
+
+/** The one place toasts appear: in the app, the Sakuga toast; on buyer-facing pages, the plain one. */
 export function SakugaToaster() {
+  return isPublicSurface(usePathname()) ? <PublicToaster /> : <AppToaster />
+}
+
+/** The Sakuga toast, fixed at the bottom left (it streaks in from the left). */
+function AppToaster() {
   const ref = useRef<ToastElement>(null)
   const actionRef = useRef<(() => void) | null>(null)
 

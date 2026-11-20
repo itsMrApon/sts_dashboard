@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { useSakuga } from "@/components/sakuga/load"
+import { useSakugaEnabled } from "@/components/sakuga/SakugaScope"
 
 /** Text-like fields are the Sakuga input; dates, files, checkboxes and the rest stay native. */
 const SAKUGA_TYPES = new Set<string | undefined>([undefined, "text", "email", "tel", "url", "search", "password", "number"])
@@ -13,7 +14,8 @@ const NATIVE_CLASSES =
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   // A left icon sits inside the field (pl-*): the drawn frame can't make room for it, so keep native there.
-  const sakuga = SAKUGA_TYPES.has(type) && !/(^|\s)pl-/.test(className ?? "")
+  const enabled = useSakugaEnabled()
+  const sakuga = enabled && SAKUGA_TYPES.has(type) && !/(^|\s)pl-/.test(className ?? "")
   useSakuga(sakuga ? "input" : null)
 
   if (!sakuga) {

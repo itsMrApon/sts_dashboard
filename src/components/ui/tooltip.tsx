@@ -5,6 +5,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "@/lib/utils"
 import { useSakuga } from "@/components/sakuga/load"
+import { useSakugaEnabled } from "@/components/sakuga/SakugaScope"
 
 function TooltipProvider({
   delayDuration = 0,
@@ -42,7 +43,29 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
-  useSakuga("tooltip")
+  const enabled = useSakugaEnabled()
+  useSakuga(enabled ? "tooltip" : null)
+  if (!enabled) {
+    // Buyer-facing pages: the plain tooltip.
+    return (
+      <TooltipPrimitive.Portal>
+        <TooltipPrimitive.Content
+          data-slot="tooltip-content"
+          side={side}
+          sideOffset={sideOffset}
+          className={cn(
+            "bg-foreground text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance",
+            className
+          )}
+          {...props}
+        >
+          {children}
+          <TooltipPrimitive.Arrow className="bg-foreground fill-foreground z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
+        </TooltipPrimitive.Content>
+      </TooltipPrimitive.Portal>
+    )
+  }
+
   // Radix places it and runs the exit (it leaves by shrinking); the bubble itself is the Sakuga tooltip,
   // which pops out of the side facing its trigger.
   return (

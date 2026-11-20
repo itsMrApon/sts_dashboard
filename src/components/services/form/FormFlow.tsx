@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, useTransition, type ChangeEvent, type CSSProperties, type ReactNode } from 'react'
-import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, ChevronUp, Loader2, Star } from 'lucide-react'
+import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, ChevronUp, Loader2, MessageCircle, Star } from 'lucide-react'
 import { guardAction } from '@/lib/clientActionErrors'
 import { SORTED_ISO2, dialForIso2 } from '@/lib/phoneCountryCodes'
 import {
@@ -239,6 +239,7 @@ export function FormFlow({ config, defaultCountry, onSubmit, frame, corner, chat
               className="mt-2 flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
               style={{ backgroundColor: accent }}
             >
+              <MessageCircle className="h-4 w-4" aria-hidden />
               Chat with us
             </a>
           ) : null}

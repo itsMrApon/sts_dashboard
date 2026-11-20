@@ -1,10 +1,14 @@
 import React from 'react'
+import { PlainControls } from '@/components/sakuga/SakugaScope'
 
-type Props = {children: React.ReactNode}
+type Props = { children: React.ReactNode }
 
-const layout = ({children}: Props) => {
+/** Buyer-facing pages: plain controls (Sakuga is only for the app's own screens). */
+const layout = ({ children }: Props) => {
   return (
-    <div className="w-full container mx-auto min-h-screen">{children}</div>
+    <div className="w-full container mx-auto min-h-screen">
+      <PlainControls>{children}</PlainControls>
+    </div>
   )
 }
 

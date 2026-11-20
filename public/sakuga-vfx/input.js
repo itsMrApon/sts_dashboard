@@ -55,7 +55,18 @@ class SakugaInput extends fx.Base {
     // change does not leave a shadow root on its own; send it on from the host.
     f.addEventListener('change', () => this.dispatchEvent(new Event('change', { bubbles: true })));
     f.addEventListener('blur', () => { if (f.value && !f.checkValidity()) { f.classList.add('bad'); this.shake(); } });
-    f.addEventListener('keydown', (e) => { if (e.key === 'Enter' && f.value && f.checkValidity()) { const q = at(f, 1, 0.5); kira(q.x - 14, q.y - 8, { r: 10, life: 0.6 }); } });
+    f.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.isComposing) return;
+      if (f.value && f.checkValidity()) { const q = at(f, 1, 0.5); kira(q.x - 14, q.y - 8, { r: 10, life: 0.6 }); }
+      // Enter inside a shadow root doesn't reach the page's <form>, so submit it here the way a native field would:
+      // after every listener has run (a page that handles Enter itself calls preventDefault), and only when the form
+      // has a submit button.
+      const form = this.internals.form;
+      queueMicrotask(() => {
+        if (e.defaultPrevented || !form) return;
+        if (form.querySelector('button[type=submit], input[type=submit], sakuga-button[type=submit], button:not([type])')) form.requestSubmit();
+      });
+    });
     this.sync();
   }
   // the hit: focus. The frame is already purple (CSS); this is the drawing around it.

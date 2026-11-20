@@ -314,7 +314,7 @@ sakuga-tabs { margin-top: 12px; max-width: 100%; }
 sakuga-progress { --sk-progress-width: min(320px, 80vw); }
 sakuga-toast { --sk-toast-max: min(380px, calc(100vw - 32px)); }
 
-/* No icons before button labels: an icon stays only when it is the whole button, or a spinner. */
-:where(button, [role='button'], a[data-slot='button'], sakuga-button) > svg:first-child:not(:only-child):not(.animate-spin) {
+/* No icons before button labels (app screens; buyer-facing pages keep theirs): an icon stays only when it is the whole button, or a spinner. */
+:where(button, [role='button'], a[data-slot='button'], sakuga-button):not(:where([data-sakuga='off'] *)) > svg:first-child:not(:only-child):not(.animate-spin) {
   display: none;
 }

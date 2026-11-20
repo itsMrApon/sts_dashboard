@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, SendHorizontal, UserRound } from 'lucide-react'
+import { ExternalLink, Loader2, SendHorizontal, ShoppingBag, UserRound } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { fetchWithFirstPartySession } from '@/lib/embed/firstPartySessionClient'
 import { accentHex, type ChatServiceConfig } from '@/lib/services/types'
@@ -144,6 +144,7 @@ export function ChatRoom({ roomName, agentName, config, isOwner, socialAccounts 
                     className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
                     style={{ backgroundColor: accent }}
                   >
+                    <ShoppingBag className="h-3.5 w-3.5" aria-hidden />
                     Buy now
                   </a>
                 ) : null}
@@ -154,6 +155,7 @@ export function ChatRoom({ roomName, agentName, config, isOwner, socialAccounts 
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs hover:bg-white/10"
                   >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                     Open
                   </a>
                 ) : null}

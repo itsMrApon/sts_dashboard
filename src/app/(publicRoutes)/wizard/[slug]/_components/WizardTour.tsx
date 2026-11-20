@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
-import { ChevronLeft, ChevronRight, MessageCircle, Pause, Play, Volume2, VolumeX, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle, Pause, Play, RotateCcw, ShoppingBag, Volume2, VolumeX, X } from 'lucide-react'
 import { WizardGem } from '@/components/wizard/WizardGem'
 import { useWizardNarrator } from '@/components/wizard/useWizardNarrator'
 import { cn } from '@/lib/utils'
@@ -310,6 +310,7 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
           }}
           className={cn('flex items-center gap-1.5 text-xs', mutedText)}
         >
+          <RotateCcw className="h-3.5 w-3.5" />
           {copy.restart}
         </button>
         {onClose ? (
@@ -457,6 +458,7 @@ export function WizardTour({ wizard, onClose, orderAction, embedded = false, con
                 palette.isLight ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900',
               )}
             >
+              <ShoppingBag className="h-4 w-4" />
               {orderAction.label}
             </button>
           ) : wizard.chatUrl && !orderAction && settings.showTalkButton ? (

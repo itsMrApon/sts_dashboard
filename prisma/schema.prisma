@@ -378,18 +378,18 @@ model RoomEmbedConfig {
 }
 
 model LiveKitAgent {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String         @db.VarChar(255)
-  roomName      String         @unique @db.VarChar(255)
-  firstMessage  String?
-  systemPrompt  String?
-  language      String         @default("en") @db.VarChar(10)
-  voiceModel    String         @default("db6b0ed5-d5d3-463d-ae85-518a07d3c2b4") @db.VarChar(100)
-  voiceProvider String         @default("cartesia") @db.VarChar(50)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  llmModel      String         @default("gemini-2.0-flash") @db.VarChar(100)
-  llmProvider   String         @default("google") @db.VarChar(50)
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String         @db.VarChar(255)
+  roomName        String         @unique @db.VarChar(255)
+  firstMessage    String?
+  systemPrompt    String?
+  language        String         @default("en") @db.VarChar(10)
+  voiceModel      String         @default("db6b0ed5-d5d3-463d-ae85-518a07d3c2b4") @db.VarChar(100)
+  voiceProvider   String         @default("cartesia") @db.VarChar(50)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  llmModel        String         @default("gemini-2.0-flash") @db.VarChar(100)
+  llmProvider     String         @default("google") @db.VarChar(50)
   /// The one service this assistant is made for: chat | voice | form | tour. Null = classic
   /// (created before per-service assistants), usable by any service.
   service         String?        @db.VarChar(16)
@@ -397,9 +397,9 @@ model LiveKitAgent {
   /// Looks (colours, orb, theme) stay on the service in /services.
   serviceSettings Json           @default("{}")
   /// Owner. Null for legacy rows created before ownership; claimed on first authorized edit.
-  userId        String?        @db.Uuid
-  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  publishAgents PublishAgent[]
+  userId          String?        @db.Uuid
+  user            User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  publishAgents   PublishAgent[]
 
   @@index([roomName])
   @@index([createdAt])
@@ -610,12 +610,36 @@ model Workspace {
   messageChannels   MessageChannel[]
   partnerConnectors WorkspacePartnerConnector[]
   webinars          Webinar[]
+  telegram          TelegramConnection?
 
   @@index([userId])
   @@index([userId, createdAt])
   @@index([publishProfileId])
   @@index([publishProfileId, updatedAt])
   @@map("Tenant")
+}
+
+/// The creator's own Telegram bot: alerts for buyer chats go to one chat (usually a team group),
+/// and replies there are posted back into the buyer's chat.
+model TelegramConnection {
+  workspaceId   String    @id @db.Uuid
+  userId        String    @db.Uuid
+  botTokenEnc   String
+  botUsername   String    @db.VarChar(64)
+  /// Telegram sends this back in X-Telegram-Bot-Api-Secret-Token on every webhook call.
+  webhookSecret String    @unique @db.VarChar(64)
+  /// Sent as /start <code> from the chat that should get alerts.
+  linkCode      String    @db.VarChar(32)
+  chatId        String?   @db.VarChar(32)
+  chatTitle     String?   @db.VarChar(255)
+  enabled       Boolean   @default(true)
+  linkedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model WorkspacePartnerConnector {

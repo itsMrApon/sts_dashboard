@@ -3,6 +3,8 @@ import { getBusinessByRoomName } from '@/lib/business/creatorBusiness'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
 import { chatStyleInstruction } from '@/lib/services/persona'
 import { randomBytes } from 'node:crypto'
+import { after } from 'next/server'
+import { sendOfferChatAlert, type OfferChatAlertReason } from '@/lib/telegram/telegramAlerts'
 import { Platform } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { generateRoomChatReply } from '@/lib/services/chatReply'
@@ -40,21 +42,39 @@ export async function loadOfferChatHistory(offer: PublicOfferRecord, contactId: 
 }
 
 /** When a person has taken the chat over, stores the buyer's message and returns true (the AI stays quiet). */
-async function saveIfTakenOver(roomName: string, sessionId: string, message: string): Promise<boolean> {
+/**
+ * Where this buyer's chat stands before the AI answers. While a person has taken it over, the
+ * buyer's message is stored for them and `paused` is true.
+ */
+async function chatStateBeforeReply(roomName: string, sessionId: string, message: string): Promise<'new' | 'active' | 'paused'> {
   const channel = await prismaClient.messageChannel.findUnique({
     where: { roomName_platform: { roomName, platform: Platform.WEB } },
     select: { id: true },
   })
-  if (!channel) return false
+  if (!channel) return 'new'
   const conversation = await prismaClient.messageConversation.findFirst({
     where: { channelId: channel.id, externalId: sessionId },
     select: { id: true, messages: true, aiPausedAt: true },
   })
-  if (!conversation?.aiPausedAt) return false
-  const stored = Array.isArray(conversation.messages) ? (conversation.messages as object[]) : []
+  const stored = Array.isArray(conversation?.messages) ? (conversation.messages as object[]) : []
+  if (!conversation?.aiPausedAt) return stored.length ? 'active' : 'new'
   const messages = [...stored, { role: 'user', content: message, timestamp: new Date().toISOString() }].slice(-100)
   await prismaClient.messageConversation.update({ where: { id: conversation.id }, data: { messages } })
-  return true
+  return 'paused'
+}
+
+/** Telegram alert after the buyer's reply has been sent (never delays or breaks the chat). */
+function alertCreator(offer: PublicOfferRecord, contactId: string, message: string, reason: OfferChatAlertReason) {
+  after(() =>
+    sendOfferChatAlert({
+      creatorUserId: offer.creatorUserId,
+      webinarId: offer.id,
+      offerTitle: offer.title,
+      contactId,
+      message,
+      reason,
+    }),
+  )
 }
 
 export async function replyToOfferChat(
@@ -64,7 +84,9 @@ export async function replyToOfferChat(
 ): Promise<{ ok: true; reply: string | null; showOrder: boolean } | { ok: false; error: string }> {
   if (!offer.agentRoomName) return { ok: false, error: 'Chat is not set up for this offer' }
   // A person has taken this chat over (pipeline): keep the buyer's message for them, no AI reply.
-  if (await saveIfTakenOver(offer.agentRoomName, offerChatSessionId(offer.slug, contactId), message)) {
+  const state = await chatStateBeforeReply(offer.agentRoomName, offerChatSessionId(offer.slug, contactId), message)
+  if (state === 'paused') {
+    alertCreator(offer, contactId, message, 'waiting')
     return { ok: true, reply: null, showOrder: false }
   }
   // In the business room the Chat AI assistant from Services answers, in its style; a product's own
@@ -87,6 +109,8 @@ export async function replyToOfferChat(
     console.warn('[offer-chat]', result.status, result.error)
     return { ok: false, error: 'The assistant is unavailable right now. Please try again.' }
   }
+  if (result.markerFound) alertCreator(offer, contactId, message, 'ready')
+  else if (state === 'new') alertCreator(offer, contactId, message, 'new')
   return { ok: true, reply: result.reply, showOrder: result.markerFound }
 }
 

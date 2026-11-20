@@ -16,6 +16,8 @@ export type ConnectedPartnerOption = {
 type Props = {
   workspaceId: string | null
   connectedPartners?: ConnectedPartnerOption[]
+  /** The creator's Telegram bot is set up and linked to a chat. */
+  telegramLinked?: boolean
 }
 
 function introKind(kind: string): string {
@@ -23,7 +25,7 @@ function introKind(kind: string): string {
   return normalized === 'custom' || normalized.startsWith('custom:') ? 'custom' : normalized
 }
 
-export function PartnersIntro({ workspaceId, connectedPartners = [] }: Props) {
+export function PartnersIntro({ workspaceId, connectedPartners = [], telegramLinked = false }: Props) {
   const connectedKinds = new Set(connectedPartners.map((partner) => introKind(partner.kind)))
   const partnersHref = (kind: string) => {
     const params = new URLSearchParams({ kind })
@@ -52,6 +54,15 @@ export function PartnersIntro({ workspaceId, connectedPartners = [] }: Props) {
         description="Introduce Medusa, ERPNext, n8n, and more so your workspace can chat, automate, and act across tools."
         action={headerAction}
       >
+        <IntegrationCard
+          title="Telegram"
+          description="Get buyer chats on your phone or in a team group, and reply from Telegram"
+          link="/integrations/telegram"
+          cta={telegramLinked ? 'Manage' : 'Set up'}
+          badge={telegramLinked ? 'Connected' : undefined}
+        >
+          <PartnerLogo kind="telegram" />
+        </IntegrationCard>
         {PARTNER_PRESETS.map((preset) => {
           const connected = connectedKinds.has(preset.kind)
           return (

@@ -66,6 +66,15 @@ export function CustomMcpLogo() {
   )
 }
 
+export function TelegramLogo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="text-sky-500" aria-hidden>
+      <circle cx="12" cy="12" r="10" fill="currentColor" />
+      <path d="M6.2 11.7l9.6-3.8c.5-.2.9.1.7.8l-1.6 7.7c-.1.6-.5.7-1 .4l-2.6-1.9-1.3 1.2c-.1.1-.3.3-.6.3l.2-2.7 4.8-4.4c.2-.2 0-.3-.3-.1l-6 3.8-2.6-.8c-.6-.2-.6-.6.1-.9z" fill="white" />
+    </svg>
+  )
+}
+
 const PARTNER_LOGOS: Record<string, ComponentType> = {
   medusa: MedusaLogo,
   erpnext: ErpnextLogo,
@@ -73,6 +82,7 @@ const PARTNER_LOGOS: Record<string, ComponentType> = {
   chatwoot: ChatwootLogo,
   firecrawl: FirecrawlLogo,
   custom: CustomMcpLogo,
+  telegram: TelegramLogo,
 }
 
 export function PartnerLogo({ kind }: { kind: string }) {

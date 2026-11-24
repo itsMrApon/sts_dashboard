@@ -59,6 +59,14 @@ export const SETUP_LINKS: Record<string, { links: IntegrationSetupLink[]; note?:
       { label: 'Add the job environment variables', href: 'https://trigger.dev/docs/deploy-environment-variables' },
     ],
   },
+  inngest: {
+    links: [
+      { label: 'Sign up for Inngest', href: 'https://app.inngest.com/sign-up', detail: 'free: 50,000 runs a month, no card' },
+      { label: 'Copy the Event key and Signing key', href: 'https://app.inngest.com', detail: 'Production → Manage → Event keys / Signing key' },
+      { label: 'How the worker connects', href: 'https://www.inngest.com/docs/setup/connect' },
+    ],
+    note: 'Put INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY in .env.production, then deploy the app and the sts-jobs-worker container. Nothing else to deploy: the jobs run on your server.',
+  },
   medusa: {
     links: [
       { label: 'Medusa docs', href: 'https://docs.medusajs.com' },

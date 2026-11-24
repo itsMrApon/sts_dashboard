@@ -64,6 +64,8 @@ RUN test -n "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" || { \
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 RUN npm run build
+# The Inngest jobs worker (sts-jobs-worker container) runs from this same image.
+RUN npm run jobs:build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
@@ -80,6 +82,7 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
 # The app runs as `nextjs` and writes .next/cache (fetch cache, optimized images), so it owns .next.
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 

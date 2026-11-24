@@ -53,3 +53,6 @@ primeone_Insurance/
 
 # trigger.dev local build output
 .trigger
+
+# Inngest jobs worker bundle (npm run jobs:build)
+/dist

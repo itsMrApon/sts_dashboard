@@ -11,6 +11,9 @@ import {
   withTriggerAuth,
 } from '@/lib/jobs/triggerSettings'
 import { isPlatformOwner } from '@/lib/platform/platformOwner'
+import { activeJobProvider } from '@/lib/jobs/jobProvider'
+import { JOB_EVENTS } from '@/inngest/client'
+import { sendInngestEvent } from '@/lib/jobs/inngestEvents'
 import type { leadIntelRunAll } from '@/trigger/leadIntel'
 
 type Result = { ok: true; message?: string; runId?: string } | { ok: false; error: string }
@@ -79,10 +82,18 @@ export async function testTriggerDevConnection(): Promise<Result> {
   }
 }
 
-/** Starts the daily lead jobs now instead of waiting for 01:00 UTC. */
+/** Starts the daily lead jobs now instead of waiting for 01:00 UTC, on the active job runner. */
 export async function runDailyLeadJobsNow(): Promise<Result> {
   const owner = await requireOwner()
   if (!owner) return { ok: false, error: 'Only platform owners can start jobs.' }
+  if ((await activeJobProvider()) === 'inngest') {
+    try {
+      await sendInngestEvent(JOB_EVENTS.leadIntelRunAll)
+      return { ok: true, message: 'Daily lead jobs started on Inngest. Follow them in the Inngest dashboard.' }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Inngest did not accept the event.' }
+    }
+  }
   try {
     const handle = await withTimeout(
       withTriggerAuth(() => tasks.trigger<typeof leadIntelRunAll>('lead-intel-run-all', undefined)),

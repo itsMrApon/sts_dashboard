@@ -6,6 +6,7 @@ import {
   runMapsBatchForCreator,
   type MapsBatchCreator,
 } from '@/lib/leads/leadIntelJobs'
+import { skippedUnlessTrigger } from './activeProvider'
 
 /**
  * Replaces the old /api/cron/lead-intel route. Once a day the scheduler starts one run per
@@ -54,10 +55,10 @@ async function startDailyLeadJobs() {
 export const leadIntelDaily = schedules.task({
   id: 'lead-intel-daily',
   cron: '0 1 * * *',
-  run: startDailyLeadJobs,
+  run: async () => (await skippedUnlessTrigger()) ?? startDailyLeadJobs(),
 })
 
-/** The same jobs on demand: "Run now" in /integrations/trigger. */
+/** The same jobs on demand: "Run now" in /integrations/trigger (sent only when trigger.dev is active). */
 export const leadIntelRunAll = task({
   id: 'lead-intel-run-all',
   run: startDailyLeadJobs,

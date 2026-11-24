@@ -147,6 +147,16 @@ swap_to() {
   die "deploy of $image failed; previous version restored"
 }
 
+# The Inngest jobs worker runs the app's code from the app's image, so after a swap it is
+# recreated on the same image (only when it was deployed: scripts/deploy-workers.sh jobs-worker).
+refresh_jobs_worker() {
+  local image="$1"
+  d inspect sts-jobs-worker >/dev/null 2>&1 || return 0
+  log "Restarting the jobs worker on $image"
+  JOBS_IMAGE="$image" d compose --env-file "$ENV_FILE" -f deploy/workers.compose.yml up -d --no-deps --force-recreate jobs-worker >/dev/null 2>&1 \
+    || warn "the jobs worker did not restart; run scripts/deploy-workers.sh jobs-worker"
+}
+
 # Keep the newest KEEP_IMAGES sha-tagged images, never the live one.
 prune_images() {
   local live_tag="$1" tag
@@ -184,6 +194,7 @@ cmd_deploy() {
   fi
 
   swap_to "$image"
+  refresh_jobs_worker "$image"
   prune_images "$sha"
 
   cat >&2 <<EOF
@@ -211,6 +222,7 @@ cmd_rollback() {
   warn "rollback does not undo database migrations"
   log "Rolling back to $IMAGE:$tag${full:+ ($(git log -1 --format=%s "$full"))}"
   swap_to "$IMAGE:$tag"
+  refresh_jobs_worker "$IMAGE:$tag"
 }
 
 cmd_list() {

@@ -10,7 +10,9 @@
     "postinstall": "prisma generate && node scripts/sync-prisma-client.js",
     "prisma:generate": "prisma generate && node scripts/sync-prisma-client.js",
     "trigger:dev": "trigger dev",
-    "trigger:deploy": "trigger deploy"
+    "trigger:deploy": "trigger deploy",
+    "jobs:build": "node scripts/build-jobs-worker.mjs",
+    "jobs:worker": "node --conditions=react-server dist/jobs-worker.cjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.39.9",
@@ -61,6 +63,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "inngest": "4.27.0",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
     "livekit-client": "^2.17.2",

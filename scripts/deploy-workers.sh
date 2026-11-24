@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds and (re)starts the voice and scrape workers on the server, next to the web app.
 #
-#   scripts/deploy-workers.sh                 both workers
+#   scripts/deploy-workers.sh                 all workers
 #   scripts/deploy-workers.sh voice-agent     just one (or: scrape-agent)
 #   scripts/deploy-workers.sh status          what's running, health and recent logs
 #
@@ -26,7 +26,7 @@ compose() { d compose --env-file "$ENV_FILE" -f deploy/workers.compose.yml "$@";
 
 if [[ "${1:-}" == "status" ]]; then
   compose ps
-  for name in sts-voice-agent sts-scrape-agent; do
+  for name in sts-voice-agent sts-scrape-agent sts-jobs-worker; do
     log "$name (last 5 log lines)"
     d logs --tail 5 "$name" 2>&1 || true
   done
@@ -35,7 +35,7 @@ fi
 
 d network inspect "$NETWORK" >/dev/null 2>&1 || { log "Creating network $NETWORK"; d network create "$NETWORK" >/dev/null; }
 
-log "Building and starting ${*:-both workers} on '$CONTEXT'"
+log "Building and starting ${*:-all workers} on '$CONTEXT'"
 compose up -d --build --remove-orphans "$@"
 
 log "Waiting for health checks"
@@ -52,6 +52,13 @@ for name in sts-voice-agent sts-scrape-agent; do
     sleep 5
   done
 done
+
+# The jobs worker has no health endpoint: check it is running and show what it said.
+if [[ $# -eq 0 || " $* " == *" jobs-worker "* ]]; then
+  sleep 5
+  [[ "$(d inspect -f '{{.State.Running}}' sts-jobs-worker 2>/dev/null)" == "true" ]] || { d logs --tail 40 sts-jobs-worker >&2 || true; die "sts-jobs-worker is not running"; }
+  log "sts-jobs-worker is running: $(d logs --tail 1 sts-jobs-worker 2>&1)"
+fi
 
 if ! d inspect -f '{{json .NetworkSettings.Networks}}' sts-ai 2>/dev/null | grep -q "\"$NETWORK\""; then
   printf '\033[33mNote:\033[0m the app container is not on %s yet; run scripts/deploy.sh (it joins it).\n' "$NETWORK" >&2

@@ -8,13 +8,15 @@ import { SETUP_LINKS } from '@/lib/integrations/setupLinks'
 import { loadTriggerSettings } from '@/lib/jobs/triggerSettings'
 import { isPlatformOwner } from '@/lib/platform/platformOwner'
 import { TriggerSettingsBox } from '../_components/TriggerSettingsBox'
+import { JobRunnerBox } from '../_components/JobRunnerBox'
+import { activeJobProvider, loadInngestStatus } from '@/lib/jobs/jobProvider'
 
 /** trigger.dev runs the platform's background jobs. Only platform owners see this page. */
 export default async function TriggerIntegrationPage() {
   const auth = await onAuthenticateUser()
   if (!auth.user) redirect('/sign-in')
   if (!isPlatformOwner(auth.user.email)) redirect('/integrations')
-  const settings = await loadTriggerSettings()
+  const [settings, active, inngestStatus] = await Promise.all([loadTriggerSettings(), activeJobProvider(), loadInngestStatus()])
 
   return (
     <PageViewport scrollable>
@@ -24,13 +26,22 @@ export default async function TriggerIntegrationPage() {
           Integrations
         </Link>
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">trigger.dev</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Background jobs</h1>
           <p className="text-muted-foreground text-sm">
-            Runs the daily lead jobs for every creator. Only platform owners see this page.
+            trigger.dev and Inngest can both run every creator&apos;s scheduled jobs. Only platform owners see this page.
           </p>
         </div>
+        <JobRunnerBox
+          active={active}
+          triggerReady={settings.source !== 'none'}
+          triggerEnvironment={settings.environment}
+          inngest={inngestStatus}
+        />
+        <h2 className="pt-2 text-base font-semibold">trigger.dev</h2>
         <SetupLinks links={SETUP_LINKS.trigger.links} note={SETUP_LINKS.trigger.note} />
         <TriggerSettingsBox settings={settings} />
+        <h2 className="pt-2 text-base font-semibold">Inngest</h2>
+        <SetupLinks links={SETUP_LINKS.inngest.links} note={SETUP_LINKS.inngest.note} />
       </div>
     </PageViewport>
   )

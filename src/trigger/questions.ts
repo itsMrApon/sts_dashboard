@@ -1,5 +1,6 @@
 import { logger, schedules, task } from '@trigger.dev/sdk'
 import { listQuestionCreators, runQuestionsForCreator } from '@/lib/questions/collectQuestions'
+import { skippedUnlessTrigger } from './activeProvider'
 
 /** Groups one creator's customer questions. Uses that creator's own Gemini key. */
 export const questionsForCreator = task({
@@ -19,6 +20,8 @@ export const questionsWeekly = schedules.task({
   id: 'questions-weekly',
   cron: '0 2 * * 1',
   run: async () => {
+    const skipped = await skippedUnlessTrigger()
+    if (skipped) return skipped
     const creators = await listQuestionCreators()
     if (creators.length > 0) {
       await questionsForCreator.batchTrigger(creators.map((userId) => ({ payload: { userId } })))

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { ExternalLink, Play, PlugZap } from 'lucide-react'
+import { ExternalLink, PlugZap } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   clearTriggerDevSettings,
-  runDailyLeadJobsNow,
   saveTriggerDevSettings,
   testTriggerDevConnection,
 } from '@/actions/triggerDev'
@@ -41,16 +40,15 @@ export function TriggerSettingsBox({ settings }: { settings: TriggerSettings }) 
   const [pending, startTransition] = useTransition()
   const [secretKey, setSecretKey] = useState('')
   const [projectRef, setProjectRef] = useState('')
-  const [lastRunId, setLastRunId] = useState<string | null>(null)
   const connected = settings.source !== 'none'
 
-  const run = (action: () => ReturnType<typeof testTriggerDevConnection>, fallback: string, after?: (runId?: string) => void) =>
+  const run = (action: () => ReturnType<typeof testTriggerDevConnection>, fallback: string, after?: () => void) =>
     startTransition(
       guardAction(async () => {
         const result = await action()
         if (result.ok) {
           toast.success(result.message ?? fallback)
-          after?.(result.runId)
+          after?.()
           router.refresh()
         } else toast.error(result.error)
       }),
@@ -146,10 +144,8 @@ export function TriggerSettingsBox({ settings }: { settings: TriggerSettings }) 
 
       <section className="space-y-3 rounded-xl border bg-card p-5">
         <div>
-          <h2 className="font-medium">Jobs</h2>
-          <p className="text-muted-foreground text-sm">
-            The daily lead jobs run on their own at 01:00 UTC. Start them now to test, or to catch up after a change.
-          </p>
+          <h2 className="font-medium">Check trigger.dev</h2>
+          <p className="text-muted-foreground text-sm">Makes sure the key above opens your trigger.dev project.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -161,14 +157,6 @@ export function TriggerSettingsBox({ settings }: { settings: TriggerSettings }) 
             <PlugZap className="mr-1.5 size-4" aria-hidden />
             Test connection
           </Button>
-          <Button
-            size="sm"
-            disabled={pending || !connected}
-            onClick={() => run(() => runDailyLeadJobsNow(), 'Jobs started', (runId) => setLastRunId(runId ?? null))}
-          >
-            <Play className="mr-1.5 size-4" aria-hidden />
-            Run now
-          </Button>
           <Button size="sm" variant="ghost" asChild>
             <a href={dashboardUrl} target="_blank" rel="noopener noreferrer">
               Open trigger.dev
@@ -176,11 +164,6 @@ export function TriggerSettingsBox({ settings }: { settings: TriggerSettings }) 
             </a>
           </Button>
         </div>
-        {lastRunId ? (
-          <p className="text-muted-foreground text-sm">
-            Started run <span className="font-mono">{lastRunId}</span>. Follow it in the trigger.dev dashboard.
-          </p>
-        ) : null}
       </section>
 
       <section className="space-y-2 rounded-xl border bg-card p-5 text-sm">

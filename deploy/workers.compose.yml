@@ -43,6 +43,23 @@ services:
       - "127.0.0.1:8100:8100"
     networks: [sts]
 
+  # The Inngest worker: runs the background jobs when Inngest is the active job runner
+  # (Integrations → Background jobs). Same image and settings as the web app, other command.
+  # It connects out to Inngest, so it needs no port and nothing passes through the tunnel.
+  # scripts/deploy.sh recreates it after each app deploy so it always runs the new code.
+  jobs-worker:
+    # scripts/deploy.sh sets JOBS_IMAGE to the app's live image (sts-ai:<sha>).
+    image: ${JOBS_IMAGE:-sts-ai:latest}
+    container_name: sts-jobs-worker
+    restart: unless-stopped
+    command: ["node", "--conditions=react-server", "dist/jobs-worker.cjs"]
+    env_file: ../.env.production
+    environment:
+      INNGEST_CONNECT_INSTANCE_ID: sts-jobs-worker
+    init: true
+    mem_limit: 1g
+    networks: [sts]
+
 networks:
   sts:
     name: sts-net

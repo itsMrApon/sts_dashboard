@@ -208,8 +208,8 @@ export function PartnersIntro({
               description="Settings for all of sts-ai. Only platform owners see this group."
             />
             <IntegrationCard
-              title="trigger.dev"
-              description="Runs the daily lead jobs for every creator"
+              title="Background jobs"
+              description="trigger.dev or Inngest runs every creator's scheduled jobs"
               link="/integrations/trigger"
               cta={triggerDev.connected ? 'Manage' : 'Set up'}
               badge={triggerDev.connected ? 'Connected' : undefined}

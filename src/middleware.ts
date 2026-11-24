@@ -9,6 +9,8 @@ const isPublicRoute = createRouteMatcher([
   '/speak/:roomName',
   '/form/:roomName',
   '/business/:roomName',
+  // The Docs checklist, printable or saved as a PDF by the browser.
+  '/business/:roomName/documents',
   // Live link: waiting room and the live session room.
   '/live/:slug',
   '/live/:slug/room',

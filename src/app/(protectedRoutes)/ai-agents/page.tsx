@@ -5,7 +5,7 @@ import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import { LOOK_KEYS, isAssistantService, type AssistantService } from '@/lib/agents/assistantServices'
 import { describeEngine, engineSpeaksBangla } from '@/lib/agents/engineOptions'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
-import { isSmtpConfigured } from '@/lib/services/formSubmit'
+import { canSendEmail } from '@/lib/email/sendEmail'
 import { sanitizeChatConfig, sanitizeFormConfig, sanitizeSpeakConfig } from '@/lib/services/types'
 import { getOrCreateBusinessWizard } from '@/lib/wizard/wizardRepo'
 import { loadServicesContext } from '../services/_lib/servicesContext'
@@ -88,7 +88,7 @@ export default async function AiAgentsPage({ searchParams }: Props) {
         voiceLabel={engineSummary ? `${engineSummary.voice} · ${engineSummary.voiceProvider}` : 'Default voice'}
         voiceSpeaksBangla={engineView ? engineSpeaksBangla(engineView.engine) : false}
         ownerEmail={user.email ?? ''}
-        emailReady={isSmtpConfigured()}
+        emailReady={await canSendEmail(user.id)}
       />
     </PageViewport>
   )

@@ -61,6 +61,8 @@ export async function runReviewRequests(baseUrl: string, now = new Date()): Prom
         if (!isDeliverableEmail(contact?.email)) continue
         const businessName = business?.name ?? 'us'
         const sent = await sendPlainEmail({
+          userId: setting.userId,
+          fromName: business?.name,
           to: contact.email,
           replyTo: owner?.email,
           subject: `How was it? A quick review for ${businessName}`,

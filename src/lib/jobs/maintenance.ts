@@ -53,7 +53,7 @@ export async function sendWebinarReminders(baseUrl: string, now = new Date()) {
         webinarStatus: 'SCHEDULED',
         startTime: { gte: new Date(window.from), lte: new Date(window.to) },
       },
-      select: { id: true, title: true, slug: true, startTime: true, presenter: { select: { email: true } } },
+      select: { id: true, title: true, slug: true, startTime: true, presenterId: true, presenter: { select: { email: true, name: true } } },
     })
     for (const webinar of webinars) {
       const attendances = await prismaClient.attendance.findMany({
@@ -65,6 +65,8 @@ export async function sendWebinarReminders(baseUrl: string, now = new Date()) {
         if (!isDeliverableEmail(attendee.email)) continue
         if (!(await claimOnce(`reminder:${window.kind}:${webinar.id}:${attendee.id}`))) continue
         const ok = await sendPlainEmail({
+          userId: webinar.presenterId,
+          fromName: webinar.presenter.name,
           to: attendee.email,
           replyTo: webinar.presenter.email,
           subject: `Reminder: ${webinar.title} starts ${window.label}`,

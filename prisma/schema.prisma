@@ -50,6 +50,7 @@ model User {
   reviews                    Review[]
   reviewSettings             ReviewSettings?
   instagramConnection        InstagramConnection?
+  emailConnection            EmailConnection?
   instagramCampaigns         InstagramCampaign[]
   /// Platform packages: "Setup & Integrate" ($49 one-time) and "Run My Business" ($499/month).
   /// `subscription` stays the single access flag and is derived from these.
@@ -1481,4 +1482,27 @@ model InstagramDmJob {
   @@unique([campaignId, commentId])
   @@index([status, nextAttemptAt])
   @@index([userId, commenterId])
+}
+
+/// The creator's own outgoing email (SMTP). Form answers, callback requests, review requests and
+/// webinar reminders send from it; without one the platform's SMTP_* account is used.
+model EmailConnection {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @unique @db.Uuid
+  /// gmail, outlook, zoho, brevo, resend or custom: only picks the hints shown.
+  provider    String    @default("custom") @db.VarChar(16)
+  host        String    @db.VarChar(255)
+  port        Int       @default(587)
+  /// true for port 465 (SSL from the start); false uses STARTTLS on 587.
+  secure      Boolean   @default(false)
+  username    String    @db.VarChar(255)
+  passwordEnc String
+  fromEmail   String    @db.VarChar(255)
+  fromName    String?   @db.VarChar(120)
+  verifiedAt  DateTime?
+  lastError   String?   @db.VarChar(500)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

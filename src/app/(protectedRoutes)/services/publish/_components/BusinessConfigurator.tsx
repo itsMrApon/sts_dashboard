@@ -269,7 +269,18 @@ export function BusinessConfigurator({
             <ServicesSection {...sectionProps} />
           </>
         ) : null}
-        {section === 'docs' ? <DocsSection {...sectionProps} /> : null}
+        {section === 'docs' ? (
+          <>
+            <DocsSection {...sectionProps} />
+            <p className="text-xs text-muted-foreground">
+              Customers can print these as a checklist or save it as a PDF:{' '}
+              <a href={`${publicHref}/documents`} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">
+                open the printable page
+              </a>
+              . It shows what is published.
+            </p>
+          </>
+        ) : null}
         {section === 'live' ? <LiveSection {...sectionProps} sessions={liveSessions} /> : null}
         {section === 'keyDates' ? <KeyDatesSection {...sectionProps} /> : null}
       </StudioSection>

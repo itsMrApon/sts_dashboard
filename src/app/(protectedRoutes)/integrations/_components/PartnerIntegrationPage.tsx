@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { SetupLinks } from '@/components/integrations/SetupLinks'
+import { setupLinksFor } from '@/lib/integrations/setupLinks'
 import { useRouter } from 'next/navigation'
 import { Activity, KeyRound, Link2, Trash2 } from 'lucide-react'
 import { toast } from '@/lib/toast'
@@ -346,6 +348,11 @@ export function PartnerIntegrationPage({
         featuresDescription={guide.constraintsBody}
         features={features}
       />
+      {setupLinksFor(guide.kind) ? (
+        <div className="mx-auto w-full max-w-3xl px-6 pb-10 md:px-12">
+          <SetupLinks links={setupLinksFor(guide.kind)?.links ?? []} note={setupLinksFor(guide.kind)?.note} />
+        </div>
+      ) : null}
     </PageViewport>
   )
 }

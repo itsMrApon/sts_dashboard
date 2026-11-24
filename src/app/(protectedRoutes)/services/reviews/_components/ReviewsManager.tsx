@@ -176,7 +176,11 @@ export function ReviewsManager({ reviews, settings, baseUrl }: Props) {
           <Button size="sm" variant="secondary" disabled={pending} onClick={() => run(() => saveReviewSettings({ autoRequest, delayDays: Number(delayDays) }), 'Saved')}>
             Save
           </Button>
-          <p className="text-xs text-muted-foreground">Needs the buyer&apos;s email and email (SMTP) set up on the server. Otherwise the link waits here for you to copy.</p>
+          <p className="text-xs text-muted-foreground">Needs the buyer&apos;s email and your email connected in{' '}
+            <a href="/integrations/email" className="underline">
+              Integrations → Email
+            </a>
+            . Otherwise the link waits here for you to copy.</p>
         </section>
       </aside>
     </div>

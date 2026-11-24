@@ -229,7 +229,12 @@ export function FormConfigurator(props: Props) {
           {!emailReady ? (
             <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              Email (SMTP) isn&apos;t set up, so answers can&apos;t be delivered yet.
+              <span>
+                Email isn&apos;t set up, so answers can&apos;t be delivered yet.{' '}
+                <a href="/integrations/email" className="font-medium underline">
+                  Connect your email
+                </a>
+              </span>
             </p>
           ) : null}
         </>
@@ -460,9 +465,11 @@ export function FormConfigurator(props: Props) {
           <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
             <span>
-              Email (SMTP) isn&apos;t set up on the server, so submissions can&apos;t be delivered and visitors will see an
-              error. Add <code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code> and <code>SMTP_FROM</code> to the
-              environment.
+              Email isn&apos;t set up, so submissions can&apos;t be delivered and visitors will see an error.{' '}
+              <a href="/integrations/email" className="font-medium underline">
+                Connect your email in Integrations
+              </a>{' '}
+              (Gmail, Zoho, Brevo, Resend or any SMTP).
             </span>
           </p>
         ) : null}

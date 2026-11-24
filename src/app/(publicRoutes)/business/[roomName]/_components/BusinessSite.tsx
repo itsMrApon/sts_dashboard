@@ -8,6 +8,8 @@ import { accentHex } from '@/lib/services/types'
 import { cn } from '@/lib/utils'
 
 type Props = {
+  /** The printable Docs checklist; shown when any document is listed. */
+  documentsHref?: string
   businessName: string
   description: string | null
   content: BusinessSiteContent
@@ -45,7 +47,7 @@ function platformLabel(platform: string): string {
 }
 
 /** The published business website: hero, services, offers, key dates, social and footer. */
-export function BusinessSite({ businessName, description, content, offers, links, answers = [], reviews = [] }: Props) {
+export function BusinessSite({ businessName, description, content, offers, links, answers = [], reviews = [], documentsHref }: Props) {
   const services = content.services.filter((service) => service.active)
   const dates = upcoming(content.keyDates)
   const serviceName = new Map(content.services.map((service) => [service.id, service.name]))
@@ -133,9 +135,17 @@ export function BusinessSite({ businessName, description, content, offers, links
 
       {show.services && services.length > 0 ? (
         <section data-sts-step="services" className={SECTION} aria-labelledby="services-title">
-          <h2 id="services-title" className={SECTION_TITLE}>
-            Services
-          </h2>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="services-title" className={SECTION_TITLE}>
+              Services
+            </h2>
+            {documentsHref && content.docs.some((doc) => doc.name.trim() || doc.formCode.trim()) ? (
+              <a href={documentsHref} className="flex items-center gap-1 text-xs text-zinc-300 underline-offset-2 hover:underline">
+                <FileText className="h-3.5 w-3.5" aria-hidden />
+                Documents checklist (print or PDF)
+              </a>
+            ) : null}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {services.map((service) => (
               <article key={service.id} className={`${CARD} flex flex-col gap-2`}>

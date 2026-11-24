@@ -4,7 +4,11 @@ import { ArrowLeft } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import { prismaClient } from '@/lib/prismaClient'
-import { instagramAppConfig } from '@/lib/instagram/graph'
+import { instagramAppConfig, instagramRedirectUri } from '@/lib/instagram/graph'
+import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
+import { isPlatformOwner } from '@/lib/platform/platformOwner'
+import { SetupLinks } from '@/components/integrations/SetupLinks'
+import { SETUP_LINKS } from '@/lib/integrations/setupLinks'
 import { InstagramSettings } from '../_components/InstagramSettings'
 
 type Props = { searchParams: Promise<{ connected?: string; error?: string }> }
@@ -29,6 +33,9 @@ export default async function InstagramIntegrationPage({ searchParams }: Props) 
     prismaClient.instagramCampaign.findMany({ where: { userId: auth.user.id }, orderBy: { createdAt: 'desc' } }),
   ])
 
+  const owner = isPlatformOwner(auth.user.email)
+  const baseUrl = (publicBaseUrl() || process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '')
+
   return (
     <PageViewport scrollable>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 py-2">
@@ -44,6 +51,20 @@ export default async function InstagramIntegrationPage({ searchParams }: Props) 
         </div>
         {query.error ? <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm">{ERRORS[query.error] ?? 'Something went wrong.'}</p> : null}
         {query.connected ? <p className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm">Instagram connected.</p> : null}
+        <SetupLinks links={SETUP_LINKS.instagram.links} note={SETUP_LINKS.instagram.note} />
+        {owner ? (
+          <div className="space-y-2">
+            <SetupLinks title="Platform owner: the Meta app" links={SETUP_LINKS.instagramPlatform.links} note={SETUP_LINKS.instagramPlatform.note} />
+            <dl className="grid gap-1 rounded-xl border bg-card p-4 text-xs">
+              <dt className="text-muted-foreground">OAuth redirect address</dt>
+              <dd className="break-all font-mono">{instagramRedirectUri(baseUrl)}</dd>
+              <dt className="mt-2 text-muted-foreground">Webhook callback address (fields: comments, messages)</dt>
+              <dd className="break-all font-mono">{baseUrl}/api/instagram/webhook</dd>
+              <dt className="mt-2 text-muted-foreground">Server settings</dt>
+              <dd className="font-mono">INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_WEBHOOK_VERIFY_TOKEN</dd>
+            </dl>
+          </div>
+        ) : null}
         <InstagramSettings
           configured={Boolean(instagramAppConfig())}
           connection={

@@ -1,52 +1,7 @@
 import 'server-only'
-import nodemailer from 'nodemailer'
 import { prismaClient } from '@/lib/prismaClient'
+import { canSendEmail, sendPlainEmail } from '@/lib/email/sendEmail'
 import { FORM_HONEYPOT_FIELD, validateFormValues, type FormServiceConfig } from '@/lib/services/types'
-
-const SMTP_TIMEOUT_MS = 15_000
-
-function smtpSettings() {
-  const host = process.env.SMTP_HOST
-  const port = Number(process.env.SMTP_PORT || 587)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-  const from = process.env.SMTP_FROM || user
-  const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true'
-  if (!host || !user || !pass || !from || Number.isNaN(port)) return null
-  return { host, port, user, pass, from, secure }
-}
-
-export function isSmtpConfigured(): boolean {
-  return smtpSettings() !== null
-}
-
-/** Sends a plain-text notification to the business owner. Returns false when SMTP is not configured. */
-export async function sendOwnerEmail(input: {
-  to: string
-  subject: string
-  text: string
-  /** Lets the owner hit Reply to answer the visitor directly. */
-  replyTo?: string
-}): Promise<boolean> {
-  const smtp = smtpSettings()
-  if (!smtp) return false
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: { user: smtp.user, pass: smtp.pass },
-    connectionTimeout: SMTP_TIMEOUT_MS,
-    socketTimeout: SMTP_TIMEOUT_MS,
-  })
-  await transporter.sendMail({
-    from: smtp.from,
-    to: input.to,
-    subject: input.subject,
-    text: input.text,
-    replyTo: input.replyTo,
-  })
-  return true
-}
 
 export type FormSubmitResult =
   | { ok: true; message: string }
@@ -148,7 +103,7 @@ export async function submitBusinessForm(input: {
     }
   }
   if (!to) return deliveryFailed('no email address to send submissions to')
-  if (!isSmtpConfigured()) return deliveryFailed('email (SMTP) is not set up on the server')
+  if (!(await canSendEmail(input.ownerUserId))) return deliveryFailed('email (SMTP) is not set up: add it in Integrations → Email')
 
   const answered = input.config.fields.filter((field) => checked.values[field.id])
   const visitorEmail = answered.find((field) => field.type === 'email')
@@ -162,12 +117,15 @@ export async function submitBusinessForm(input: {
   ].join('\n')
 
   try {
-    await sendOwnerEmail({
+    const sent = await sendPlainEmail({
+      userId: input.ownerUserId,
+      fromName: input.businessName,
       to,
       subject: `${input.config.title} · ${input.businessName}`,
       text,
       replyTo: visitorEmail ? checked.values[visitorEmail.id] : undefined,
     })
+    if (!sent) return deliveryFailed(`${to} is not an address email can be sent to`)
   } catch (error) {
     return deliveryFailed(error instanceof Error ? error.message : 'the email server refused the message')
   }

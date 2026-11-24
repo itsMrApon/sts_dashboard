@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import { SetupLinks } from '@/components/integrations/SetupLinks'
+import { SETUP_LINKS } from '@/lib/integrations/setupLinks'
 import { loadTriggerSettings } from '@/lib/jobs/triggerSettings'
 import { isPlatformOwner } from '@/lib/platform/platformOwner'
 import { TriggerSettingsBox } from '../_components/TriggerSettingsBox'
@@ -27,6 +29,7 @@ export default async function TriggerIntegrationPage() {
             Runs the daily lead jobs for every creator. Only platform owners see this page.
           </p>
         </div>
+        <SetupLinks links={SETUP_LINKS.trigger.links} note={SETUP_LINKS.trigger.note} />
         <TriggerSettingsBox settings={settings} />
       </div>
     </PageViewport>

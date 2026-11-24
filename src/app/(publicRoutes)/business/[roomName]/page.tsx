@@ -166,6 +166,7 @@ export default async function BusinessServicePage({ params }: Props) {
             links={loaded.links}
             answers={answers}
             reviews={reviews}
+            documentsHref={`/business/${encodeURIComponent(business.roomName)}/documents`}
           />
         )}
       </BusinessRoom>

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 import { prismaClient } from '@/lib/prismaClient'
 import { EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import {
@@ -8,21 +7,7 @@ import {
   jsonWithCors,
 } from '@/lib/embed/embedRouteGuard'
 import { resolveRoomOwnerUserId } from '@/lib/messages/resolveRoomOwnerUserId'
-
-function getSmtpTransport() {
-  const host = process.env.SMTP_HOST
-  const port = Number(process.env.SMTP_PORT || 587)
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-  const from = process.env.SMTP_FROM || user
-  const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true'
-
-  if (!host || !user || !pass || !from || Number.isNaN(port)) {
-    return null
-  }
-
-  return { host, port, user, pass, from, secure }
-}
+import { canSendEmail, sendPlainEmail } from '@/lib/email/sendEmail'
 
 export async function OPTIONS(
   req: Request,
@@ -82,19 +67,14 @@ export async function POST(
       )
     }
 
-    const smtp = getSmtpTransport()
-    if (!smtp) {
+    const ownerUserId = await resolveRoomOwnerUserId(agent.id, roomName)
+    if (!(await canSendEmail(ownerUserId))) {
       return jsonWithCors(
-        {
-          ok: false,
-          error: 'Email delivery is not configured. Set SMTP_HOST/PORT/USER/PASS/FROM.',
-        },
+        { ok: false, error: 'Email delivery is not set up for this business yet.' },
         guard.corsHeaders,
         { status: 503 },
       )
     }
-
-    const ownerUserId = await resolveRoomOwnerUserId(agent.id, roomName)
     const owner = ownerUserId
       ? await prismaClient.user.findUnique({
           where: { id: ownerUserId },
@@ -112,18 +92,9 @@ export async function POST(
     }
 
     const now = new Date().toISOString()
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: smtp.secure,
-      auth: {
-        user: smtp.user,
-        pass: smtp.pass,
-      },
-    })
-
-    await transporter.sendMail({
-      from: smtp.from,
+    await sendPlainEmail({
+      userId: ownerUserId,
+      fromName: agent.name,
       to,
       subject: `Callback request · ${agent.name} (${roomName})`,
       text: [

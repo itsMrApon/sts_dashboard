@@ -29,6 +29,8 @@ type Props = {
   whatsApp?: string | null
   /** The connected Instagram username. */
   instagram?: string | null
+  /** The creator's own sending address (Integrations → Email). */
+  email?: string | null
 }
 
 function introKind(kind: string): string {
@@ -45,6 +47,7 @@ export function PartnersIntro({
   triggerDev = null,
   whatsApp = null,
   instagram = null,
+  email = null,
 }: Props) {
   const connectedKinds = new Set(connectedPartners.map((partner) => introKind(partner.kind)))
   const partnersHref = (kind: string) => {
@@ -118,6 +121,15 @@ export function PartnersIntro({
           badge={instagram ? 'Connected' : undefined}
         >
           <PartnerLogo kind="instagram" />
+        </IntegrationCard>
+        <IntegrationCard
+          title="Email"
+          description={email ? `Form answers, reviews and reminders send from ${email}` : 'Send form answers, review requests and reminders from your own address'}
+          link="/integrations/email"
+          cta={email ? 'Manage' : 'Set up'}
+          badge={email ? 'Connected' : undefined}
+        >
+          <PartnerLogo kind="email" />
         </IntegrationCard>
 
         <IntegrationGroupHeading

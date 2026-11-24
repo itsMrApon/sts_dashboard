@@ -31,9 +31,10 @@ const page = async () => {
     }),
     loadLeadConnectionSettings(auth.user.id),
   ])
-  const [whatsAppRow, instagramRow] = await Promise.all([
+  const [whatsAppRow, instagramRow, emailRow] = await Promise.all([
     prismaClient.whatsAppConnection.findUnique({ where: { userId: auth.user.id }, select: { displayPhone: true } }),
     prismaClient.instagramConnection.findUnique({ where: { userId: auth.user.id }, select: { username: true } }),
+    prismaClient.emailConnection.findUnique({ where: { userId: auth.user.id }, select: { fromEmail: true } }),
   ])
   const triggerDev = isPlatformOwner(auth.user.email)
     ? { connected: (await loadTriggerSettings()).source !== 'none' }
@@ -58,6 +59,7 @@ const page = async () => {
       triggerDev={triggerDev}
       whatsApp={whatsAppRow ? whatsAppRow.displayPhone || 'Connected' : null}
       instagram={instagramRow ? instagramRow.username || 'your account' : null}
+      email={emailRow?.fromEmail ?? null}
     />
   )
 }

@@ -145,7 +145,17 @@ export function InstagramLogo() {
   )
 }
 
+export function EmailLogo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="text-indigo-500" aria-hidden>
+      <rect x="2.5" y="5" width="19" height="14" rx="3" fill="currentColor" />
+      <path d="m5.5 8.5 6.5 4.8 6.5-4.8" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 const PARTNER_LOGOS: Record<string, ComponentType> = {
+  email: EmailLogo,
   trigger: TriggerDevLogo,
   instagram: InstagramLogo,
   whatsapp: WhatsAppLogo,

@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import { SetupLinks } from '@/components/integrations/SetupLinks'
+import { SETUP_LINKS } from '@/lib/integrations/setupLinks'
 import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
 import { loadWhatsAppConnectionView, webhookUrl } from '@/lib/whatsapp/connection'
 import { WhatsAppSettings } from '../_components/WhatsAppSettings'
@@ -27,6 +29,7 @@ export default async function WhatsAppIntegrationPage() {
             Customers message your own WhatsApp number and your Chat AI answers them. Uses your Kapso project and your keys.
           </p>
         </div>
+        <SetupLinks links={SETUP_LINKS.whatsapp.links} note={SETUP_LINKS.whatsapp.note} />
         <WhatsAppSettings view={view} webhookAddress={view.webhookToken ? webhookUrl(baseUrl, view.webhookToken) : null} />
       </div>
     </PageViewport>

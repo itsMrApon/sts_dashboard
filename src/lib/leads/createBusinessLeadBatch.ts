@@ -10,7 +10,6 @@ import { searchSerperMaps } from '@/lib/leads/serperMaps'
 import { scrapeLeadWebsitesManaged } from '@/lib/leads/scrapeAgentSupervisor'
 
 export const BUSINESS_BATCH_SIZE = 10
-export const LEAD_BATCH_HISTORY_DAYS = 7
 
 export type CreateBusinessLeadBatchResult = {
   batchId: string
@@ -40,32 +39,12 @@ export async function hasCronBatchToday(userId: string): Promise<boolean> {
   return Boolean(existing)
 }
 
-export async function pruneOldLeadSearchBatches(userId: string): Promise<void> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - LEAD_BATCH_HISTORY_DAYS)
-
-  const oldBatches = await prismaClient.leadSearchBatch.findMany({
-    where: { userId, createdAt: { lt: cutoff } },
-    select: { id: true },
-  })
-  if (oldBatches.length === 0) return
-
-  const ids = oldBatches.map((b) => b.id)
-  await prismaClient.callIntelLead.updateMany({
-    where: { userId, searchBatchId: { in: ids } },
-    data: { searchBatchId: null },
-  })
-  await prismaClient.leadSearchBatch.deleteMany({
-    where: { id: { in: ids } },
-  })
-}
-
+/** Batches for the List's batch menu. Old batches and their leads are kept; the menu shows the last 30. */
 export async function listRecentLeadSearchBatches(userId: string) {
-  await pruneOldLeadSearchBatches(userId)
   const batches = await prismaClient.leadSearchBatch.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
-    take: LEAD_BATCH_HISTORY_DAYS,
+    take: 30,
     select: {
       id: true,
       location: true,
@@ -105,8 +84,6 @@ export async function createBusinessLeadBatch(options: {
     throw new Error('Location and niche are required')
   }
   const shouldScrape = options.scrape !== false
-
-  await pruneOldLeadSearchBatches(options.userId)
 
   // Fetch a wider pool so we can skip already-known / in-progress / done places
   const places = await searchSerperMaps({

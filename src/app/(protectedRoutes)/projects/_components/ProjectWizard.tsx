@@ -100,6 +100,8 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
   const editId = params.get('edit')
   const openNew = params.get('new') === '1'
   const presetType = params.get('type') === 'webinar' ? 'WEBINAR' : params.get('type') === 'product' ? 'PRODUCT' : null
+  // "Make it a new project" from General questions passes the question as a starting title.
+  const presetTitle = (params.get('title') ?? '').slice(0, 255)
   const open = Boolean(editId) || (openNew && canCreate)
 
   const [step, setStep] = useState<Step>(0)
@@ -117,7 +119,7 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
 
   const close = useCallback(() => {
     const next = new URLSearchParams(params.toString())
-    for (const key of ['new', 'edit', 'type']) next.delete(key)
+    for (const key of ['new', 'edit', 'type', 'title']) next.delete(key)
     router.replace(`${pathname}${next.size ? `?${next}` : ''}`, { scroll: false })
   }, [params, pathname, router])
 
@@ -160,7 +162,7 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
       return
     }
     setKind(presetType)
-    setTitle('')
+    setTitle(presetTitle)
     setDescription('')
     setThumbnail('')
     const tomorrow = new Date()

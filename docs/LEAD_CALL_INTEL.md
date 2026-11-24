@@ -59,8 +59,9 @@ GOOGLE_CLIENT_SECRET=...
 # Optional (per creator in /lead setup, or env fallback):
 # SERPER_API_KEY=...
 
-# Daily cron auth (Vercel Cron sends Authorization: Bearer …)
-CRON_SECRET=long-random-string
+# Daily jobs run on trigger.dev (see "Daily jobs" below)
+TRIGGER_SECRET_KEY=tr_dev_...
+TRIGGER_PROJECT_REF=proj_...
 
 # App URL for Fathom webhook destination
 NEXT_PUBLIC_APP_URL=https://your-domain
@@ -70,18 +71,15 @@ NEXT_PUBLIC_APP_URL=https://your-domain
 ENCRYPTION_KEY=64-char-hex
 ```
 
-## Cron
+## Daily jobs (trigger.dev)
 
-[`vercel.json`](../vercel.json) schedules:
+The old `/api/cron/lead-intel` route is gone. [`src/trigger/leadIntel.ts`](../src/trigger/leadIntel.ts)
+schedules `lead-intel-daily` at `0 1 * * *` (01:00 UTC ≈ **07:00 Asia/Dhaka**). It starts one
+`lead-intel-creator` run per creator and one `maps-batch-creator` run per creator with a Maps
+niche and location. The job logic lives in [`src/lib/leads/leadIntelJobs.ts`](../src/lib/leads/leadIntelJobs.ts).
 
-`0 1 * * *` → `GET /api/cron/lead-intel`  
-(01:00 UTC ≈ **07:00 Asia/Dhaka**)
-
-Authorize with:
-
-```http
-Authorization: Bearer $CRON_SECRET
-```
+Run locally: `npm run trigger:dev` (needs `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY`).
+Deploy: `npm run trigger:deploy`. Trigger a test run from the trigger.dev dashboard.
 
 ### What the 7am job does automatically
 
@@ -96,20 +94,10 @@ Authorization: Bearer $CRON_SECRET
 
 ### Coolify / Hostinger VPS (Docker)
 
-Vercel cron does **not** run inside Coolify. Schedule an HTTP job (Coolify “Scheduled Task”, system crontab, or Healthcheck cron) daily at **01:00 UTC**:
-
-```bash
-curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
-  https://your-domain/api/cron/lead-intel
-```
-
-App image: root [`Dockerfile`](../Dockerfile) + [`.dockerignore`](../.dockerignore). Set `CRON_SECRET`, DB, Clerk, and Gemini keys in Coolify env.
-
-Manual test:
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://your-domain/api/cron/lead-intel
-```
+No scheduled task is needed on the server: trigger.dev runs the schedule. App image: root
+[`Dockerfile`](../Dockerfile) + [`.dockerignore`](../.dockerignore). Set DB, Clerk, Gemini and
+`TRIGGER_SECRET_KEY` in Coolify env. The trigger.dev project needs the same DB, `ENCRYPTION_KEY`,
+Google and Gemini env vars, set in its dashboard.
 
 ## Matching limits
 

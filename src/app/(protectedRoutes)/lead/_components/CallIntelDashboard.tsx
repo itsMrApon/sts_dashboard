@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { toast } from '@/lib/toast'
 import {
   LeadList,
+  type LeadImportBatchOption,
   type LeadListRow,
   type LeadSearchBatchOption,
 } from './LeadList'
@@ -12,11 +13,10 @@ import {
   LeadCalendar,
   type LeadCalendarMonth,
 } from './calendar/LeadCalendar'
-import { openLeadSettings } from './leadSettingsEvents'
-import {
-  LEAD_VIEW_KEY,
-  type LeadViewMode,
-} from './LeadPageHeaderControls'
+import { openLeadIntegration } from './leadIntegrationLinks'
+import type { LeadViewMode } from './LeadPageHeaderControls'
+
+const GCAL_RECONNECT_TOAST_KEY = 'sts-gcal-reconnect-toast'
 
 type AgentOption = { id: string; name: string }
 
@@ -44,32 +44,42 @@ export type CallIntelDashboardProps = {
   agents: AgentOption[]
   leads: LeadListRow[]
   searchBatches?: LeadSearchBatchOption[]
+  importBatches?: LeadImportBatchOption[]
   calendarMonth?: LeadCalendarMonth | null
   serperConfigured: boolean
   geminiResearchReady: boolean
   googleOAuthConfigured: boolean
   hasGeminiKey: boolean
+  /** Which section is open: /lead/calendar or /lead/list. */
+  view: LeadViewMode
 }
 
 export function CallIntelDashboard(props: CallIntelDashboardProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const [view, setView] = useState<LeadViewMode>('calendar')
-
+  const pathname = usePathname()
+  const { view } = props
+  // Expired Google Calendar access: one toast per browser session, with a button that goes straight
+  // to Google to reconnect (the calendar and list both load this).
+  const gcalNeedsReconnect = Boolean(props.setup.gcalNeedsReconnect)
   useEffect(() => {
+    if (!gcalNeedsReconnect || searchParams.get('gcal')) return
     try {
-      const saved = localStorage.getItem(LEAD_VIEW_KEY)
-      if (saved === 'list' || saved === 'calendar') setView(saved)
+      if (sessionStorage.getItem(GCAL_RECONNECT_TOAST_KEY)) return
+      sessionStorage.setItem(GCAL_RECONNECT_TOAST_KEY, '1')
     } catch {
-      /* ignore */
+      /* storage blocked: show it anyway */
     }
-    const onView = (e: Event) => {
-      const next = (e as CustomEvent<LeadViewMode>).detail
-      if (next === 'list' || next === 'calendar') setView(next)
-    }
-    window.addEventListener('sts-lead-view', onView)
-    return () => window.removeEventListener('sts-lead-view', onView)
-  }, [])
+    toast.error('Google Calendar needs reconnecting', {
+      id: 'gcal-reconnect',
+      description: 'Google stopped letting the app read your calendar.',
+      duration: 10000,
+      action: {
+        label: 'Reconnect',
+        onClick: () => window.location.assign('/api/integrations/google-calendar/connect'),
+      },
+    })
+  }, [gcalNeedsReconnect, searchParams])
 
   useEffect(() => {
     const gcal = searchParams.get('gcal')
@@ -77,33 +87,41 @@ export function CallIntelDashboard(props: CallIntelDashboardProps) {
     const messages: Record<string, string> = {
       connected: 'Google Calendar connected.',
       failed: 'Could not connect Google Calendar. Try again.',
-      missing_oauth: 'Add your Google OAuth Client ID & Secret in Lead settings first.',
+      missing_oauth: 'Add your Google OAuth Client ID and secret in Integrations first.',
       no_refresh: 'Google did not return a refresh token. Try Connect again.',
+      missing_scope:
+        "Google didn't give calendar access. Connect again and tick the calendar box on Google's screen.",
       error: 'Google Calendar authorization was cancelled.',
     }
     const msg =
       messages[gcal] || (gcal === 'missing' ? 'Missing OAuth response.' : null)
     if (msg) {
       if (gcal === 'connected') {
+        try {
+          sessionStorage.removeItem(GCAL_RECONNECT_TOAST_KEY)
+        } catch {
+          /* ignore */
+        }
         toast.success(msg)
         router.refresh()
       } else {
         toast.error(msg, {
           action: {
-            label: 'Lead settings',
-            onClick: openLeadSettings,
+            label: 'Google settings',
+            onClick: () => openLeadIntegration('google'),
           },
         })
       }
     }
-    router.replace('/lead', { scroll: false })
-  }, [searchParams, router])
+    router.replace(pathname, { scroll: false })
+  }, [searchParams, router, pathname])
 
   const emptyCalendar: LeadCalendarMonth = {
     month: new Date().toISOString().slice(0, 7),
     todayBatch: null,
     activities: [],
     followUps: [],
+    latestImport: null,
     fathomMeetings: [],
     googleEvents: [],
   }
@@ -118,14 +136,9 @@ export function CallIntelDashboard(props: CallIntelDashboardProps) {
       ) : (
         <LeadList
           leads={props.leads}
-          agents={props.agents}
           searchBatches={props.searchBatches}
+          importBatches={props.importBatches}
           hasGeminiKey={props.hasGeminiKey}
-          gcalNeedsReconnect={Boolean(props.setup.gcalNeedsReconnect)}
-          googleOAuthConfigured={props.googleOAuthConfigured}
-          serperConfigured={props.serperConfigured}
-          businessLocation={props.settings?.businessLocation ?? null}
-          businessNiche={props.settings?.businessNiche ?? null}
         />
       )}
     </div>

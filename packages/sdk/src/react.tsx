@@ -3,6 +3,7 @@ import { createSts, type StsClient } from './core.js'
 import { createWizardPlayer, type WizardPlayer } from './wizardPlayer.js'
 import {
   StsError,
+  type StsAnswer,
   type StsBusiness,
   type StsBusinessService,
   type StsChatLinks,
@@ -85,6 +86,27 @@ export function useStsChat() {
     [client, status],
   )
 
+  /**
+   * Sends a file the assistant asked for to the business, then tells the assistant it arrived.
+   * Wire it to your attach button's file input (accept="application/pdf,image/*").
+   */
+  const attach = useCallback(
+    async (file: File, documentId?: string) => {
+      if (status === 'thinking') return
+      setStatus('thinking')
+      setError(null)
+      try {
+        const uploaded = await client.chat.attach(file, documentId)
+        setStatus('idle')
+        await send(uploaded.message)
+      } catch (err) {
+        setError(errorMessage(err))
+        setStatus('error')
+      }
+    },
+    [client, send, status],
+  )
+
   const chat = info?.services.chat ?? null
   return {
     /** false when Chat AI is off in the dashboard. */
@@ -92,8 +114,11 @@ export function useStsChat() {
     greeting: chat?.greeting ?? '',
     suggestions: chat?.suggestions ?? [],
     maxMessageLength: chat?.maxMessageLength ?? 1000,
+    /** Documents the assistant may ask for; show your attach button when this is not empty. */
+    documentRequests: chat?.documentRequests ?? [],
     messages,
     send,
+    attach,
     reset: () => setMessages([]),
     status,
     error: error ?? infoError,
@@ -104,26 +129,65 @@ export function useStsChat() {
 
 type SpeakState = 'idle' | 'connecting' | 'live' | 'ended' | 'error'
 
-/** Voice call over WebRTC. Requires `livekit-client` installed on your site. */
+/** One line of live captions. `final` is false while the words are still coming in. */
+export type StsCaption = { id: string; speaker: 'agent' | 'visitor'; text: string; final: boolean }
+
+const MAX_CAPTIONS = 20
+const LEVEL_INTERVAL_MS = 100
+
+type SpeakRoom = {
+  disconnect: () => Promise<void>
+  localParticipant: { setMicrophoneEnabled: (enabled: boolean) => Promise<unknown> }
+}
+
+/**
+ * Voice call over WebRTC. Requires `livekit-client` installed on your site. Headless like the
+ * chat: your designer builds the call button, mute button, captions and any animation.
+ */
 export function useStsSpeak() {
   const client = useSts()
   const [state, setState] = useState<SpeakState>('idle')
   const [isAgentSpeaking, setAgentSpeaking] = useState(false)
+  const [muted, setMutedState] = useState(false)
+  const [captions, setCaptions] = useState<StsCaption[]>([])
+  /** The AI's voice loudness, 0 to 1, about ten times a second: drive an orb or bars with it. */
+  const [agentLevel, setAgentLevel] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const roomRef = useRef<{ disconnect: () => Promise<void> } | null>(null)
+  const roomRef = useRef<SpeakRoom | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const levelTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const audioEls = useRef<HTMLMediaElement[]>([])
 
   const stop = useCallback(async () => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    if (levelTimerRef.current) clearInterval(levelTimerRef.current)
     timerRef.current = null
+    levelTimerRef.current = null
     const room = roomRef.current
     roomRef.current = null
     audioEls.current.forEach((el) => el.remove())
     audioEls.current = []
     setAgentSpeaking(false)
+    setAgentLevel(0)
+    setMutedState(false)
     if (room) await room.disconnect()
     setState((current) => (current === 'error' ? current : 'ended'))
+  }, [])
+
+  /** Mutes or unmutes the visitor's microphone during a call. */
+  const setMuted = useCallback(async (value: boolean) => {
+    const room = roomRef.current
+    if (!room) return
+    await room.localParticipant.setMicrophoneEnabled(!value)
+    setMutedState(value)
+  }, [])
+
+  const upsertCaption = useCallback((caption: StsCaption) => {
+    setCaptions((current) => {
+      const index = current.findIndex((item) => item.id === caption.id)
+      const next = index >= 0 ? current.map((item, i) => (i === index ? caption : item)) : [...current, caption]
+      return next.slice(-MAX_CAPTIONS)
+    })
   }, [])
 
   const start = useCallback(
@@ -131,6 +195,7 @@ export function useStsSpeak() {
       if (roomRef.current) return
       setState('connecting')
       setError(null)
+      setCaptions([])
       try {
         const [{ Room, RoomEvent, Track }, details] = await Promise.all([
           import('livekit-client'),
@@ -148,9 +213,25 @@ export function useStsSpeak() {
           setAgentSpeaking(speakers.some((speaker) => speaker.identity !== room.localParticipant.identity))
         })
         room.on(RoomEvent.Disconnected, () => void stop())
+        // The voice agent publishes what both sides say on the "lk.transcription" text stream.
+        room.registerTextStreamHandler('lk.transcription', async (reader, participant) => {
+          const attributes = reader.info.attributes ?? {}
+          const id = attributes['lk.segment_id'] || reader.info.id
+          const speaker = participant.identity === room.localParticipant.identity ? 'visitor' : 'agent'
+          let text = ''
+          for await (const chunk of reader) {
+            text += chunk
+            upsertCaption({ id, speaker, text, final: false })
+          }
+          upsertCaption({ id, speaker, text, final: true })
+        })
         await room.connect(details.serverUrl, details.participantToken)
         await room.localParticipant.setMicrophoneEnabled(true)
         roomRef.current = room
+        levelTimerRef.current = setInterval(() => {
+          const agent = [...room.remoteParticipants.values()][0]
+          setAgentLevel(agent ? Math.min(1, agent.audioLevel) : 0)
+        }, LEVEL_INTERVAL_MS)
         setState('live')
         timerRef.current = setTimeout(() => void stop(), details.maxCallMinutes * 60_000)
       } catch (err) {
@@ -159,12 +240,12 @@ export function useStsSpeak() {
         await stop()
       }
     },
-    [client, stop],
+    [client, stop, upsertCaption],
   )
 
   useEffect(() => () => void stop(), [stop])
 
-  return { state, start, stop, isAgentSpeaking, error }
+  return { state, start, stop, isAgentSpeaking, muted, setMuted, captions, agentLevel, error }
 }
 
 // ── Form ───────────────────────────────────────────────────────────────────
@@ -255,8 +336,8 @@ export function useStsWizard(slug?: string) {
     }
   }, [client, slug])
 
-  const start = useCallback(() => {
-    if (!wizard) return
+  const makePlayer = useCallback(() => {
+    if (!wizard) return null
     playerRef.current?.stop()
     const player = createWizardPlayer(wizard, {
       onStep: (current, index) => {
@@ -269,8 +350,45 @@ export function useStsWizard(slug?: string) {
     player.setMuted(muted)
     playerRef.current = player
     setPlaying(true)
-    player.start()
+    return player
   }, [muted, wizard])
+
+  /** The tour leads: scrolls to each section and narrates it. Call from a click handler. */
+  const start = useCallback(() => {
+    makePlayer()?.start()
+  }, [makePlayer])
+
+  /**
+   * The visitor leads: each section speaks when they scroll to it. Call from your "Start" or
+   * "Sound on" button the first time. Call again after a client-side page change.
+   */
+  const follow = useCallback(() => {
+    const player = playerRef.current ?? makePlayer()
+    player?.follow()
+  }, [makePlayer])
+
+  /** The visitor's last answer to "sound on or off", remembered per tour in this browser. */
+  const savedSound = useCallback((): 'on' | 'off' | null => {
+    if (!wizard || typeof localStorage === 'undefined') return null
+    try {
+      const value = localStorage.getItem(`sts-tour-sound:${wizard.slug}`)
+      return value === 'on' || value === 'off' ? value : null
+    } catch {
+      return null
+    }
+  }, [wizard])
+
+  const rememberSound = useCallback(
+    (choice: 'on' | 'off') => {
+      if (!wizard || typeof localStorage === 'undefined') return
+      try {
+        localStorage.setItem(`sts-tour-sound:${wizard.slug}`, choice)
+      } catch {
+        // Private windows can refuse storage; the visitor is simply asked again next time.
+      }
+    },
+    [wizard],
+  )
 
   const stop = useCallback(() => {
     playerRef.current?.stop()
@@ -286,6 +404,9 @@ export function useStsWizard(slug?: string) {
     wizard,
     ready: Boolean(wizard),
     start,
+    follow,
+    savedSound,
+    rememberSound,
     stop,
     playing,
     speaking,
@@ -315,6 +436,29 @@ export function useStsBusiness() {
     }
   }, [client])
   return { business, error }
+}
+
+/**
+ * The business's own answers to the questions customers ask most, for an FAQ block your
+ * designer styles. Pair each with `useStsChat().send(question)` for an "Ask more" button.
+ */
+export function useStsAnswers() {
+  const client = useSts()
+  const [answers, setAnswers] = useState<StsAnswer[]>([])
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    client.business
+      .answers()
+      .then((value) => active && setAnswers(value))
+      .catch((err) => active && setError(errorMessage(err)))
+      .finally(() => active && setReady(true))
+    return () => {
+      active = false
+    }
+  }, [client])
+  return { answers, ready, error }
 }
 
 export type {

@@ -1,3 +1,5 @@
+import { loadBusinessPlaybook, NO_PLAYBOOK_ERROR } from '@/lib/leads/businessPlaybook'
+import { isImportedCall } from '@/lib/leads/importedCall'
 import { Prisma } from '@prisma/client'
 import {
   cleanFathomSummaryText,
@@ -348,6 +350,8 @@ async function loadMeetingTranscript(
   userId: string,
   fathomRecordingId: string,
 ): Promise<string | null> {
+  // Imported notes have no Fathom recording; their text is already the whole call.
+  if (isImportedCall(fathomRecordingId)) return null
   const conn = await prismaClient.callIntelConnection.findUnique({
     where: { userId_provider: { userId, provider: 'FATHOM' } },
   })
@@ -370,9 +374,9 @@ async function loadMeetingTranscript(
   }
 }
 
+/** Scores a call against the business playbook (see businessPlaybook.ts) and keeps the history. */
 export async function scoreMeetingAndSave(options: {
   meetingId: string
-  agentId: string
   apiKey?: string | null
   deepScore?: boolean
 }) {
@@ -387,11 +391,8 @@ export async function scoreMeetingAndSave(options: {
   })
   if (!meeting) throw new Error('Meeting not found')
 
-  const agent = await prismaClient.liveKitAgent.findUnique({
-    where: { id: options.agentId },
-    select: { id: true, systemPrompt: true, llmModel: true },
-  })
-  if (!agent) throw new Error('Agent not found')
+  const playbook = await loadBusinessPlaybook(meeting.userId)
+  if (!playbook) throw new Error(NO_PLAYBOOK_ERROR)
 
   const apiKey =
     options.apiKey?.trim() ||
@@ -417,9 +418,9 @@ export async function scoreMeetingAndSave(options: {
   const score = await scoreSummaryVsAgent({
     summary,
     transcript,
-    systemPrompt: agent.systemPrompt || '',
+    systemPrompt: playbook.text,
     apiKey,
-    llmModel: agent.llmModel,
+    llmModel: playbook.llmModel ?? undefined,
     source,
     accountUserId: meeting.userId,
   })
@@ -446,7 +447,7 @@ export async function scoreMeetingAndSave(options: {
   const created = await prismaClient.callIntelScriptScore.create({
     data: {
       meetingId: meeting.id,
-      agentId: agent.id,
+      agentId: playbook.agentId,
       covered: score.covered,
       missed: score.missed,
       issues: score.issues,

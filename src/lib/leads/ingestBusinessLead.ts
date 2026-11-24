@@ -14,14 +14,12 @@ export async function ingestBusinessLeadForUser(options: {
   const email = syntheticBusinessEmail(place.placeId)
   const name = place.title
   const company = place.title
-  const notesParts = [
-    place.category ? `Category: ${place.category}` : null,
-    place.rating != null
-      ? `Rating: ${place.rating}${
-          place.ratingCount != null ? ` (${place.ratingCount})` : ''
-        }`
-      : null,
-  ].filter(Boolean)
+  // Category and rating have their own fields; notes stay for what the person writes.
+  const maps = {
+    mapsCategory: place.category ? place.category.slice(0, 120) : null,
+    mapsRating: place.rating ?? null,
+    mapsReviewCount: place.ratingCount ?? null,
+  }
 
   const existingByPlace = place.placeId
     ? await prismaClient.callIntelLead.findFirst({
@@ -41,7 +39,7 @@ export async function ingestBusinessLeadForUser(options: {
         address: place.address,
         placeId: place.placeId,
         source: 'BUSINESS',
-        notes: notesParts.length > 0 ? notesParts.join('\n') : undefined,
+        ...maps,
         selectedAgentId: options.defaultAgentId || undefined,
       },
     })
@@ -64,7 +62,7 @@ export async function ingestBusinessLeadForUser(options: {
         address: place.address,
         placeId: place.placeId,
         source: 'BUSINESS',
-        notes: notesParts.length > 0 ? notesParts.join('\n') : undefined,
+        ...maps,
         selectedAgentId: options.defaultAgentId || undefined,
       },
     })
@@ -82,7 +80,7 @@ export async function ingestBusinessLeadForUser(options: {
       address: place.address,
       placeId: place.placeId,
       source: 'BUSINESS',
-      notes: notesParts.length > 0 ? notesParts.join('\n') : null,
+      ...maps,
       selectedAgentId: options.defaultAgentId || null,
     },
     select: { id: true },

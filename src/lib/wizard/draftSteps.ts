@@ -72,7 +72,7 @@ export async function loadBusinessFacts(input: {
     orderBy: { updatedAt: 'desc' },
     select: { roomName: true },
   })
-  if (channel?.roomName) facts.chatUrl = `/chat/${encodeURIComponent(channel.roomName)}`
+  if (channel?.roomName) facts.chatUrl = `/business/${encodeURIComponent(channel.roomName)}#chat`
   return facts
 }
 

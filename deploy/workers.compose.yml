@@ -36,7 +36,11 @@ services:
       SCRAPE_AGENT_API_KEY: ${SCRAPE_AGENT_API_KEY:?SCRAPE_AGENT_API_KEY missing in .env.production}
     init: true
     mem_limit: 1536m
-    # No published port: only the app reaches it, at http://sts-scrape-agent:8100.
+    # The app reaches it at http://sts-scrape-agent:8100. The port is also published on the
+    # server's loopback only, so the Cloudflare tunnel can serve it as scrape.sudotechserve.com
+    # for the trigger.dev jobs. Every call still needs SCRAPE_AGENT_API_KEY.
+    ports:
+      - "127.0.0.1:8100:8100"
     networks: [sts]
 
 networks:

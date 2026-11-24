@@ -10,8 +10,8 @@ const { Spring, rnd, at, esc, lines, puff, shards, ticks, sfx, wob, dotted } = f
 
 class SakugaToast extends fx.Base {
   static css = `
-    :host { width: 236px; height: 56px; }
-    .toast { position: absolute; left: 0; bottom: 0; display: flex; align-items: flex-start; gap: 10px; width: max-content; min-width: 236px; max-width: var(--sk-toast-max, min(380px, calc(100vw - 32px))); padding: 12px 14px; border: var(--sk-bw) solid var(--sk-ink); border-radius: var(--sk-r); background: var(--sk-card); box-shadow: var(--sk-sh); font-weight: 700; font-size: 15px; visibility: hidden; will-change: transform; }
+    :host { width: 236px; height: 56px; pointer-events: none; }
+    .toast { position: absolute; left: 0; bottom: 0; display: flex; align-items: flex-start; gap: 10px; width: max-content; min-width: 236px; max-width: var(--sk-toast-max, min(380px, calc(100vw - 32px))); padding: 12px 14px; border: var(--sk-bw) solid var(--sk-ink); border-radius: var(--sk-r); background: var(--sk-card); box-shadow: var(--sk-sh); font-weight: 700; font-size: 15px; visibility: hidden; will-change: transform; pointer-events: auto; }
     .toast.on { visibility: visible; }
     .ic { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--sk-pri); border: 2.4px solid var(--sk-ink); }
     .ic svg { width: 15px; height: 15px; fill: none; stroke: var(--sk-on-pri); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }

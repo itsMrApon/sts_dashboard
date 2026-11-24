@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Gauge, MessageSquare, MessagesSquare, Palette, Plus, RotateCcw, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { Gauge, MessageSquare, MessagesSquare, Palette, Paperclip, Plus, RotateCcw, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { saveAssistantBehaviour, type AssistantSummary } from '@/actions/assistants'
 import { PublicServiceShell } from '@/app/(publicRoutes)/_components/PublicServiceShell'
@@ -21,10 +21,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  DOCUMENT_REQUEST_LIMITS,
   REPLY_LANGUAGES,
   REPLY_LENGTHS,
   SERVICE_LIMITS,
   TONES,
+  type ChatDocumentRequest,
   type ChatServiceConfig,
   type ServiceState,
 } from '@/lib/services/types'
@@ -35,8 +37,15 @@ const ASSISTANT_SECTIONS = [
   { id: 'persona', label: 'Persona' },
   { id: 'conversation', label: 'Conversation' },
   { id: 'behaviour', label: 'Behaviour' },
+  { id: 'documents', label: 'Documents' },
   { id: 'limits', label: 'Limits' },
 ]
+
+const ACCEPT_OPTIONS = [
+  { id: 'any', label: 'PDF or photo' },
+  { id: 'pdf', label: 'PDF' },
+  { id: 'image', label: 'Photo' },
+] as const
 
 type Props =
   | {
@@ -120,7 +129,7 @@ export function ChatConfigurator(props: Props) {
     setNewSuggestion('')
   }
 
-  const hostedPath = `/chat/${encodeURIComponent(roomName)}`
+  const hostedPath = `/business/${encodeURIComponent(roomName)}#chat`
   const live =
     props.mode === 'service'
       ? {
@@ -332,6 +341,86 @@ export function ChatConfigurator(props: Props) {
             rows={2}
           />
         </Field>
+      </StudioSection>
+
+      <StudioSection
+        id="documents"
+        icon={Paperclip}
+        accent="sky"
+        title="Documents"
+        description="Files the chat may ask visitors to send, such as a payment receipt. They are saved to your Google Drive, in a folder named sts-ai uploads."
+        summary={[
+          {
+            label: 'asks for',
+            value: config.documentRequests.length ? config.documentRequests.map((doc) => doc.name).join(', ') : 'nothing',
+          },
+        ]}
+      >
+        {config.documentRequests.map((doc, index) => {
+          const update = (partial: Partial<ChatDocumentRequest>) =>
+            patch({
+              documentRequests: config.documentRequests.map((item, i) => (i === index ? { ...item, ...partial } : item)),
+            })
+          return (
+            <div key={doc.id} className="space-y-3 rounded-xl border border-border p-3">
+              <div className="flex items-start gap-2">
+                <Field label="What to ask for" htmlFor={`doc-name-${doc.id}`}>
+                  <Input
+                    id={`doc-name-${doc.id}`}
+                    value={doc.name}
+                    maxLength={DOCUMENT_REQUEST_LIMITS.name}
+                    placeholder="Payment receipt"
+                    onChange={(e) => update({ name: e.target.value })}
+                  />
+                </Field>
+                <button
+                  type="button"
+                  onClick={() => patch({ documentRequests: config.documentRequests.filter((_, i) => i !== index) })}
+                  className="mt-6 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={`Remove ${doc.name || 'document'}`}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <Field label="When to ask" htmlFor={`doc-when-${doc.id}`} hint="In your words. The chat asks only at this moment.">
+                <Input
+                  id={`doc-when-${doc.id}`}
+                  value={doc.when}
+                  maxLength={DOCUMENT_REQUEST_LIMITS.when}
+                  placeholder="after they say they have paid"
+                  onChange={(e) => update({ when: e.target.value })}
+                />
+              </Field>
+              <Segmented
+                ariaLabel="File type"
+                value={doc.accept}
+                options={ACCEPT_OPTIONS}
+                onChange={(accept) => update({ accept })}
+              />
+            </div>
+          )
+        })}
+        {config.documentRequests.length < DOCUMENT_REQUEST_LIMITS.max ? (
+          <button
+            type="button"
+            onClick={() =>
+              patch({
+                documentRequests: [
+                  ...config.documentRequests,
+                  { id: `doc-${Date.now().toString(36)}`, name: '', when: '', accept: 'any' },
+                ],
+              })
+            }
+            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          >
+            <Plus className="h-4 w-4" />
+            Add a document
+          </button>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          Needs Google connected in Integrations, with Drive allowed. If you connected Google before, connect it again
+          once. Files up to 10 MB.
+        </p>
       </StudioSection>
       </>
       ) : null}

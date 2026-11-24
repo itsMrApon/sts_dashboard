@@ -116,7 +116,7 @@ export function SpeakConfigurator(props: Props) {
   const live =
     props.mode === 'service'
       ? {
-          href: `/speak/${encodeURIComponent(roomName)}`,
+          href: `/business/${encodeURIComponent(roomName)}#talk`,
           content: (
             <PublicServiceShell businessName={props.businessName} service="speak" links={{}} embedded>
               <SpeakRoom

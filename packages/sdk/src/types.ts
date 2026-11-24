@@ -63,6 +63,8 @@ export type StsChatConfig = {
   /** Show this when a reply fails. */
   fallbackMessage: string
   showHumanHandoff: boolean
+  /** Documents the assistant may ask for. Show an attach button when this is not empty. */
+  documentRequests: StsDocumentRequest[]
   accent: StsAccent
 }
 
@@ -94,6 +96,15 @@ export type StsChatLinks = {
 } | null
 
 export type StsChatReply = { reply: string; links: StsChatLinks }
+
+/** One question customers ask and the business's own answer to it. */
+export type StsAnswer = { question: string; answer: string }
+
+/** A document the chat may ask for. `accept` tells your file picker what to allow. */
+export type StsDocumentRequest = { id: string; name: string; when: string; accept: 'pdf' | 'image' | 'any' }
+
+/** A file saved to the business's Google Drive. `message` is what to send next in the chat. */
+export type StsChatUpload = { ok: true; file: { name: string; url: string | null }; message: string }
 
 export type StsSpeakConnection = {
   serverUrl: string

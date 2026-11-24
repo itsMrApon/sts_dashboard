@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   try {
     const result = await submitBusinessForm({
       ownerUserId: guard.business.userId,
+      workspaceId: guard.business.workspaceId,
       businessName: guard.business.name,
       config: form.config,
       values: body?.values,

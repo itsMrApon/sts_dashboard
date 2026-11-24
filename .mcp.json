@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "21st": {
+      "headers": {
+        "x-api-key": "${API_KEY_21ST}"
+      },
+      "type": "http",
+      "url": "https://21st.dev/api/mcp"
+    },
+    "trigger": {
+      "args": [
+        "trigger.dev@4.8.4",
+        "mcp"
+      ],
+      "command": "npx"
+    }
+  }
+}

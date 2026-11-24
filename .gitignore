@@ -50,3 +50,6 @@ cal.diy/
 __pycache__/
 *.pyc
 primeone_Insurance/
+
+# trigger.dev local build output
+.trigger

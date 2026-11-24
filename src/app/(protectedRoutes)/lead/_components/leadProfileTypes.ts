@@ -10,6 +10,8 @@ export type LeadProfileMeeting = {
   fathomUrl: string | null
   score: LeadMeetingScore | null
   scoreHistory?: LeadMeetingScore[]
+  /** Notes imported by hand (Yogurt export or typed), not from Fathom. */
+  imported?: boolean
 }
 
 export type LeadProfileData = {
@@ -22,6 +24,8 @@ export type LeadProfileData = {
   phone?: string | null
   website?: string | null
   address?: string | null
+  /** Google Maps: category, stars and review count. */
+  maps?: { category: string | null; rating: number | null; reviews: number | null } | null
   source?: 'MEETING' | 'BUSINESS'
   selectedAgentId: string | null
   lastAppointmentAt: string | null

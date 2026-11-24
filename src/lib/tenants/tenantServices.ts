@@ -8,7 +8,7 @@ export type TenantServiceId =
   | 'messages'
   | 'n8n'
   | 'firecrawl'
-  | 'chatwoot'
+  | 'openseo'
 
 export type McpKind = 'tenant' | 'medusa' | 'nextjs' | 'n8n' | 'firecrawl' | 'external'
 
@@ -21,7 +21,7 @@ export function normalizePartnerKind(kind: string): string {
   }
   if (raw === 'automate' || raw === 'workflow') return 'n8n'
   if (raw === 'erp' || raw === 'ury') return 'erpnext'
-  if (raw === 'inbox') return 'chatwoot'
+  if (raw === 'seo' || raw === 'open-seo') return 'openseo'
   return raw
 }
 
@@ -74,10 +74,9 @@ export const TENANT_SERVICE_CATALOG: TenantServiceDefinition[] = [
     mcpKind: 'firecrawl',
   },
   {
-    id: 'chatwoot',
-    label: 'Chatwoot',
-    description:
-      'Omnichannel inbox (WhatsApp, email, web chat, social) via Chatwoot REST API',
+    id: 'openseo',
+    label: 'OpenSEO',
+    description: 'Keyword research, rankings, local SEO and site audits via the creator’s OpenSEO MCP',
     mcpKind: 'external',
   },
   {
@@ -115,7 +114,7 @@ export const INBOUND_CONNECTOR_IDS: TenantServiceId[] = [
   'erpnext',
   'n8n',
   'firecrawl',
-  'chatwoot',
+  'openseo',
 ]
 
 const INBOUND_CONNECTOR_ID_SET = new Set<string>(INBOUND_CONNECTOR_IDS)
@@ -195,9 +194,8 @@ export function promptSuggestionsForServices(serviceIds: string[]): string[] {
   if (hasPartner(serviceIds, 'firecrawl')) {
     suggestions.push('Crawl the latest site pages for this tenant context.')
   }
-  if (hasPartner(serviceIds, 'chatwoot')) {
-    suggestions.push('Any new messages in Chatwoot?')
-    suggestions.push('Show WhatsApp new messages.')
+  if (hasPartner(serviceIds, 'openseo')) {
+    suggestions.push('What do people search for around my business, and how hard is each to rank for?')
   }
   if (serviceIds.includes('business-profile')) {
     suggestions.push('Summarize publishable profile for this workspace.')

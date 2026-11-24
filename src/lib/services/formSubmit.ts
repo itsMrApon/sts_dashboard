@@ -54,18 +54,58 @@ export type FormSubmitResult =
 
 const SOURCE_LABEL = { sdk: 'your website', preview: 'dashboard test', hosted: 'form page' } as const
 
+/** One saved answer: the question as the creator wrote it, and the visitor's text as typed. */
+export type SavedFormAnswer = { id: string; label: string; type: string; value: string }
+
 /**
- * Validates one Form submission and emails it to the business owner. Nothing is stored:
- * the email is the only copy, so a failed send is reported to the visitor instead of
- * pretending it went through. Shared by the SDK route, the hosted page and the dashboard test.
+ * Keeps a copy of every real submission (dashboard tests are skipped), so answers are not lost
+ * when email fails and the questions people ask can feed the project's Questions later.
+ * A failed save never blocks the email.
+ */
+async function saveSubmission(input: {
+  workspaceId: string
+  source: string
+  formTitle: string
+  answers: SavedFormAnswer[]
+  cameFrom: string | null
+}): Promise<string | null> {
+  try {
+    const row = await prismaClient.formSubmission.create({
+      data: {
+        workspaceId: input.workspaceId,
+        source: input.source,
+        fields: { formTitle: input.formTitle, answers: input.answers, cameFrom: input.cameFrom, delivered: false },
+      },
+      select: { id: true },
+    })
+    return row.id
+  } catch (error) {
+    console.error('[form] could not save submission', error)
+    return null
+  }
+}
+
+async function markDelivered(id: string, formTitle: string, answers: SavedFormAnswer[], cameFrom: string | null) {
+  await prismaClient.formSubmission
+    .update({ where: { id }, data: { fields: { formTitle, answers, cameFrom, delivered: true } } })
+    .catch((error) => console.error('[form] could not mark submission delivered', error))
+}
+
+/**
+ * Validates one Form submission, saves it, and emails it to the business owner. A failed email
+ * is still reported to the visitor (so they can try again or reach out another way), but the
+ * saved copy keeps the answers. Shared by the SDK route, the hosted page and the dashboard test.
  */
 export async function submitBusinessForm(input: {
   ownerUserId: string
+  workspaceId: string
   businessName: string
   config: FormServiceConfig
   values: unknown
   consent: boolean
   source: keyof typeof SOURCE_LABEL
+  /** Where the visitor came from (the link's `?src=` tag), already normalized. */
+  cameFrom?: string | null
 }): Promise<FormSubmitResult> {
   // Spam trap: bots fill every field, including the hidden one. Look successful, send nothing.
   const trap = (input.values as Record<string, unknown> | null)?.[FORM_HONEYPOT_FIELD]
@@ -76,6 +116,20 @@ export async function submitBusinessForm(input: {
   if (!checked.ok) {
     return { ok: false, status: 400, code: 'INVALID_FORM', error: checked.error, fieldId: checked.fieldId }
   }
+
+  const answers: SavedFormAnswer[] = input.config.fields
+    .filter((field) => checked.values[field.id])
+    .map((field) => ({ id: field.id, label: field.label, type: field.type, value: checked.values[field.id] }))
+  const savedId =
+    input.source === 'preview'
+      ? null
+      : await saveSubmission({
+          workspaceId: input.workspaceId,
+          source: input.source,
+          formTitle: input.config.title,
+          answers,
+          cameFrom: input.cameFrom ?? null,
+        })
 
   const owner = input.config.notifyEmail
     ? null
@@ -103,6 +157,7 @@ export async function submitBusinessForm(input: {
     '',
     ...answered.flatMap((field) => [field.label, `  ${checked.values[field.id]}`, '']),
     `Sent from: ${SOURCE_LABEL[input.source]}`,
+    ...(input.cameFrom ? [`Came from: ${input.cameFrom}`] : []),
     `Time: ${new Date().toUTCString()}`,
   ].join('\n')
 
@@ -117,5 +172,6 @@ export async function submitBusinessForm(input: {
     return deliveryFailed(error instanceof Error ? error.message : 'the email server refused the message')
   }
 
+  if (savedId) await markDelivered(savedId, input.config.title, answers, input.cameFrom ?? null)
   return { ok: true, message: input.config.successMessage }
 }

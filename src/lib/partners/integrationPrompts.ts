@@ -113,31 +113,29 @@ const RECIPES: Record<string, PartnerRecipe> = {
     outbound:
       'Outbound: STS chat can execute named workflows or POST `/webhook/` on the connected instance.',
   },
-  chatwoot: {
-    product: 'Chatwoot',
-    runtimes: ['Docker Desktop or Docker Engine + Compose', 'Ruby/Node local stack (fallback)'],
-    defaultUrl: 'http://localhost:3001',
+  openseo: {
+    product: 'OpenSEO',
+    runtimes: ['Docker Compose (self-hosted)', 'Cloudflare (self-hosted)'],
+    defaultUrl: 'http://localhost:3001/mcp',
     defaultPort: '3001',
     dockerCommand:
-      'git clone https://github.com/chatwoot/chatwoot.git && cd chatwoot && docker compose up -d',
+      'git clone https://github.com/every-app/open-seo && cd open-seo && export COMPOSE_FILE=deploy/standalone/compose.yaml && cp deploy/standalone/.env.example deploy/standalone/.env && docker compose up -d',
     npmCommand:
-      'pnpm install && pnpm rails db:chatwoot_prepare && pnpm vite && pnpm rails s -p 3001',
+      '# OpenSEO has no npm install. Without Docker, self-host it on Cloudflare: see docs/SELF_HOSTING_CLOUDFLARE.md in the open-seo repo.',
     detectHint:
-      'Probe http://localhost:3001. Reuse a running Chatwoot. After signup, note the numeric Account ID from the URL.',
-    healthCheck: 'Chatwoot login/dashboard loads. Then copy Profile → Access Token.',
+      'Check http://localhost:3001/api/health. If OpenSEO answers, do not reinstall. Its MCP endpoint is /mcp.',
+    healthCheck: 'GET /api/health returns ok, then the MCP initialize handshake on /mcp succeeds with the API key.',
     credentialHow:
-      'In Chatwoot: Profile → Access Token. Combine as `accountId:api_access_token` (example `1:cwt_...`).',
-    authPasteFormat: 'accountId:api_access_token',
-    authHeader: 'api_access_token: <token>  (REST path uses /api/v1/accounts/{account_id}/…)',
-    chatCommands: ['/chatwoot', '/inbox'],
+      'Sign in to OpenSEO, open Settings → API keys, create a key (starts with oseo_) and copy it once. Set DATAFORSEO_API_KEY in deploy/standalone/.env so the tools return data.',
+    authPasteFormat: 'OpenSEO API key (oseo_…), auth type Bearer',
+    authHeader: 'Authorization: Bearer <oseo_api_key>',
+    chatCommands: ['/openseo', '/seo'],
     testInChat:
-      'In STS workspace chat, run `/chatwoot` then list inboxes or unread (`chatwoot_list_inboxes`, `chatwoot_list_unread`).',
+      'In STS workspace chat, run `/seo` and ask for keyword ideas for this business. Rank trackers and site audits cost DataForSEO credits, so confirm before running them.',
     presetSync:
-      'Verify WhatsApp/Email/Website inboxes. Optionally create or label an inbox for this STS workspace. Do not delete production inboxes.',
-    inbound:
-      'Inbound: WhatsApp, email, and web conversations arrive in STS chat from Chatwoot.',
-    outbound:
-      'Outbound: STS chat can send replies back through the connected Chatwoot inbox.',
+      'Create an OpenSEO project for the website in this STS workspace profile, with its business, location and services as project context.',
+    inbound: 'Inbound: keyword, ranking, local SEO and audit results flow from OpenSEO into STS chat.',
+    outbound: 'Outbound: STS chat can create projects, save keywords and start rank trackers in OpenSEO after confirmation.',
   },
   firecrawl: {
     product: 'Firecrawl',

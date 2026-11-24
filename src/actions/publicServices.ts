@@ -5,6 +5,7 @@ import { clientIp } from '@/lib/embed/clientIp'
 import { checkRateLimit, consumeDailyQuota, EMBED_DAILY_QUOTAS, EMBED_RATE_LIMITS } from '@/lib/embed/rateLimit'
 import { loadPublicBusiness, serviceAccess } from '@/lib/public/publicService'
 import { submitBusinessForm } from '@/lib/services/formSubmit'
+import { normalizeSource } from '@/lib/offers/leadInput'
 import type { FormAnswers } from '@/lib/services/types'
 
 type FormResult = { ok: true; message: string } | { ok: false; error: string; fieldId?: string }
@@ -16,6 +17,8 @@ export async function submitHostedForm(input: {
   roomName: string
   values: FormAnswers
   consent: boolean
+  /** The `?src=` tag the visitor arrived with (instagram, flyer…), when there was one. */
+  src?: string | null
 }): Promise<FormResult> {
   const roomName = typeof input.roomName === 'string' ? input.roomName.slice(0, 255) : ''
   if (!roomName) return { ok: false, error: 'Form not found' }
@@ -35,11 +38,13 @@ export async function submitHostedForm(input: {
   try {
     const result = await submitBusinessForm({
       ownerUserId: loaded.business.userId,
+      workspaceId: loaded.business.workspaceId,
       businessName: loaded.business.name,
       config: loaded.services.form.config,
       values: input.values,
       consent: input.consent === true,
       source: loaded.isOwner ? 'preview' : 'hosted',
+      cameFrom: normalizeSource(input.src),
     })
     return result.ok ? { ok: true, message: result.message } : { ok: false, error: result.error, fieldId: result.fieldId }
   } catch (error) {

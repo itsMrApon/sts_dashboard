@@ -20,8 +20,8 @@ function resolveKind(kind?: string) {
     automate: 'n8n',
     workflow: 'n8n',
     erp: 'erpnext',
-    inbox: 'chatwoot',
     crawl: 'firecrawl',
+    seo: 'openseo',
     mcp: 'custom',
   }
   const mapped = aliases[normalized] ?? normalized

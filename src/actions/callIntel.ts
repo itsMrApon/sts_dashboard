@@ -3,7 +3,11 @@
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
+import { randomUUID } from 'node:crypto'
 import { prismaClient } from '@/lib/prismaClient'
+import { myAssistantsWhere } from '@/lib/agents/agentAccess'
+import { loadBusinessPlaybook, NO_PLAYBOOK_ERROR } from '@/lib/leads/businessPlaybook'
+import { CALL_NOTES_MAX, CALL_NOTES_MIN, IMPORTED_CALL_PREFIX, parseCallNotes } from '@/lib/leads/importedCall'
 import { decryptToken, encryptToken } from '@/lib/messages/encrypt'
 import {
   createFathomWebhook,
@@ -13,6 +17,7 @@ import {
   syntheticLeadEmail,
 } from '@/lib/fathom/client'
 import { ingestFathomMeetingForUser, purgeOwnerSelfLeads } from '@/lib/leads/ingestFathomMeeting'
+import { isSyntheticImportEmail } from '@/lib/leads/import/importLeadRows'
 import {
   scoreMeetingAndSave,
   scoreScrapeVsAgent,
@@ -57,6 +62,7 @@ import {
   refreshGoogleAccessToken,
   resolveGoogleOAuthCredentials,
   isGoogleInvalidGrantError,
+  isGoogleInsufficientScopeError,
   markGoogleCalendarConnectionRevoked,
   googleCalendarNeedsReconnect,
   googleOAuthClientMismatch,
@@ -79,7 +85,7 @@ async function requireUser() {
 }
 
 function revalidateLeadPages() {
-  revalidatePath('/lead')
+  revalidatePath('/lead', 'layout')
   revalidateTag('lead-dashboard')
 }
 
@@ -172,7 +178,13 @@ export async function disconnectCallIntelProvider(
   return { ok: true }
 }
 
-export async function syncRecentFathomMeetings(): Promise<ActionResult<{ count: number }>> {
+/**
+ * Brings in recent Fathom calls. With `days`, only calls from that many days back (up to 50 of
+ * them, the most Fathom returns in one page); without, the 20 most recent.
+ */
+export async function syncRecentFathomMeetings(
+  options?: { days?: number },
+): Promise<ActionResult<{ count: number; capped: boolean }>> {
   const user = await requireUser()
   if (!user) return { ok: false, error: 'UNAUTHENTICATED' }
 
@@ -187,7 +199,13 @@ export async function syncRecentFathomMeetings(): Promise<ActionResult<{ count: 
   try {
     const geminiApiKey = await resolveUserGeminiApiKey(user.id)
     // List already requests include_summary=true (default_summary.markdown_formatted)
-    const meetings = await listFathomMeetings(apiKey, { limit: 20 })
+    const days = Number(options?.days)
+    const windowDays = Number.isFinite(days) && days >= 1 ? Math.min(Math.round(days), 365) : null
+    const limit = windowDays ? 50 : 20
+    const meetings = await listFathomMeetings(apiKey, {
+      limit,
+      ...(windowDays ? { created_after: new Date(Date.now() - windowDays * 86_400_000).toISOString() } : {}),
+    })
     let count = 0
     const ownerEmails = new Set<string>()
     if (user.email) ownerEmails.add(user.email.toLowerCase())
@@ -215,7 +233,7 @@ export async function syncRecentFathomMeetings(): Promise<ActionResult<{ count: 
     })
 
     revalidateLeadPages()
-    return { ok: true, data: { count } }
+    return { ok: true, data: { count, capped: meetings.length >= limit } }
   } catch (err) {
     return {
       ok: false,
@@ -316,7 +334,7 @@ export async function saveLeadDetails(
   if (input.email !== undefined) {
     const trimmed = input.email.trim().toLowerCase()
     if (!trimmed) {
-      nextEmail = isSyntheticFathomEmail(lead.email)
+      nextEmail = isSyntheticFathomEmail(lead.email) || isSyntheticImportEmail(lead.email)
         ? lead.email
         : syntheticLeadEmail(lead.name)
     } else {
@@ -398,9 +416,6 @@ export async function runLeadScore(
     include: { lead: true },
   })
   if (!meeting) return { ok: false, error: 'Meeting not found' }
-  if (!meeting.lead?.selectedAgentId) {
-    return { ok: false, error: 'Select an /ai-agents rulebook on this lead first' }
-  }
   if (!meeting.summary) {
     return { ok: false, error: 'Meeting has no Fathom summary yet' }
   }
@@ -416,12 +431,11 @@ export async function runLeadScore(
     }
     await scoreMeetingAndSave({
       meetingId: meeting.id,
-      agentId: meeting.lead.selectedAgentId,
       apiKey,
       deepScore: options?.deepScore,
     })
     revalidateLeadPages()
-    revalidatePath(`/lead/${meeting.lead.id}`)
+    if (meeting.lead) revalidatePath(`/lead/${meeting.lead.id}`)
     return { ok: true }
   } catch (err) {
     return {
@@ -431,7 +445,7 @@ export async function runLeadScore(
   }
 }
 
-/** Score Business lead scrape against the selected agent prompt (not Fathom summary). */
+/** Playbook fit: the business lead's website scan against your business playbook. */
 export async function runLeadPlaybookScore(
   leadId: string,
 ): Promise<ActionResult> {
@@ -442,23 +456,14 @@ export async function runLeadPlaybookScore(
     where: { id: leadId, userId: user.id },
     select: {
       id: true,
-      selectedAgentId: true,
       webResearchJson: true,
       website: true,
     },
   })
   if (!lead) return { ok: false, error: 'Lead not found' }
-  if (!lead.selectedAgentId) {
-    return { ok: false, error: 'Select an AI agent rulebook on this lead first' }
-  }
 
-  const agent = await prismaClient.liveKitAgent.findUnique({
-    where: { id: lead.selectedAgentId },
-    select: { systemPrompt: true, name: true },
-  })
-  if (!agent?.systemPrompt?.trim()) {
-    return { ok: false, error: 'Agent has an empty system prompt' }
-  }
+  const playbook = await loadBusinessPlaybook(user.id)
+  if (!playbook) return { ok: false, error: NO_PLAYBOOK_ERROR }
 
   const research = (lead.webResearchJson || {}) as Record<string, unknown>
   const enrichment = research.websiteEnrichment as
@@ -479,12 +484,19 @@ export async function runLeadPlaybookScore(
   ]
     .filter(Boolean)
     .join('\n')
+  // No website: judge the fit from what web research found instead.
+  const webParts = !lead.website
+    ? [
+        Array.isArray(research.highlights) ? `Found on the web: ${(research.highlights as string[]).join('; ')}` : null,
+        Array.isArray(research.flags) ? `Concerns: ${(research.flags as string[]).join('; ')}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : ''
 
-  if (!scrapeParts.trim()) {
-    return {
-      ok: false,
-      error: 'No scrape data yet. Open ScrapeGraphAI and wait for scrape to finish.',
-    }
+  const evidence = [scrapeParts, webParts].filter((part) => part.trim()).join('\n')
+  if (!evidence.trim()) {
+    return { ok: false, error: lead.website ? 'Their website has not been read yet.' : 'Nothing is known about them yet.' }
   }
 
   try {
@@ -498,16 +510,16 @@ export async function runLeadPlaybookScore(
     }
 
     const raw = await scoreScrapeVsAgent({
-      scrapeText: scrapeParts,
-      systemPrompt: agent.systemPrompt,
+      scrapeText: evidence,
+      systemPrompt: playbook.text,
       apiKey,
       accountUserId: user.id,
     })
 
     const detail = buildMeetingScoreDetail({
       id: `playbook-${lead.id}`,
-      agentId: lead.selectedAgentId,
-      agentName: agent.name,
+      agentId: playbook.agentId,
+      agentName: playbook.name,
       scoredAt: new Date(),
       covered: raw.covered,
       missed: raw.missed,
@@ -558,9 +570,13 @@ export async function refreshLeadResearch(leadId: string): Promise<ActionResult>
           'Gemini API key missing. Add it in Config Agent (/ai-agents/config).',
       }
     }
+
+    // Stand-in addresses (Fathom guests, phone-only imports) are not something to search the web for.
+    const realEmail =
+      isSyntheticFathomEmail(lead.email) || isSyntheticImportEmail(lead.email) ? '' : lead.email
     let dossier = await webResearchLead({
       name: lead.name,
-      email: isSyntheticFathomEmail(lead.email) ? '' : lead.email,
+      email: realEmail,
       company: lead.company,
       userId: user.id,
       geminiApiKey,
@@ -1073,7 +1089,11 @@ export async function scheduleLeadGoogleMeet(input: {
     }
   } catch (err) {
     if (isGoogleInvalidGrantError(err)) {
-      await markGoogleCalendarConnectionRevoked(user.id)
+      await markGoogleCalendarConnectionRevoked(
+        user.id,
+        'invalid_grant',
+        err instanceof Error ? err.message : String(err),
+      )
       return { ok: false, error: 'Google Calendar needs reconnect' }
     }
     return {
@@ -1110,6 +1130,117 @@ export async function ensureLeadScrapeOnOpen(
     revalidatePath(`/lead/${lead.id}`)
   }
   return { ok: true, data: { scraped: result.scraped } }
+}
+
+/**
+ * Opening a lead fills in its background without any buttons: web research if there is none,
+ * the website scan if it is missing, then Playbook fit once there is a scan. Each step runs only
+ * when its result is missing, so a lead is only researched the first time it is opened.
+ */
+export async function prepareLeadOnOpen(
+  leadId: string,
+): Promise<ActionResult<{ ran: Array<'research' | 'scan' | 'fit'>; error: string | null }>> {
+  const user = await requireUser()
+  if (!user) return { ok: false, error: 'UNAUTHENTICATED' }
+
+  const load = () =>
+    prismaClient.callIntelLead.findFirst({
+      where: { id: leadId, userId: user.id },
+      select: { id: true, source: true, website: true, webResearchJson: true },
+    })
+  let lead = await load()
+  if (!lead) return { ok: false, error: 'Lead not found' }
+
+  const ran: Array<'research' | 'scan' | 'fit'> = []
+  let firstError: string | null = null
+  const note = (result: ActionResult<unknown>) => {
+    if (!result.ok && !firstError) firstError = result.error || 'Something went wrong'
+    return result.ok
+  }
+  const research = () => (lead?.webResearchJson || {}) as Record<string, unknown>
+  const enrichment = () => research().websiteEnrichment as { scrapedAt?: string; companySummary?: string } | undefined
+  const isBusiness = lead.source === 'BUSINESS'
+
+  if (!research().generatedAt) {
+    if (note(await refreshLeadResearch(lead.id))) ran.push('research')
+    lead = (await load()) ?? lead
+  }
+  if (isBusiness && lead.website?.trim() && !enrichment()?.scrapedAt) {
+    const scan = await ensureLeadScrapeOnOpen(lead.id)
+    if (note(scan) && scan.ok && scan.data?.scraped) ran.push('scan')
+    lead = (await load()) ?? lead
+  }
+  const hasEvidence =
+    Boolean(enrichment()?.companySummary || enrichment()?.scrapedAt) ||
+    (!lead.website && Array.isArray(research().highlights) && (research().highlights as unknown[]).length > 0)
+  if (isBusiness && hasEvidence && !research().playbookScore) {
+    if (note(await runLeadPlaybookScore(lead.id))) ran.push('fit')
+  }
+  if (!isBusiness) {
+    const latest = await prismaClient.callIntelMeeting.findFirst({
+      where: { leadId: lead.id, userId: user.id, summary: { not: null } },
+      orderBy: { recordedAt: 'desc' },
+      select: { id: true, scores: { select: { id: true }, take: 1 } },
+    })
+    if (latest && latest.scores.length === 0 && note(await runLeadScore(latest.id))) ran.push('fit')
+  }
+
+  return { ok: true, data: { ran, error: firstError } }
+}
+
+/**
+ * "Import call notes" on a lead: a Yogurt (or similar) Markdown export, or text typed in. Saved
+ * as a call on the lead and reviewed against the business right away, like a Fathom call.
+ */
+export async function importLeadCallNotes(input: {
+  leadId: string
+  text: string
+  /** yyyy-mm-dd from the form; the export's own date wins when it has one. */
+  date?: string | null
+}): Promise<ActionResult<{ meetingId: string; reviewError: string | null }>> {
+  const user = await requireUser()
+  if (!user) return { ok: false, error: 'UNAUTHENTICATED' }
+  const raw = typeof input.text === 'string' ? input.text : ''
+  if (raw.length > CALL_NOTES_MAX) return { ok: false, error: 'That is too long. Paste the summary rather than the full recording.' }
+
+  const lead = await prismaClient.callIntelLead.findFirst({
+    where: { id: input.leadId, userId: user.id },
+    select: { id: true, lastAppointmentAt: true },
+  })
+  if (!lead) return { ok: false, error: 'Lead not found' }
+
+  const parsed = parseCallNotes(raw)
+  if (parsed.body.length < CALL_NOTES_MIN) return { ok: false, error: 'Add a little more about the call first.' }
+  const typedDate = input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? new Date(`${input.date}T12:00:00`) : null
+  const recordedAt = parsed.date ?? typedDate ?? new Date()
+
+  const meeting = await prismaClient.callIntelMeeting.create({
+    data: {
+      userId: user.id,
+      leadId: lead.id,
+      fathomRecordingId: `${IMPORTED_CALL_PREFIX}${randomUUID()}`,
+      summary: parsed.title ? `${parsed.title}\n\n${parsed.body}` : parsed.body,
+      recordedAt,
+    },
+    select: { id: true },
+  })
+  if (!lead.lastAppointmentAt || lead.lastAppointmentAt < recordedAt) {
+    await prismaClient.callIntelLead.update({ where: { id: lead.id }, data: { lastAppointmentAt: recordedAt } })
+  }
+
+  // Review it now so the score is there when the page refreshes.
+  let reviewError: string | null = null
+  try {
+    const apiKey = await resolveUserGeminiApiKey(user.id)
+    if (!apiKey) reviewError = 'Add an AI key in AI Agents → Config to review calls.'
+    else await scoreMeetingAndSave({ meetingId: meeting.id, apiKey })
+  } catch (err) {
+    reviewError = err instanceof Error ? err.message : 'The review failed'
+  }
+
+  revalidateLeadPages()
+  revalidatePath(`/lead/${lead.id}`)
+  return { ok: true, data: { meetingId: meeting.id, reviewError } }
 }
 
 export async function saveGoogleOAuthApp(input: {
@@ -1336,7 +1467,9 @@ async function loadCallIntelDashboard(
     prismaClient.callIntelSettings.findUnique({
       where: { userId: user.id },
     }),
+    // Only this user's assistants (and legacy unowned ones), the same list /ai-agents shows.
     prismaClient.liveKitAgent.findMany({
+      where: myAssistantsWhere(user.id),
       orderBy: { createdAt: 'asc' },
       select: { id: true, name: true },
       take: 100,
@@ -1376,9 +1509,15 @@ async function loadCallIntelDashboard(
     gcalNeedsReconnect = true
   }
 
-  const [leads, searchBatches, calendarMonth, serperKey] = await Promise.all([
+  const [leads, searchBatches, importBatches, calendarMonth, serperKey] = await Promise.all([
     getLeadListRowsCached(user.id, settings?.defaultAgentId || null),
     listRecentLeadSearchBatches(user.id),
+    prismaClient.leadImportBatch.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { id: true, app: true, label: true, createdAt: true, rowCount: true },
+    }),
     getLeadCalendarMonthCached(user.id, user.email || ''),
     resolveSerperApiKey(user.id),
   ])
@@ -1417,6 +1556,13 @@ async function loadCallIntelDashboard(
     agents,
     leads,
     searchBatches,
+    importBatches: importBatches.map((b) => ({
+      id: b.id,
+      app: b.app,
+      label: b.label,
+      createdAt: b.createdAt.toISOString(),
+      rowCount: b.rowCount,
+    })),
     calendarMonth,
     serperConfigured: Boolean(serperKey),
     geminiResearchReady: llmKeys.hasGemini,
@@ -1478,13 +1624,16 @@ async function buildLeadListRows(
   const [leads, agents] = await Promise.all([
     prismaClient.callIntelLead.findMany({
       where: { userId },
-      orderBy: [{ lastAppointmentAt: 'desc' }, { updatedAt: 'desc' }],
-      take: 200,
+      // Every lead, newest activity first; the list pages through them on the client.
+      orderBy: [{ updatedAt: 'desc' }],
+      take: 5000,
       select: {
         id: true,
         name: true,
         email: true,
         company: true,
+        position: true,
+        createdAt: true,
         notes: true,
         phone: true,
         website: true,
@@ -1496,6 +1645,8 @@ async function buildLeadListRows(
         source: true,
         outboundStatus: true,
         searchBatchId: true,
+        importApp: true,
+        importBatchId: true,
         webResearchJson: true,
         meetings: {
           orderBy: { recordedAt: 'desc' },
@@ -1514,6 +1665,7 @@ async function buildLeadListRows(
       },
     }),
     prismaClient.liveKitAgent.findMany({
+      where: myAssistantsWhere(userId),
       select: { id: true, name: true },
       take: 200,
     }),
@@ -1525,21 +1677,26 @@ async function buildLeadListRows(
     const meeting = lead.meetings[0] || null
     const score = meeting?.scores[0]
     const isBusiness = lead.source === 'BUSINESS'
+    const isImported = lead.source === 'IMPORT'
     const emailIsSynthetic =
-      isBusiness || isSyntheticFathomEmail(lead.email)
+      isBusiness || isSyntheticFathomEmail(lead.email) || isSyntheticImportEmail(lead.email)
     const kind = isBusiness
       ? ('Business' as const)
-      : emailIsSynthetic && isSyntheticFathomEmail(lead.email)
-        ? ('Instant' as const)
-        : ('Calendar' as const)
+      : isImported
+        ? ('Imported' as const)
+        : emailIsSynthetic && isSyntheticFathomEmail(lead.email)
+          ? ('Instant' as const)
+          : ('Calendar' as const)
     return {
       id: lead.id,
       name: lead.name,
       email: lead.email,
       emailIsSynthetic,
       company: lead.company,
+      position: lead.position,
       notes: lead.notes,
       phone: lead.phone,
+      createdAt: lead.createdAt.toISOString(),
       website: lead.website,
       address: lead.address,
       selectedAgentId: lead.selectedAgentId || defaultAgentId,
@@ -1549,6 +1706,8 @@ async function buildLeadListRows(
       kind,
       outboundStatus: lead.outboundStatus as LeadOutboundStatus,
       searchBatchId: lead.searchBatchId,
+      importApp: lead.importApp,
+      importBatchId: lead.importBatchId,
       searchBatch: lead.searchBatch
         ? {
             id: lead.searchBatch.id,
@@ -1558,6 +1717,14 @@ async function buildLeadListRows(
           }
         : null,
       hasResearch: Boolean(lead.webResearchJson),
+      // The call score if there was a call, else the playbook fit from the website scan.
+      fitScore: (() => {
+        const call = mapMeetingScore(score, agentNameById)?.overallScore
+        if (typeof call === 'number') return call
+        const fit = (lead.webResearchJson as { playbookScore?: { overallScore?: unknown } } | null)?.playbookScore
+          ?.overallScore
+        return typeof fit === 'number' && Number.isFinite(fit) ? fit : null
+      })(),
       meeting: meeting
         ? {
             id: meeting.id,
@@ -1576,7 +1743,7 @@ async function buildLeadCalendarMonth(userId: string, ownerEmail?: string | null
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
 
-  const [activities, followUps, todayBatch, meetings, settings, gcal] =
+  const [activities, followUps, todayBatch, meetings, settings, gcal, latestImport] =
     await Promise.all([
       prismaClient.leadActivity.findMany({
         where: {
@@ -1657,6 +1824,21 @@ async function buildLeadCalendarMonth(userId: string, ownerEmail?: string | null
         },
         select: { credentials: true, status: true },
       }),
+      prismaClient.leadImportBatch.findFirst({
+        where: { userId, leads: { some: {} } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          app: true,
+          label: true,
+          createdAt: true,
+          leads: {
+            orderBy: { createdAt: 'desc' },
+            take: 24,
+            select: { id: true, name: true, company: true, outboundStatus: true, website: true, phone: true },
+          },
+        },
+      }),
     ])
 
   let googleEvents: Array<{
@@ -1696,6 +1878,14 @@ async function buildLeadCalendarMonth(userId: string, ownerEmail?: string | null
         }
       } catch (err) {
         console.error('[buildLeadCalendarMonth] gcal', err)
+        // Dead token or no calendar permission: flag it so the Reconnect toast shows.
+        if (isGoogleInvalidGrantError(err) || isGoogleInsufficientScopeError(err)) {
+          await markGoogleCalendarConnectionRevoked(
+            userId,
+            isGoogleInvalidGrantError(err) ? 'invalid_grant' : 'missing_scope',
+            err instanceof Error ? err.message : String(err),
+          )
+        }
       }
     }
   }
@@ -1718,6 +1908,15 @@ async function buildLeadCalendarMonth(userId: string, ownerEmail?: string | null
             website: l.website,
             phone: l.phone,
           })),
+        }
+      : null,
+    latestImport: latestImport
+      ? {
+          id: latestImport.id,
+          app: latestImport.app,
+          label: latestImport.label,
+          createdAt: latestImport.createdAt.toISOString(),
+          leads: latestImport.leads,
         }
       : null,
     activities: activities.map((a) => ({
@@ -1751,14 +1950,14 @@ async function buildLeadCalendarMonth(userId: string, ownerEmail?: string | null
 const getLeadListRowsCached = unstable_cache(
   async (userId: string, defaultAgentId: string | null) =>
     buildLeadListRows(userId, defaultAgentId),
-  ['lead-list-rows-v1'],
+  ['lead-list-rows-v4'],
   { revalidate: 20, tags: ['lead-dashboard'] },
 )
 
 const getLeadCalendarMonthCached = unstable_cache(
   async (userId: string, ownerEmail: string) =>
     buildLeadCalendarMonth(userId, ownerEmail),
-  ['lead-calendar-month-v1'],
+  ['lead-calendar-month-v2'],
   { revalidate: 30, tags: ['lead-dashboard'] },
 )
 
@@ -1788,7 +1987,9 @@ export async function getCallIntelLeadDetail(leadId: string) {
         prismaClient.callIntelSettings.findUnique({
           where: { userId: user.id },
         }),
+        // Only this user's assistants: other accounts' agents (and their prompts) must not leak here.
         prismaClient.liveKitAgent.findMany({
+          where: myAssistantsWhere(user.id),
           orderBy: { createdAt: 'asc' },
           select: { id: true, name: true, systemPrompt: true },
           take: 100,
@@ -1806,7 +2007,7 @@ export async function getCallIntelLeadDetail(leadId: string) {
 
     const webinarIds = settings?.selectedWebinarIds || []
     const form =
-      lead.source === 'BUSINESS' || isSyntheticFathomEmail(lead.email)
+      lead.source === 'BUSINESS' || isSyntheticFathomEmail(lead.email) || isSyntheticImportEmail(lead.email)
         ? null
         : await projectFormByEmail(user.id, lead.email, webinarIds)
 
@@ -1817,7 +2018,7 @@ export async function getCallIntelLeadDetail(leadId: string) {
     const score = meetingScores[0] || null
     const isBusiness = lead.source === 'BUSINESS'
     const emailIsSynthetic =
-      isBusiness || isSyntheticFathomEmail(lead.email)
+      isBusiness || isSyntheticFathomEmail(lead.email) || isSyntheticImportEmail(lead.email)
     const status = isBusiness
       ? ('No summary' as const)
       : !meeting?.summary
@@ -1842,6 +2043,10 @@ export async function getCallIntelLeadDetail(leadId: string) {
         phone: lead.phone,
         website: lead.website,
         address: lead.address,
+        maps:
+          lead.mapsCategory || lead.mapsRating != null
+            ? { category: lead.mapsCategory, rating: lead.mapsRating, reviews: lead.mapsReviewCount }
+            : null,
         source: isBusiness ? ('BUSINESS' as const) : ('MEETING' as const),
         selectedAgentId: lead.selectedAgentId || settings?.defaultAgentId || null,
         lastAppointmentAt: lead.lastAppointmentAt?.toISOString() || null,
@@ -1877,6 +2082,7 @@ export async function getCallIntelLeadDetail(leadId: string) {
             summary: m.summary,
             recordedAt: m.recordedAt.toISOString(),
             fathomUrl: m.fathomUrl,
+            imported: m.fathomRecordingId.startsWith(IMPORTED_CALL_PREFIX),
             score: scores[0] || null,
             scoreHistory: scores.slice(1),
           }

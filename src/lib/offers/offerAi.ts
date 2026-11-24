@@ -104,6 +104,7 @@ export async function replyToOfferChat(
     extraInstruction: chat ? `${chatStyleInstruction(chat.config)}\n\n${brief}` : brief,
     persona: chat?.agent ?? null,
     marker: CHAT_ORDER_MARKER,
+    projectId: offer.id,
   })
   if (!result.ok) {
     console.warn('[offer-chat]', result.status, result.error)

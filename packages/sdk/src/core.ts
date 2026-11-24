@@ -1,7 +1,9 @@
 import {
   StsError,
+  type StsAnswer,
   type StsBusiness,
   type StsChatReply,
+  type StsChatUpload,
   type StsForm,
   type StsFormAnswer,
   type StsOptions,
@@ -62,7 +64,8 @@ export function createSts(options: StsOptions) {
       const { token } = await ensureSession(force)
       const headers = new Headers(init.headers)
       headers.set(SESSION_HEADER, token)
-      if (init.body) headers.set('Content-Type', 'application/json')
+      // JSON bodies only: a FormData upload sets its own multipart boundary.
+      if (typeof init.body === 'string') headers.set('Content-Type', 'application/json')
       return fetch(`${apiBase}${path}`, { ...init, headers })
     }
     let response = await send(false)
@@ -84,6 +87,17 @@ export function createSts(options: StsOptions) {
     chat: {
       send(message: string): Promise<StsChatReply> {
         return request<StsChatReply>('/api/sdk/v1/chat', { method: 'POST', body: JSON.stringify({ message }) })
+      },
+      /**
+       * Sends a document the chat asked for (PDF or photo, up to 10 MB) to the business's Google
+       * Drive. `documentId` is the id from `services.chat.documentRequests`, when you know it.
+       * Pass the returned `message` to `send()` so the assistant can confirm it arrived.
+       */
+      attach(file: File, documentId?: string): Promise<StsChatUpload> {
+        const body = new FormData()
+        body.append('file', file)
+        if (documentId) body.append('documentId', documentId)
+        return request<StsChatUpload>('/api/sdk/v1/chat/upload', { method: 'POST', body })
       },
     },
     speak: {
@@ -115,6 +129,10 @@ export function createSts(options: StsOptions) {
     business: {
       async get(): Promise<StsBusiness> {
         return (await request<{ business: StsBusiness }>('/api/sdk/v1/business')).business
+      },
+      /** The business's own answers to what customers ask most, for an FAQ block. */
+      async answers(): Promise<StsAnswer[]> {
+        return (await request<{ answers: StsAnswer[] }>('/api/sdk/v1/answers')).answers
       },
     },
   }

@@ -169,3 +169,9 @@ Role default: Senior System Architect + hands-on full-stack AI engineer
 - `dist/**`
 
 //alias bridge="litellm --model gemini/gemini-2.0-pro-exp --port 4000"
+
+<!-- TRIGGER.DEV SKILLS START -->
+## Trigger.dev agent skills
+
+This project has Trigger.dev agent skills installed in `.claude/skills/`. Before writing or changing Trigger.dev code (background tasks, scheduled tasks, realtime, or chat.agent AI agents), load the most relevant skill: `trigger-authoring-tasks`, `trigger-cost-savings`, `trigger-getting-started`.
+<!-- TRIGGER.DEV SKILLS END -->

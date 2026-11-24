@@ -72,6 +72,8 @@ export function buildGoogleCalendarAuthUrl(options: {
       'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/calendar.events',
       'https://www.googleapis.com/auth/userinfo.email',
+      // Only files sts-ai creates (customer uploads such as receipts), never the rest of Drive.
+      DRIVE_FILE_SCOPE,
     ].join(' '),
     state: options.state,
   })
@@ -105,7 +107,39 @@ export async function exchangeGoogleCode(options: {
     refresh_token?: string
     expires_in: number
     token_type: string
+    /** Space-separated scopes the user actually granted (they can untick some on Google's screen). */
+    scope?: string
   }
+}
+
+/** Google Drive, limited to files this app creates: where chat uploads (receipts, documents) go. */
+export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+
+/**
+ * True when the creator's Google connection may save files to their Drive. Connections made
+ * before Drive was added have no `grantedScopes` and need one reconnect.
+ */
+export function hasDriveFileScope(metadata: unknown): boolean {
+  const granted = (metadata as { grantedScopes?: unknown } | null)?.grantedScopes
+  return typeof granted === 'string' && granted.split(/\s+/).includes(DRIVE_FILE_SCOPE)
+}
+
+const CALENDAR_SCOPES = [
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/calendar.events',
+]
+
+/** True when the granted scopes include calendar access (reading events and adding Meet calls). */
+export function hasCalendarScope(grantedScopes: string | undefined): boolean {
+  if (!grantedScopes) return true // older responses omit it; the first calendar call will tell
+  const granted = new Set(grantedScopes.split(/\s+/))
+  return CALENDAR_SCOPES.some((scope) => granted.has(scope))
+}
+
+/** Google refused a calendar call because the calendar permission was not granted. */
+export function isGoogleInsufficientScopeError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  return /insufficient authentication scopes|insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(message)
 }
 
 export class GoogleTokenRefreshError extends Error {
@@ -156,6 +190,7 @@ export type GoogleCalendarRevokeReason =
   | 'invalid_grant'
   | 'oauth_client_changed'
   | 'missing_refresh'
+  | 'missing_scope'
 
 /**
  * Mark Calendar OAuth as needing reconnect.
@@ -166,6 +201,8 @@ export type GoogleCalendarRevokeReason =
 export async function markGoogleCalendarConnectionRevoked(
   userId: string,
   reason: GoogleCalendarRevokeReason = 'invalid_grant',
+  /** Google's own words (error_description), kept so the cause can be told apart later. */
+  detail?: string,
 ): Promise<void> {
   const existing = await prismaClient.callIntelConnection.findUnique({
     where: {
@@ -175,7 +212,7 @@ export async function markGoogleCalendarConnectionRevoked(
   if (!existing) return
 
   const clearCredentials =
-    reason === 'invalid_grant' || reason === 'missing_refresh'
+    reason === 'invalid_grant' || reason === 'missing_refresh' || reason === 'missing_scope'
 
   await prismaClient.callIntelConnection.update({
     where: { id: existing.id },
@@ -186,6 +223,7 @@ export async function markGoogleCalendarConnectionRevoked(
         ...((existing.metadata as Record<string, unknown> | null) || {}),
         revokedAt: new Date().toISOString(),
         lastError: reason,
+        lastErrorDetail: detail ? detail.slice(0, 300) : null,
       },
     },
   })

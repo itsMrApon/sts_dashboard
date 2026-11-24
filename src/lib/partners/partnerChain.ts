@@ -11,15 +11,15 @@ const PIPELINE_MARKERS =
   /(?:OUTBOUND|INBOUND)\s+PIPELINE|Active partner:\s*\w+|## Tools you should prefer/i
 
 const PARTNER_TALK =
-  /\b(n8n|medusa|madusa|erpnext|erp|chatwoot|firecrawl|workflow|webhook|automation|stock|inventory|sales?|catalog|order|invoice|pos|inbox|whatsapp|reel|youtube|drive)\b/i
+  /\b(n8n|medusa|madusa|erpnext|erp|firecrawl|openseo|seo|keywords?|ranking|workflow|webhook|automation|stock|inventory|sales?|catalog|order|invoice|pos|reel|youtube|drive)\b/i
 
 const PREFERRED_TOOL_LINE = /`([a-z][a-z0-9_]+)`/gi
 
 export const PARTNER_OFF_TOPIC_REPLY = [
   "You don't need a `/` for this.",
   'This chat is a partner pipeline, not a general assistant.',
-  'Ask about n8n, Medusa, ERPNext, or Chatwoot — or copy a pipeline prompt from the Partners page.',
-  'Use `/n8n`, `/medusa`, `/erpnext`, or `/chatwoot` only when you want that partner chain to run.',
+  'Ask about n8n, Medusa, or ERPNext — or copy a pipeline prompt from the Partners page.',
+  'Use `/n8n`, `/medusa`, or `/erpnext` only when you want that partner chain to run.',
 ].join(' ')
 
 export function extractPreferredChainTools(message: string): string[] {
@@ -36,7 +36,7 @@ export function extractPreferredChainTools(message: string): string[] {
   while ((match = PREFERRED_TOOL_LINE.exec(haystack)) !== null) {
     const name = match[1]
     if (seen.has(name)) continue
-    if (!/^(n8n|medusa|erpnext|chatwoot)_/.test(name)) continue
+    if (!/^(n8n|medusa|erpnext)_/.test(name)) continue
     seen.add(name)
     found.push(name)
   }

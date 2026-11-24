@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Flame,
-  MessageCircle,
   Package,
   Plug,
+  Search,
   ShoppingBag,
   Workflow,
 } from 'lucide-react'
@@ -45,8 +45,8 @@ const COMMAND_ICONS: Record<string, ReactNode> = {
   medusa: <ShoppingBag className="h-4 w-4" />,
   n8n: <Workflow className="h-4 w-4" />,
   erpnext: <Package className="h-4 w-4" />,
-  chatwoot: <MessageCircle className="h-4 w-4" />,
   firecrawl: <Flame className="h-4 w-4" />,
+  openseo: <Search className="h-4 w-4" />,
   custom: <Plug className="h-4 w-4" />,
 }
 

@@ -4,6 +4,9 @@ import { getPartnerConnectorsForWorkspace } from '@/actions/inboundConnectors'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
 import { prismaClient } from '@/lib/prismaClient'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { loadLeadConnectionSettings } from '@/lib/leads/leadConnectionSettings'
+import { loadTriggerSettings } from '@/lib/jobs/triggerSettings'
+import { isPlatformOwner } from '@/lib/platform/platformOwner'
 import { PartnersIntro } from './_components/PartnersIntro'
 
 const page = async () => {
@@ -14,7 +17,7 @@ const page = async () => {
   const business = await getCreatorBusiness(auth.user.id)
   if (!business) redirect('/onboarding')
 
-  const [connectors, telegram, phoneLine] = await Promise.all([
+  const [connectors, telegram, phoneLine, leadSettings] = await Promise.all([
     timeAsync('route.integrations.getPartnerConnectors', () =>
       getPartnerConnectorsForWorkspace(business.workspaceId, auth.user.id),
     ),
@@ -26,7 +29,11 @@ const page = async () => {
       where: { workspaceId: business.workspaceId, userId: auth.user.id },
       select: { phoneNumber: true },
     }),
+    loadLeadConnectionSettings(auth.user.id),
   ])
+  const triggerDev = isPlatformOwner(auth.user.email)
+    ? { connected: (await loadTriggerSettings()).source !== 'none' }
+    : null
   const connectedPartners = connectors
     .filter((connector) => connector.enabled)
     .map((connector) => ({ id: connector.id, kind: connector.kind, label: connector.label }))
@@ -38,6 +45,13 @@ const page = async () => {
       connectedPartners={connectedPartners}
       telegramLinked={Boolean(telegram)}
       phoneNumber={phoneLine?.phoneNumber ?? null}
+      leadSources={{
+        fathomOk: leadSettings.fathomOk,
+        googleOk: leadSettings.googleOAuthConfigured,
+        gcalLinked: leadSettings.gcalOk && !leadSettings.gcalNeedsReconnect,
+        serperOk: leadSettings.serperConfigured,
+      }}
+      triggerDev={triggerDev}
     />
   )
 }

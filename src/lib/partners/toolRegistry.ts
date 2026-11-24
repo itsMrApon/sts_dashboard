@@ -11,11 +11,6 @@ import {
   runErpnextAdapterTool,
 } from './adapters/erpnext'
 import { n8nAdapterTools, probeN8nAdapter, runN8nAdapterTool } from './adapters/n8n'
-import {
-  chatwootAdapterTools,
-  probeChatwootAdapter,
-  runChatwootAdapterTool,
-} from './adapters/chatwoot'
 import { mcpCallTool, mcpListTools, openMcpSession, type McpSession } from './mcpHttpClient'
 import type {
   PartnerConnectionStatus,
@@ -25,8 +20,8 @@ import type {
   PartnerToolSideEffect,
 } from './types'
 
-const REST_ADAPTER_KINDS = new Set(['medusa', 'erpnext', 'n8n', 'chatwoot'])
-const BUILTIN_PARTNER_KINDS = ['medusa', 'erpnext', 'n8n', 'firecrawl', 'chatwoot'] as const
+const REST_ADAPTER_KINDS = new Set(['medusa', 'erpnext', 'n8n'])
+const BUILTIN_PARTNER_KINDS = ['medusa', 'erpnext', 'n8n', 'firecrawl', 'openseo'] as const
 
 const WRITE_NAME_HINT =
   /(create|update|delete|remove|trigger|execute|invoice|print|write|post|submit|cancel|refund|pay|send|reply)/i
@@ -73,8 +68,6 @@ function adapterToolsFor(connector: PartnerConnectorRuntime): PartnerToolDefinit
       return erpnextAdapterTools(connector)
     case 'n8n':
       return n8nAdapterTools(connector)
-    case 'chatwoot':
-      return chatwootAdapterTools(connector)
     default:
       return []
   }
@@ -90,8 +83,6 @@ async function probeAdapter(
       return probeErpnextAdapter(connector)
     case 'n8n':
       return probeN8nAdapter(connector)
-    case 'chatwoot':
-      return probeChatwootAdapter(connector)
     default:
       return { ok: false, message: 'No REST adapter for this partner kind' }
   }
@@ -336,8 +327,6 @@ export async function executePartnerTool(options: {
       return runErpnextAdapterTool(entry.connector, rawName, options.args)
     case 'n8n':
       return runN8nAdapterTool(entry.connector, rawName, options.args)
-    case 'chatwoot':
-      return runChatwootAdapterTool(entry.connector, rawName, options.args)
     default:
       return {
         ok: false,

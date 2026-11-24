@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ExternalLink, Loader2, SendHorizontal, ShoppingBag, UserRound } from 'lucide-react'
+import { ExternalLink, Loader2, Paperclip, SendHorizontal, ShoppingBag, UserRound } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { fetchWithFirstPartySession } from '@/lib/embed/firstPartySessionClient'
 import { accentHex, type ChatServiceConfig } from '@/lib/services/types'
@@ -24,6 +24,8 @@ type Props = {
   isOwner: boolean
   /** The business's WhatsApp / Messenger / Telegram, for "Talk to a person" (when turned on). */
   socialAccounts: SocialAccountInput[]
+  /** Sent once as the visitor's first message (from "Ask about this" on the business page). */
+  autoAsk?: string | null
 }
 
 /** Stable per-browser id so the AI keeps this visitor's conversation together. */
@@ -43,7 +45,7 @@ function useSessionId(roomName: string): string {
   return sessionId
 }
 
-export function ChatRoom({ roomName, agentName, config, isOwner, socialAccounts }: Props) {
+export function ChatRoom({ roomName, agentName, config, isOwner, socialAccounts, autoAsk = null }: Props) {
   const accent = accentHex(config.accent)
   const displayName = config.assistantName || agentName
   const people = useMemo(
@@ -102,6 +104,54 @@ export function ChatRoom({ roomName, agentName, config, isOwner, socialAccounts 
       }
     },
     [config.fallbackMessage, config.includeLinks, config.maxMessageLength, isOwner, roomName, sessionId, thinking],
+  )
+
+  // "Ask about this" opens the chat with a question: send it once, when the session is ready.
+  const askedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!autoAsk || !sessionId || askedRef.current === autoAsk) return
+    askedRef.current = autoAsk
+    void send(autoAsk)
+  }, [autoAsk, send, sessionId])
+
+  const fileRef = useRef<HTMLInputElement>(null)
+  const canAttach = config.documentRequests.length > 0
+  const acceptAttr = config.documentRequests.some((doc) => doc.accept === 'any')
+    ? 'application/pdf,image/*'
+    : [
+        ...new Set(config.documentRequests.map((doc) => (doc.accept === 'pdf' ? 'application/pdf' : 'image/*'))),
+      ].join(',')
+
+  /** A document the assistant asked for: saved to the business's Drive, then acknowledged. */
+  const attach = useCallback(
+    async (file: File) => {
+      if (thinking) return
+      setThinking(true)
+      try {
+        const body = new FormData()
+        body.append('file', file)
+        const res = await fetchWithFirstPartySession(roomName, `/api/chat/${encodeURIComponent(roomName)}/upload`, {
+          method: 'POST',
+          body,
+        })
+        const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string }
+        if (!res.ok || !data.message) {
+          setMessages((current) => [
+            ...current,
+            { role: 'assistant', content: data.error || "The file didn't go through. Please try again." },
+          ])
+          return
+        }
+        setThinking(false)
+        await send(data.message)
+      } catch {
+        setMessages((current) => [...current, { role: 'assistant', content: 'Connection lost. Please try again.' }])
+      } finally {
+        setThinking(false)
+        if (fileRef.current) fileRef.current.value = ''
+      }
+    },
+    [roomName, send, thinking],
   )
 
   const showSuggestions = messages.length === 1 && config.suggestions.length > 0
@@ -208,6 +258,30 @@ export function ChatRoom({ roomName, agentName, config, isOwner, socialAccounts 
           void send(draft)
         }}
       >
+        {canAttach ? (
+          <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept={acceptAttr}
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void attach(file)
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={thinking}
+              aria-label="Attach a document"
+              title="Attach a document"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white disabled:opacity-40"
+            >
+              <Paperclip className="h-4 w-4" aria-hidden />
+            </button>
+          </>
+        ) : null}
         <input
           ref={inputRef}
           value={draft}

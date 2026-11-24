@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import {
   Calendar,
   Mail,
-  MessageCircle,
   Package,
   Search,
   ShoppingBag,
@@ -19,7 +18,6 @@ const CATEGORY_ICONS: Record<string, typeof ShoppingBag> = {
   medusa: ShoppingBag,
   n8n: Workflow,
   erpnext: Package,
-  chatwoot: MessageCircle,
   search: Search,
   memory: Sparkles,
   executor: Wrench,

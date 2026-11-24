@@ -1,12 +1,12 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import PageHeader from '@/components/ReusableComponent/PageHeader'
 import { ConnectionLostToast } from '@/components/ReusableComponent/ConnectionLostToast'
-import { Brain, CalendarDays, PhoneCall, WifiOff } from 'lucide-react'
+import { WifiOff } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
 import { getCallIntelLeadDetail } from '@/actions/callIntel'
+import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
 import { LeadProfile } from '../_components/LeadProfile'
-import { LeadViewport } from '../_components/LeadViewport'
+import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -34,13 +34,6 @@ export default async function LeadProfilePage({
     return (
       <div className="flex w-full flex-col gap-8">
         <ConnectionLostToast />
-        <PageHeader
-          leftIcon={<CalendarDays className="h-3 w-3" />}
-          mainIcon={<PhoneCall className="h-12 w-12" />}
-          rightIcon={<Brain className="h-4 w-4" />}
-          heading="Lead profile"
-          placeholder="Search option..."
-        />
         <Card className="shadow-xs">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -62,39 +55,29 @@ export default async function LeadProfilePage({
   }
   if (!auth.user) redirect('/sign-in')
 
-  const data = await getCallIntelLeadDetail(leadId)
+  const [data, business] = await Promise.all([getCallIntelLeadDetail(leadId), getCreatorBusiness(auth.user.id)])
   if (isUnavailable(data)) {
-    redirect('/lead')
+    redirect('/lead/list')
   }
-  if (!data) redirect('/lead')
+  if (!data) redirect('/lead/list')
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <PageHeader
-        leftIcon={<CalendarDays className="h-3 w-3" />}
-        mainIcon={<PhoneCall className="h-12 w-12" />}
-        rightIcon={<Brain className="h-4 w-4" />}
-        heading={data.lead.name}
-        placeholder="Search option..."
-      />
-
-      <LeadViewport>
-        <Suspense
-          fallback={
-            <Card className="h-full shadow-xs">
-              <CardContent className="py-10 text-sm text-muted-foreground">
-                Loading…
-              </CardContent>
-            </Card>
-          }
-        >
-          <LeadProfile
-            lead={JSON.parse(JSON.stringify(data.lead))}
-            agents={data.agents}
-            hasGeminiKey={data.hasGeminiKey}
-          />
-        </Suspense>
-      </LeadViewport>
-    </div>
+    <PageViewport scrollable>
+      <Suspense
+        fallback={
+          <Card className="h-full shadow-xs">
+            <CardContent className="py-10 text-sm text-muted-foreground">
+              Loading…
+            </CardContent>
+          </Card>
+        }
+      >
+        <LeadProfile
+          lead={JSON.parse(JSON.stringify(data.lead))}
+          businessName={business?.name || 'your business'}
+          hasGeminiKey={data.hasGeminiKey}
+        />
+      </Suspense>
+    </PageViewport>
   )
 }

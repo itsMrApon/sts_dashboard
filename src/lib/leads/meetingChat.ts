@@ -1,3 +1,4 @@
+import { isImportedCall } from '@/lib/leads/importedCall'
 import {
   cleanFathomSummaryText,
   formatFathomTranscript,
@@ -95,7 +96,7 @@ export async function askMeetingChatQuestion(options: {
       userId_provider: { userId: options.userId, provider: 'FATHOM' },
     },
   })
-  if (conn?.status === 'ACTIVE' && conn.credentials) {
+  if (conn?.status === 'ACTIVE' && conn.credentials && !isImportedCall(meeting.fathomRecordingId)) {
     const apiKey = decryptToken(
       (conn.credentials as { apiKey?: string }).apiKey,
     )

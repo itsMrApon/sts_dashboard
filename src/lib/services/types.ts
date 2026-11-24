@@ -54,7 +54,22 @@ export type ChatServiceConfig = {
   fallbackMessage: string
   /** Show the business's WhatsApp / Messenger / phone so visitors can reach a person. */
   showHumanHandoff: boolean
+  /** Documents the chat may ask the visitor to upload (saved to the creator's Google Drive). */
+  documentRequests: ChatDocumentRequest[]
   accent: AccentId
+}
+
+export const DOCUMENT_ACCEPT = ['pdf', 'image', 'any'] as const
+export type DocumentAccept = (typeof DOCUMENT_ACCEPT)[number]
+
+/** "Receipt, PDF or photo, ask after payment": one document the chat may ask for. */
+export type ChatDocumentRequest = {
+  id: string
+  /** What to ask for, as the visitor will read it ("Payment receipt", "রসিদ"). */
+  name: string
+  /** When to ask, in the creator's words ("after they say they paid"). */
+  when: string
+  accept: DocumentAccept
 }
 
 export const END_WARNINGS = [0, 30, 60] as const
@@ -220,6 +235,7 @@ export const DEFAULT_CHAT_CONFIG: ChatServiceConfig = {
   inputPlaceholder: 'Type your message…',
   fallbackMessage: "Sorry, I can't answer right now. Please try again in a moment.",
   showHumanHandoff: true,
+  documentRequests: [],
   accent: 'violet',
 }
 
@@ -350,8 +366,30 @@ export function sanitizeChatConfig(raw: unknown): ChatServiceConfig {
     inputPlaceholder: text(input.inputPlaceholder, SERVICE_LIMITS.placeholder) || DEFAULT_CHAT_CONFIG.inputPlaceholder,
     fallbackMessage: text(input.fallbackMessage, SERVICE_LIMITS.fallbackMessage) || DEFAULT_CHAT_CONFIG.fallbackMessage,
     showHumanHandoff: bool(input.showHumanHandoff, DEFAULT_CHAT_CONFIG.showHumanHandoff),
+    documentRequests: sanitizeDocumentRequests(input.documentRequests),
     accent: oneOf(input.accent, ACCENTS, DEFAULT_CHAT_CONFIG.accent),
   }
+}
+
+export const DOCUMENT_REQUEST_LIMITS = { max: 5, name: 60, when: 200 } as const
+
+function sanitizeDocumentRequests(raw: unknown): ChatDocumentRequest[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item, index) => {
+      const entry = record(item)
+      const name = text(entry.name, DOCUMENT_REQUEST_LIMITS.name)
+      if (!name) return null
+      const id = text(entry.id, 40) || `doc-${index + 1}`
+      return {
+        id,
+        name,
+        when: text(entry.when, DOCUMENT_REQUEST_LIMITS.when),
+        accept: oneOf(entry.accept, DOCUMENT_ACCEPT, 'any'),
+      }
+    })
+    .filter((item): item is ChatDocumentRequest => item !== null)
+    .slice(0, DOCUMENT_REQUEST_LIMITS.max)
 }
 
 export function sanitizeSpeakConfig(raw: unknown): SpeakServiceConfig {

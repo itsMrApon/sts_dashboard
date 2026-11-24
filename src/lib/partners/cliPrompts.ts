@@ -53,17 +53,6 @@ const SPECS: Record<string, PartnerPromptSpec> = {
     syncGoal:
       'Read the STS workspace publish profile and create/update an n8n workflow (or webhook script) that uses that profile — e.g. social posting / lead ingest. If a social script already exists, update it; otherwise create a new one named for this workspace.',
   },
-  chatwoot: {
-    defaultPort: '3001',
-    detectHint:
-      'Check whether Chatwoot is reachable (typical Docker UI: http://localhost:3001). Application API uses /api/v1/accounts/{account_id}/… with header api_access_token.',
-    dockerHint:
-      'If Chatwoot is missing, start the official Chatwoot Docker stack (chatwoot/chatwoot). After signup, open Profile → Access Token and note the numeric Account ID from the URL/settings.',
-    setupGoal:
-      'Install/start Chatwoot, create an agent Access Token, note account id, and tell the creator to paste App URL (e.g. http://localhost:3001) and auth secret as accountId:api_access_token into STS Partners → Chatwoot.',
-    syncGoal:
-      'Verify Chatwoot inboxes (WhatsApp/Email/Website). Optionally create/update an Email or API inbox labeled for this STS workspace. Do not delete production inboxes. Report inbox ids so the creator can ask the workspace chat for unread/WhatsApp messages.',
-  },
   firecrawl: {
     defaultPort: '',
     detectHint: 'Check Firecrawl MCP reachability at the configured MCP URL.',
@@ -71,6 +60,17 @@ const SPECS: Record<string, PartnerPromptSpec> = {
     setupGoal: 'Connect Firecrawl MCP credentials and report the URL to paste into STS Partners.',
     syncGoal:
       'Use Firecrawl to crawl the creator site (from STS links/profile) and summarize pages that should update the publish profile.',
+  },
+  openseo: {
+    defaultPort: '3001',
+    detectHint:
+      'Check whether OpenSEO is reachable (UI: http://localhost:3001, MCP at /mcp, health at /api/health). The creator signs in there and creates an API key under Settings → API keys (starts with oseo_).',
+    dockerHint:
+      'If OpenSEO is missing, set it up with Docker Compose from https://github.com/every-app/open-seo (docs/SELF_HOSTING_DOCKER.md): deploy/standalone/compose.yaml, STORAGE_SECRET_KEY and DATAFORSEO_API_KEY in deploy/standalone/.env, then docker compose up -d. sts-ai runs on a server, so the MCP URL must be reachable from the internet (for example a named Cloudflare Tunnel), and BETTER_AUTH_URL must match that https address.',
+    setupGoal:
+      'Start OpenSEO, create an API key (oseo_…), and tell the creator the public MCP URL (ending in /mcp) and the key to paste into STS Partners → OpenSEO, with auth type Bearer.',
+    syncGoal:
+      'Read the STS workspace publish profile (business, location, services) and create an OpenSEO project for its website with the business context, so keyword and local SEO research has the right focus.',
   },
   custom: {
     defaultPort: '',

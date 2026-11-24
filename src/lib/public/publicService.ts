@@ -5,15 +5,21 @@ import { prismaClient } from '@/lib/prismaClient'
 import { getBusinessServices, type BusinessServices } from '@/lib/services/serviceConfig'
 
 /**
- * One business's public service pages (/chat, /speak, /form, /business) are all keyed by the
- * business AI room name, e.g. /speak/biz-acme-4adxz2.
+ * Every public service of a business lives on one page, /business/{room}, keyed by the business
+ * AI room name. Chat, Talk and the form open as panels there (#chat, #talk, #form) and the tour
+ * starts from #tour. The old /chat, /speak, /form and /wizard pages redirect to these.
  */
 export type PublicServiceKind = 'chat' | 'speak' | 'form' | 'business'
+
+/** The panel each service opens on the business page. */
+export const BUSINESS_PANEL_HASH = { chat: 'chat', speak: 'talk', form: 'form', wizard: 'tour' } as const
 
 export type PublicServiceLinks = Partial<Record<PublicServiceKind | 'wizard', string>>
 
 export type PublicBusiness = {
   business: CreatorBusiness
+  /** The business's published tour (not a product's), played on the business page. */
+  wizardSlug: string | null
   agent: { name: string; firstMessage: string | null; language: string }
   services: BusinessServices
   /** Business site published (Business service is "on"). */
@@ -31,8 +37,9 @@ async function viewerUserId(): Promise<string | null> {
   return user?.id ?? null
 }
 
-export function publicServicePath(kind: PublicServiceKind, roomName: string): string {
-  return `/${kind}/${encodeURIComponent(roomName)}`
+export function publicServicePath(kind: PublicServiceKind | 'wizard', roomName: string): string {
+  const page = `/business/${encodeURIComponent(roomName)}`
+  return kind === 'business' ? page : `${page}#${BUSINESS_PANEL_HASH[kind]}`
 }
 
 /** Loads a business by its AI room name with everything a public service page needs. */
@@ -64,10 +71,11 @@ export async function loadPublicBusiness(roomName: string): Promise<PublicBusine
   if (services.speak.enabled) links.speak = publicServicePath('speak', business.roomName)
   if (services.form.enabled) links.form = publicServicePath('form', business.roomName)
   if (sitePublished) links.business = publicServicePath('business', business.roomName)
-  if (wizard?.slug) links.wizard = `/wizard/${encodeURIComponent(wizard.slug)}`
+  if (wizard?.slug) links.wizard = publicServicePath('wizard', business.roomName)
 
   return {
     business,
+    wizardSlug: wizard?.slug ?? null,
     agent: {
       name: agent?.name ?? business.name,
       firstMessage: agent?.firstMessage ?? null,

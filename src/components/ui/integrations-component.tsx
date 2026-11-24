@@ -52,6 +52,30 @@ export function IntegrationCard({
   )
 }
 
+/** A full-width row inside the cards grid that names the group of cards after it. */
+export function IntegrationGroupHeading({
+  title,
+  description,
+  note,
+}: {
+  title: string
+  description: string
+  /** What the group needs, e.g. "No tunnel needed". */
+  note?: string
+}) {
+  return (
+    <div className="col-span-full flex flex-wrap items-end justify-between gap-2 pt-8 first:pt-0">
+      <div className="min-w-0">
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="text-muted-foreground text-sm">{description}</p>
+      </div>
+      {note ? (
+        <span className="text-muted-foreground rounded-full border px-2.5 py-0.5 text-xs">{note}</span>
+      ) : null}
+    </div>
+  )
+}
+
 export default function IntegrationsSection({
   heading,
   description,

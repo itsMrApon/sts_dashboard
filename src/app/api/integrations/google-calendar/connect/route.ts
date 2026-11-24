@@ -26,7 +26,7 @@ export const GET = withRouteErrors('api/integrations/google-calendar/connect', a
   const oauth = await resolveGoogleOAuthCredentials(user.id)
   if (!oauth) {
     return NextResponse.redirect(
-      new URL('/lead?gcal=missing_oauth', req.url),
+      new URL('/lead/calendar?gcal=missing_oauth', req.url),
     )
   }
 

@@ -1,6 +1,6 @@
 export type PipelineDirection = 'inbound' | 'outbound'
 
-export type PartnerPipelineKind = 'medusa' | 'n8n' | 'erpnext' | 'chatwoot'
+export type PartnerPipelineKind = 'medusa' | 'n8n' | 'erpnext'
 
 export type PartnerPipelineTool = {
   tool_name: string
@@ -373,119 +373,15 @@ const ERPNEXT: PartnerPipelineTool[] = [
   },
 ]
 
-const CHATWOOT: PartnerPipelineTool[] = [
-  {
-    tool_name: 'unread_inbox',
-    tool_category: 'chatwoot',
-    integration_name: 'Chatwoot',
-    message: 'Show unread / WhatsApp messages',
-    inboundPrompt: wrapPrompt({
-      kind: 'chatwoot',
-      slash: '/chatwoot',
-      direction: 'inbound',
-      title: 'Read Chatwoot unread conversations including WhatsApp',
-      tools: ['chatwoot_list_unread', 'chatwoot_list_conversations', 'chatwoot_list_inboxes'],
-      body: [
-        '## Goal',
-        'Inbound: what new messages landed in Chatwoot (WhatsApp, email, web)? Show who, channel, preview, waiting time.',
-        '',
-        '## Method',
-        'Call `chatwoot_list_unread` and `chatwoot_list_inboxes`. Prefer WhatsApp rows first. Do not reply yet.',
-      ].join('\n'),
-    }),
-  },
-  {
-    tool_name: 'send_inbox_reply',
-    tool_category: 'chatwoot',
-    integration_name: 'Chatwoot',
-    message: 'Reply in Chatwoot',
-    outboundPrompt: wrapPrompt({
-      kind: 'chatwoot',
-      slash: '/chatwoot',
-      direction: 'outbound',
-      title: 'Send a confirmed reply into Chatwoot',
-      tools: ['chatwoot_list_unread', 'chatwoot_get_conversation', 'chatwoot_send_reply'],
-      body: [
-        '## Goal',
-        'Outbound: take the reply the creator wants and send it through Chatwoot to the customer (WhatsApp/email/web).',
-        '',
-        '## Method',
-        'Resolve conversation id from unread/list. Draft the reply. Confirm, then `chatwoot_send_reply`. Report conversation id and delivery.',
-      ].join('\n'),
-    }),
-  },
-  {
-    tool_name: 'find_contact',
-    tool_category: 'chatwoot',
-    integration_name: 'Chatwoot',
-    message: 'Find a Chatwoot contact',
-    inboundPrompt: wrapPrompt({
-      kind: 'chatwoot',
-      slash: '/chatwoot',
-      direction: 'inbound',
-      title: 'Lookup a contact by name, phone, or email',
-      tools: ['chatwoot_find_contact'],
-      body: [
-        '## Goal',
-        'Inbound: find the contact and show id, channels, last activity. No writes.',
-        '',
-        '## Method',
-        'Call `chatwoot_find_contact` with the query the creator typed.',
-      ].join('\n'),
-    }),
-  },
-  {
-    tool_name: 'conversation_thread',
-    tool_category: 'chatwoot',
-    integration_name: 'Chatwoot',
-    message: 'Open a conversation thread',
-    inboundPrompt: wrapPrompt({
-      kind: 'chatwoot',
-      slash: '/chatwoot',
-      direction: 'inbound',
-      title: 'Read one Chatwoot conversation in full',
-      tools: ['chatwoot_get_conversation', 'chatwoot_list_conversations'],
-      body: [
-        '## Goal',
-        'Inbound: load the conversation the creator named and summarize the last messages.',
-        '',
-        '## Method',
-        'Find id via list if needed, then `chatwoot_get_conversation`. Quote the latest customer line.',
-      ].join('\n'),
-    }),
-  },
-  {
-    tool_name: 'inbox_health',
-    tool_category: 'chatwoot',
-    integration_name: 'Chatwoot',
-    message: 'Chatwoot inbox health',
-    inboundPrompt: wrapPrompt({
-      kind: 'chatwoot',
-      slash: '/chatwoot',
-      direction: 'inbound',
-      title: 'List inboxes and waiting conversations',
-      tools: ['chatwoot_list_inboxes', 'chatwoot_list_conversations'],
-      body: [
-        '## Goal',
-        'Inbound ops snapshot: which inboxes exist (WhatsApp/email/web) and how many open conversations sit in each.',
-        '',
-        '## Method',
-        'Call both list tools. Table inbox name, channel, open count.',
-      ].join('\n'),
-    }),
-  },
-]
-
 const BY_KIND: Record<PartnerPipelineKind, PartnerPipelineTool[]> = {
   n8n: N8N,
   medusa: MEDUSA,
   erpnext: ERPNEXT,
-  chatwoot: CHATWOOT,
 }
 
 export function getPartnerPipelineTools(kind: string): PartnerPipelineTool[] {
   const key = kind === 'saleor' ? 'medusa' : kind
-  if (key === 'medusa' || key === 'n8n' || key === 'erpnext' || key === 'chatwoot') {
+  if (key === 'medusa' || key === 'n8n' || key === 'erpnext') {
     return BY_KIND[key]
   }
   return []
@@ -511,7 +407,7 @@ export function listPipelinePrompts(kinds?: string[]): PipelinePromptPick[] {
   const picks: PipelinePromptPick[] = []
 
   for (const raw of wanted) {
-    if (raw !== 'medusa' && raw !== 'n8n' && raw !== 'erpnext' && raw !== 'chatwoot') continue
+    if (raw !== 'medusa' && raw !== 'n8n' && raw !== 'erpnext') continue
     if (seen.has(raw)) continue
     seen.add(raw)
 

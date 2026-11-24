@@ -177,13 +177,12 @@ export async function ingestFathomMeetingForUser(options: {
   if (
     options.autoScore === true &&
     meeting.summary &&
-    meeting.lead?.selectedAgentId &&
+    meeting.lead &&
     meeting.scores.length === 0
   ) {
     try {
       await scoreMeetingAndSave({
         meetingId: meeting.id,
-        agentId: meeting.lead.selectedAgentId,
         apiKey: options.geminiApiKey,
       })
     } catch (err) {

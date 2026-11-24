@@ -29,18 +29,18 @@ export const PARTNER_PRESETS: PartnerPreset[] = [
     chipClassName: 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40',
   },
   {
-    kind: 'chatwoot',
-    label: 'Chatwoot',
-    description: 'Omnichannel inbox (WhatsApp, email, web, social) via REST',
-    defaultUrl: 'http://localhost:3001',
-    chipClassName: 'bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/40',
-  },
-  {
     kind: 'firecrawl',
     label: 'Firecrawl',
     description: 'Crawl and extract site content',
     defaultUrl: 'https://mcp.firecrawl.dev/mcp',
     chipClassName: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40',
+  },
+  {
+    kind: 'openseo',
+    label: 'OpenSEO',
+    description: 'Keywords, rankings, local SEO and site audits from your OpenSEO (MCP)',
+    defaultUrl: 'http://localhost:3001/mcp',
+    chipClassName: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40',
   },
   {
     kind: 'custom',

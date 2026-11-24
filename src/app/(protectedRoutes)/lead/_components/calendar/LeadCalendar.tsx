@@ -1,11 +1,13 @@
 'use client'
 
-import { openLeadSettings } from '../leadSettingsEvents'
+import { openLeadIntegration } from '../leadIntegrationLinks'
 import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast'
-import { ChevronLeft, ChevronRight, ExternalLink, StickyNote, Video, Building2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ExternalLink, StickyNote, Video, Building2, Phone, PlugZap } from 'lucide-react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { AvatarGroup, AvatarGroupTooltip } from '@/components/ui/avatar-group'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -40,6 +42,21 @@ export type LeadCalendarMonth = {
     id: string
     location: string
     niche: string
+    createdAt: string
+    leads: Array<{
+      id: string
+      name: string
+      company: string | null
+      outboundStatus: OutboundStatus
+      website: string | null
+      phone: string | null
+    }>
+  } | null
+  /** The most recent /lead/intel import, so its leads can be dragged onto the week too. */
+  latestImport?: {
+    id: string
+    app: string
+    label: string
     createdAt: string
     leads: Array<{
       id: string
@@ -101,6 +118,20 @@ type CalendarChip = {
   note?: string | null
   outboundStatus?: OutboundStatus
   summary?: string | null
+}
+
+/** Two letters for a lead's avatar: "Fox's of Forest Hills" → "FF". */
+function initials(name: string): string {
+  const words = name.replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean)
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? '?').slice(0, 2)
+  return letters.toUpperCase()
+}
+
+const IMPORT_APP_NAME: Record<string, string> = {
+  SELLBIRD: 'Sellbird',
+  N8N: 'n8n',
+  CSV: 'CSV',
+  GOOGLE_DRIVE: 'Google Drive',
 }
 
 const OUTBOUND_LABEL: Record<OutboundStatus, string> = {
@@ -280,11 +311,30 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
     return `${weekStart.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, { ...opts, year: 'numeric' })}`
   }, [weekStart])
 
-  const dayStripLeads = useMemo(() => {
-    if (!calendarMonth.todayBatch) return []
+  /** Leads above the week you can drag onto a slot: today's Maps batch and the latest import. */
+  const stripGroups = useMemo(() => {
     if (!sameDay(selectedDay, new Date())) return []
-    return calendarMonth.todayBatch.leads
-  }, [calendarMonth.todayBatch, selectedDay])
+    const groups: Array<{
+      key: 'maps' | 'import'
+      title: string
+      detail: string
+      leads: NonNullable<LeadCalendarMonth['todayBatch']>['leads']
+    }> = []
+    const maps = calendarMonth.todayBatch
+    if (maps?.leads.length) {
+      groups.push({ key: 'maps', title: 'Today\u2019s outreach', detail: `${maps.niche} in ${maps.location}`, leads: maps.leads })
+    }
+    const imported = calendarMonth.latestImport
+    if (imported?.leads.length) {
+      groups.push({
+        key: 'import',
+        title: 'Latest import',
+        detail: `${IMPORT_APP_NAME[imported.app] ?? imported.app} · ${imported.label}`,
+        leads: imported.leads,
+      })
+    }
+    return groups
+  }, [calendarMonth.todayBatch, calendarMonth.latestImport, selectedDay])
 
   const gridHeight = (END_HOUR - START_HOUR) * 60 * PX_PER_MINUTE
 
@@ -386,31 +436,26 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
         </div>
       </div>
 
-      {/* Day strip — today's 10 Maps leads (Cal list density) */}
-      {dayStripLeads.length > 0 ? (
-        <div className="shrink-0 rounded-xl border">
-          <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Building2 className="size-4 text-sky-600" />
-              Today&apos;s outreach
-              <span className="text-muted-foreground font-normal">
-                · {calendarMonth.todayBatch?.niche} in{' '}
-                {calendarMonth.todayBatch?.location}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground hidden text-xs sm:inline">
-                Drag onto a time slot
-              </span>
-              <Badge variant="secondary">{dayStripLeads.length} leads</Badge>
-            </div>
+      {/* Day strips: today's Maps batch and the latest import, one avatar per lead (Cal list density) */}
+      {stripGroups.map((group) => (
+        <div key={group.key} className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 px-1 py-1">
+          <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+            {group.key === 'maps' ? (
+              <Building2 className="size-4 shrink-0 text-sky-600" />
+            ) : (
+              <PlugZap className="size-4 shrink-0 text-amber-600" />
+            )}
+            {group.title}
+            <span className="text-muted-foreground truncate font-normal">· {group.detail}</span>
           </div>
-          <div className="flex gap-2 overflow-x-auto p-3">
-            {dayStripLeads.map((lead) => (
+          {/* One avatar per lead: hover for name, company and phone; drag onto a time slot. */}
+          <AvatarGroup className="h-10 -space-x-2.5" tooltipProps={{ side: 'bottom', sideOffset: 10 }}>
+            {group.leads.map((lead) => (
               <button
                 key={lead.id}
                 type="button"
                 draggable
+                aria-label={`${lead.name}, ${OUTBOUND_LABEL[lead.outboundStatus]}`}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(
                     'application/sts-lead',
@@ -430,24 +475,55 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                     note: lead.phone || lead.website || lead.company,
                   })
                 }
-                className={cn(
-                  'min-w-[160px] shrink-0 cursor-grab rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50 active:cursor-grabbing',
-                  KIND_CHIP.activity,
-                )}
+                className="block cursor-grab rounded-full active:cursor-grabbing"
               >
-                <div className="truncate font-medium">{lead.name}</div>
-                <div className="text-muted-foreground mt-0.5 truncate text-xs capitalize">
-                  {OUTBOUND_LABEL[lead.outboundStatus]}
-                  {lead.phone ? ` · ${lead.phone}` : ''}
-                </div>
+                <Avatar className="size-10 ring-2 ring-background">
+                  <AvatarFallback
+                    className={cn(
+                      'text-xs font-semibold',
+                      group.key === 'maps'
+                        ? 'bg-sky-500/15 text-sky-700 dark:text-sky-200'
+                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-200',
+                    )}
+                  >
+                    {initials(lead.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <AvatarGroupTooltip
+                  className="max-w-60"
+                  // Clicks in the card (the phone link) must not also open the lead.
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <p className="font-medium leading-snug">{lead.name}</p>
+                  {lead.company && lead.company !== lead.name ? (
+                    <p className="text-muted-foreground text-xs">{lead.company}</p>
+                  ) : null}
+                  <p className="text-muted-foreground text-xs capitalize">{OUTBOUND_LABEL[lead.outboundStatus]}</p>
+                  {lead.phone ? (
+                    <a
+                      href={`tel:${lead.phone.replace(/[^\d+]/g, '')}`}
+                      className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-sky-600 hover:underline dark:text-sky-400"
+                    >
+                      <Phone className="size-3.5" aria-hidden />
+                      {lead.phone}
+                    </a>
+                  ) : null}
+                </AvatarGroupTooltip>
               </button>
             ))}
+          </AvatarGroup>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-muted-foreground hidden text-xs sm:inline">
+              Drag onto a time slot
+            </span>
+            <Badge variant="secondary">{group.leads.length} leads</Badge>
           </div>
         </div>
-      ) : null}
+      ))}
 
       {/* Full-width week grid */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Day headers */}
         <div className="bg-background sticky top-0 z-10 grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b">
           <div className="border-r" />
@@ -765,8 +841,8 @@ export function LeadCalendar({ calendarMonth, gcalOk }: Props) {
                     toast.error(res.error || 'Failed', {
                       action: needsSettings
                         ? {
-                            label: 'Lead settings',
-                            onClick: openLeadSettings,
+                            label: 'Google settings',
+                            onClick: () => openLeadIntegration('google'),
                           }
                         : undefined,
                     })

@@ -5,6 +5,7 @@ import { encryptToken } from '@/lib/messages/encrypt'
 import {
   exchangeGoogleCode,
   resolveGoogleOAuthCredentials,
+  hasCalendarScope,
 } from '@/lib/leads/googleCalendar'
 
 export const runtime = 'nodejs'
@@ -17,11 +18,11 @@ export async function GET(req: NextRequest) {
 
   if (err) {
     return NextResponse.redirect(
-      new URL(`/lead?gcal=error&msg=${encodeURIComponent(err)}`, req.url),
+      new URL(`/lead/calendar?gcal=error&msg=${encodeURIComponent(err)}`, req.url),
     )
   }
   if (!code || !stateRaw) {
-    return NextResponse.redirect(new URL('/lead?gcal=missing', req.url))
+    return NextResponse.redirect(new URL('/lead/calendar?gcal=missing', req.url))
   }
 
   let userId: string
@@ -32,13 +33,13 @@ export async function GET(req: NextRequest) {
     if (!state.userId) throw new Error('no userId')
     userId = state.userId
   } catch {
-    return NextResponse.redirect(new URL('/lead?gcal=bad_state', req.url))
+    return NextResponse.redirect(new URL('/lead/calendar?gcal=bad_state', req.url))
   }
 
   try {
     const oauth = await resolveGoogleOAuthCredentials(userId)
     if (!oauth) {
-      return NextResponse.redirect(new URL('/lead?gcal=missing_oauth', req.url))
+      return NextResponse.redirect(new URL('/lead/calendar?gcal=missing_oauth', req.url))
     }
 
     const origin = url.origin
@@ -48,6 +49,11 @@ export async function GET(req: NextRequest) {
       clientId: oauth.clientId,
       clientSecret: oauth.clientSecret,
     })
+
+    // Google lets people untick the calendar permission; without it every calendar call fails.
+    if (!hasCalendarScope(tokens.scope)) {
+      return NextResponse.redirect(new URL('/lead/calendar?gcal=missing_scope', req.url))
+    }
 
     const existing = await prismaClient.callIntelConnection.findUnique({
       where: {
@@ -66,7 +72,7 @@ export async function GET(req: NextRequest) {
       : previousRefresh
 
     if (!refreshTokenEnc) {
-      return NextResponse.redirect(new URL('/lead?gcal=no_refresh', req.url))
+      return NextResponse.redirect(new URL('/lead/calendar?gcal=no_refresh', req.url))
     }
 
     await prismaClient.callIntelConnection.upsert({
@@ -84,6 +90,7 @@ export async function GET(req: NextRequest) {
           connectedAt: new Date().toISOString(),
           oauthSource: oauth.source,
           oauthClientId: oauth.clientId,
+          grantedScopes: tokens.scope ?? null,
         },
       },
       update: {
@@ -95,17 +102,18 @@ export async function GET(req: NextRequest) {
           connectedAt: new Date().toISOString(),
           oauthSource: oauth.source,
           oauthClientId: oauth.clientId,
+          grantedScopes: tokens.scope ?? null,
           lastError: null,
           revokedAt: null,
         },
       },
     })
 
-    revalidatePath('/lead')
+    revalidatePath('/lead', 'layout')
     revalidatePath('/settings')
-    return NextResponse.redirect(new URL('/lead?gcal=connected', req.url))
+    return NextResponse.redirect(new URL('/lead/calendar?gcal=connected', req.url))
   } catch (error) {
     console.error('Google Calendar callback failed', error)
-    return NextResponse.redirect(new URL('/lead?gcal=failed', req.url))
+    return NextResponse.redirect(new URL('/lead/calendar?gcal=failed', req.url))
   }
 }

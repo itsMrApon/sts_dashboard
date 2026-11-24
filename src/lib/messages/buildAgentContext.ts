@@ -1,6 +1,7 @@
 import type { LiveKitAgent } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { startPerf, timeAsync } from '@/lib/dev/perf'
+import { loadApprovedAnswers } from '@/lib/questions/questionGroups'
 import { enabledModes, primaryOfferLink } from '@/lib/offers/offerLinks'
 import {
   WEBINAR_STATUS_LABEL,
@@ -76,6 +77,8 @@ export async function buildAgentContext(
     /** The service's own assistant (Services → Chat AI / Voice AI): its prompt, name and first
      *  message replace the room agent's. Business details still come from the room's business. */
     persona?: { name: string; systemPrompt: string | null; firstMessage: string | null } | null
+    /** The project this chat is about (offer chats), so that project's answers come first. */
+    projectId?: string | null
   },
 ): Promise<AgentContext> {
   const mode = options?.mode ?? 'full'
@@ -413,6 +416,20 @@ export async function buildAgentContext(
         ]
           .filter(Boolean)
           .join('\n'),
+      )
+    }
+  }
+
+  // The creator's own answers to questions customers keep asking (Projects → Questions).
+  if (mode === 'full' && business?.user?.id) {
+    const answers = await loadApprovedAnswers(business.user.id, options?.projectId ?? webinarId)
+    if (answers.length > 0) {
+      parts.push(
+        [
+          '## Answers from the business',
+          'When a visitor asks one of these, answer with this content in your own words and in the visitor’s language. These come from the owner, so prefer them over your own guesses.',
+          ...answers.map((item) => `Q: ${item.question}\nA: ${item.answer}`),
+        ].join('\n'),
       )
     }
   }

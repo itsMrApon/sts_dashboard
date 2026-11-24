@@ -67,6 +67,12 @@ const page = async ({ searchParams }: Props) => {
                 {tab.label}
               </Link>
             ))}
+            <Link
+              href="/projects/questions"
+              className="rounded-md bg-secondary px-5 py-2.5 text-sm opacity-50 transition-opacity hover:opacity-80"
+            >
+              General questions
+            </Link>
             {checkUser.user.subscription ? (
               <Button asChild size="sm">
                 <Link href={`/projects?${filter === 'all' ? '' : `filter=${filter}&`}new=1`} scroll={false}>

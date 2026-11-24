@@ -11,6 +11,7 @@ import {
 import { WifiOff } from 'lucide-react'
 import Link from 'next/link'
 import { CallIntelDashboard } from './CallIntelDashboard'
+import type { LeadViewMode } from './LeadPageHeaderControls'
 
 function isUnavailable(
   data: Awaited<ReturnType<typeof getCallIntelDashboard>>,
@@ -20,8 +21,10 @@ function isUnavailable(
 
 export async function LeadDashboardLoader({
   user,
+  view,
 }: {
   user: { id: string; email: string; name: string }
+  view: LeadViewMode
 }) {
   const data = await getCallIntelDashboard(user)
   if (isUnavailable(data)) {
@@ -38,7 +41,7 @@ export async function LeadDashboardLoader({
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" size="sm">
-            <Link href="/lead">Try again</Link>
+            <Link href={`/lead/${view}`}>Try again</Link>
           </Button>
         </CardContent>
       </Card>
@@ -48,12 +51,14 @@ export async function LeadDashboardLoader({
 
   return (
     <CallIntelDashboard
+      view={view}
       connections={data.connections}
       settings={data.settings}
       setup={data.setup}
       agents={data.agents}
       leads={data.leads}
       searchBatches={data.searchBatches || []}
+      importBatches={data.importBatches || []}
       calendarMonth={data.calendarMonth || null}
       serperConfigured={data.serperConfigured}
       geminiResearchReady={data.geminiResearchReady}

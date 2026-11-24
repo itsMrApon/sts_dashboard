@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { HomeIcon, Users } from 'lucide-react'
 import { onAuthenticateUser } from '@/actions/auth'
@@ -28,6 +29,9 @@ export default async function PipelinePage({ params }: Props) {
         heading="Keep track of all of your customers"
         placeholder="Search Name, Tag or Email"
       />
+      <Link href={`/projects/${projectId}/questions`} className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        See the questions buyers asked →
+      </Link>
       <OfferPipeline view={view} />
     </div>
   )

@@ -69,15 +69,8 @@ export async function loadServiceContext(
     const service = getServiceDefinition(id as TenantServiceId)
     const kind = normalizePartnerKind(service.id)
 
-    if (service.mcpKind === 'medusa' || service.id === 'erpnext' || service.mcpKind === 'n8n' || service.id === 'chatwoot') {
-      const key =
-        kind === 'medusa'
-          ? 'medusaMcp'
-          : kind === 'erpnext'
-            ? 'erpnextMcp'
-            : kind === 'n8n'
-              ? 'n8nMcp'
-              : 'chatwootMcp'
+    if (service.mcpKind === 'medusa' || service.id === 'erpnext' || service.mcpKind === 'n8n') {
+      const key = kind === 'medusa' ? 'medusaMcp' : kind === 'erpnext' ? 'erpnextMcp' : 'n8nMcp'
       const status = statusByKind.get(kind)
       context[key] = status
         ? {

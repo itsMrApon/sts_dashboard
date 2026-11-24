@@ -117,33 +117,28 @@ const GUIDES: Record<string, Omit<PartnerIntegrationGuide, 'kind' | 'label' | 'd
       },
     ],
   },
-  chatwoot: {
-    tagline: 'WhatsApp, email, web chat, and social inbox.',
+  openseo: {
+    tagline: 'See what customers search for, how you rank, and what to fix, from your own OpenSEO.',
     zeroConfigTitle: 'Zero-config previews',
     zeroConfigBody:
-      'Click a walkthrough step, then copy Cursor, Claude, CLI, or Universal. Step 1 boots Chatwoot. Step 2 pastes URL + accountId:token into Engineered for constraints. Step 3 tests the inbox and labels this workspace.',
+      'Click a walkthrough step, then copy Cursor, Claude, CLI, or Universal. Step 1 starts OpenSEO with Docker. Step 2 pastes its MCP URL and API key into Engineered for constraints. Step 3 asks for keyword ideas in chat.',
     constraintsTitle: 'Engineered for constraints',
     constraintsBody:
-      'App URL plus auth as accountId:api_access_token. STS uses Chatwoot REST. Chat uses /chatwoot or /inbox.',
-    authHint: 'accountId:api_access_token',
+      'Paste the OpenSEO MCP URL (ending in /mcp) and an API key from Settings → API keys, with auth type Bearer. sts-ai runs on a server, so a localhost URL only works when sts-ai runs on the same machine; otherwise use a public address such as a named Cloudflare Tunnel. Chat uses /openseo or /seo.',
+    authHint: 'OpenSEO API key (oseo_…)',
     walkthrough: {
       install:
-        'Install Chatwoot on this machine with the official Docker Compose stack. Copy a prompt from the preview — skip the multi-page install.',
+        'Run OpenSEO with Docker Compose and add your DataForSEO key. Copy a prompt from the preview.',
       connect:
-        'Scroll to Engineered for constraints. Paste http://localhost:3001 and accountId:api_access_token, then Connect.',
-      test: 'Open workspace chat, run /chatwoot, and list inboxes or unread. Label or create an inbox for this workspace if needed.',
+        'Scroll to Engineered for constraints. Paste the MCP URL and the oseo_ key, choose Bearer, then Connect.',
+      test: 'Open workspace chat, run /seo, and ask for keyword ideas for your business and city.',
     },
     cliOptions: [
       {
         id: 'docker',
         label: 'Docker',
         command:
-          'git clone https://github.com/chatwoot/chatwoot.git && cd chatwoot && docker compose up -d',
-      },
-      {
-        id: 'npm',
-        label: 'npm',
-        command: 'pnpm install && pnpm rails db:chatwoot_prepare && pnpm vite && pnpm rails s -p 3001',
+          'git clone https://github.com/every-app/open-seo && cd open-seo && export COMPOSE_FILE=deploy/standalone/compose.yaml && docker compose up -d',
       },
     ],
   },

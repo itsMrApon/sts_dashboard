@@ -82,21 +82,6 @@ export const PARTNER_SLASH_COMMANDS: PartnerSlashCommand[] = [
     serviceKind: 'erpnext',
   },
   {
-    id: 'chatwoot',
-    label: 'Chatwoot',
-    description: 'Omnichannel inbox and replies',
-    prefix: '/chatwoot',
-    serviceKind: 'chatwoot',
-    showInBar: true,
-  },
-  {
-    id: 'inbox',
-    label: 'Chatwoot',
-    description: 'Alias for /chatwoot',
-    prefix: '/inbox',
-    serviceKind: 'chatwoot',
-  },
-  {
     id: 'firecrawl',
     label: 'Firecrawl',
     description: 'Crawl and extract site content',
@@ -110,6 +95,21 @@ export const PARTNER_SLASH_COMMANDS: PartnerSlashCommand[] = [
     description: 'Alias for /firecrawl',
     prefix: '/crawl',
     serviceKind: 'firecrawl',
+  },
+  {
+    id: 'openseo',
+    label: 'OpenSEO',
+    description: 'Keywords, rankings, local SEO and audits',
+    prefix: '/openseo',
+    serviceKind: 'openseo',
+    showInBar: true,
+  },
+  {
+    id: 'seo',
+    label: 'OpenSEO',
+    description: 'Alias for /openseo',
+    prefix: '/seo',
+    serviceKind: 'openseo',
   },
   {
     id: 'mcp',
@@ -158,7 +158,7 @@ const KNOWN_PREFIX_PATTERN = new RegExp(
 )
 
 const ACTIVE_PARTNER_PATTERN =
-  /active partner:\s*(n8n|medusa|madusa|erpnext|chatwoot|firecrawl|custom|ecommerce|automate)/i
+  /active partner:\s*(n8n|medusa|madusa|erpnext|firecrawl|custom|ecommerce|automate)/i
 
 /**
  * Find partner slash commands anywhere in typed input or a pasted pipeline prompt.

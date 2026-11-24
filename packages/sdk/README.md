@@ -59,11 +59,48 @@ export function ChatBubble() {
 
 | Hook | Returns |
 |---|---|
-| `useStsChat()` | `available, greeting, suggestions, messages, send(text), reset(), status, error` |
-| `useStsSpeak()` | `state ('idle' \| 'connecting' \| 'live' \| 'ended' \| 'error'), start(), stop(), isAgentSpeaking, error` |
+| `useStsChat()` | `available, greeting, suggestions, documentRequests, messages, send(text), attach(file, documentId?), reset(), status, error` |
+| `useStsSpeak()` | `state ('idle' \| 'connecting' \| 'live' \| 'ended' \| 'error'), start(), stop(), isAgentSpeaking, muted, setMuted(bool), captions, agentLevel, error` |
 | `useStsForm()` | `form, values, setValue(id, v), consent, setConsent, submit(), status, message, fieldError` |
-| `useStsWizard()` | `ready, start(), stop(), playing, speaking, step, stepIndex, caption, muted, setMuted` |
+| `useStsWizard()` | `ready, start(), follow(), savedSound(), rememberSound('on' \| 'off'), stop(), playing, speaking, step, stepIndex, caption, muted, setMuted` |
+
+### Chat: the attach button
+
+When the chat assistant is set to ask for documents (AI agents → chat assistant → Documents),
+`documentRequests` is not empty. Show your own attach button and pass the file to `attach()`.
+The file goes to the business's Google Drive and the assistant confirms it arrived.
+
+```tsx
+const { documentRequests, attach } = useStsChat()
+{documentRequests.length > 0 && (
+  <input type="file" accept="application/pdf,image/*" onChange={(e) => e.target.files?.[0] && attach(e.target.files[0])} />
+)}
+```
+
+### Voice: mute, captions and the sound level
+
+`setMuted(true)` mutes the visitor's microphone. `captions` holds the last lines of the call
+(`speaker: 'agent' | 'visitor'`, `final` once a line is complete). `agentLevel` goes from 0 to 1
+about ten times a second: use it to animate an orb or bars.
+
+### Tour that follows the visitor's scroll
+
+`start()` lets the tour lead: it scrolls to each section and narrates it. `follow()` lets the
+visitor lead: nothing scrolls, and each `[data-sts-step]` section speaks once when it reaches the
+middle of the screen. Browsers need one click before sound, so call `follow()` from your
+"Sound on" button the first time, and save the answer with `rememberSound()`:
+
+```tsx
+const tour = useStsWizard()
+useEffect(() => {
+  if (tour.ready && tour.savedSound() === 'off') { tour.setMuted(true); tour.follow() }
+}, [tour.ready])
+<button onClick={() => { tour.rememberSound('on'); tour.follow() }}>Sound on</button>
+```
+
+On a site that changes pages without reloading, call `follow()` again after each page change.
 | `useStsBusiness()` | `business { name, description, profile }` |
+| `useStsAnswers()` | `answers [{ question, answer }], ready, error`: the business's own answers, for an FAQ block |
 | `useStsInfo()` | business name + which services are on |
 
 ### Wizard on your page

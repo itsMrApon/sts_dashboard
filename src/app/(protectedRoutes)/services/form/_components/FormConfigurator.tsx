@@ -202,7 +202,7 @@ export function FormConfigurator(props: Props) {
         isAssistant
           ? undefined
           : {
-              href: `/form/${encodeURIComponent(roomName)}`,
+              href: `/business/${encodeURIComponent(roomName)}#form`,
               content: preview,
               actions: (
                 <button

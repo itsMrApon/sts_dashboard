@@ -98,6 +98,7 @@ export async function submitFormPreview(input: {
   const services = await getBusinessServices(business.workspaceId)
   const result = await submitBusinessForm({
     ownerUserId: business.userId,
+    workspaceId: business.workspaceId,
     businessName: business.name,
     config: services.form.config,
     values: input.values,

@@ -40,9 +40,12 @@ model User {
   callIntelLeads             CallIntelLead[]
   callIntelMeetings          CallIntelMeeting[]
   callIntelSettings          CallIntelSettings?
+  leadImportSources          LeadImportSource[]
+  leadImportBatches          LeadImportBatch[]
   leadSearchBatches          LeadSearchBatch[]
   leadActivities             LeadActivity[]
   providerUsageDaily         ProviderUsageDaily[]
+  questionGroups             QuestionGroup[]
   /// Platform packages: "Setup & Integrate" ($49 one-time) and "Run My Business" ($499/month).
   /// `subscription` stays the single access flag and is derived from these.
   setupPaidAt                DateTime?
@@ -144,6 +147,7 @@ model Webinar {
   /// Public share path: /o/{slug}
   slug            String?           @unique @db.VarChar(80)
   attendances     Attendance[]
+  questionGroups  QuestionGroup[]
   publishProducts PublishProduct[]
   orderModes      OfferOrderMode[]
   /// This offer's own guided tour (the Guided tour panel on /o/{slug}).
@@ -953,6 +957,8 @@ model CallIntelLead {
   email             String             @db.VarChar(255)
   name              String             @db.VarChar(255)
   company           String?            @db.VarChar(255)
+  /// The person's job title at their company ("Owner", "Marketing Manager"), from imports or typed in.
+  position          String?            @db.VarChar(150)
   notes             String?
   selectedAgentId   String?            @db.Uuid
   lastAppointmentAt DateTime?
@@ -965,17 +971,25 @@ model CallIntelLead {
   website           String?            @db.VarChar(500)
   address           String?            @db.VarChar(500)
   placeId           String?            @db.VarChar(100)
+  /// From Google Maps: the business category, its star rating and how many reviews it has.
+  mapsCategory      String?            @db.VarChar(120)
+  mapsRating        Float?
+  mapsReviewCount   Int?
   /**
    * Manual outbound pipeline: NEW | ON_PROCESS | DONE
    */
   outboundStatus    LeadOutboundStatus @default(NEW)
   searchBatchId     String?            @db.Uuid
+  /// Set on leads brought in from /lead/intel: the app (N8N, SELLBIRD, CSV, GOOGLE_DRIVE) and its batch.
+  importApp         String?            @db.VarChar(20)
+  importBatchId     String?            @db.Uuid
   nextFollowUpAt    DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
   user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   searchBatch LeadSearchBatch?   @relation(fields: [searchBatchId], references: [id], onDelete: SetNull)
+  importBatch LeadImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   meetings    CallIntelMeeting[]
   briefs      CallIntelBrief[]
   activities  LeadActivity[]
@@ -987,6 +1001,7 @@ model CallIntelLead {
   @@index([userId, placeId])
   @@index([userId, outboundStatus])
   @@index([searchBatchId])
+  @@index([importBatchId])
   @@index([userId, nextFollowUpAt])
   @@index([selectedAgentId])
 }
@@ -1004,6 +1019,49 @@ model LeadSearchBatch {
 
   @@index([userId])
   @@index([userId, createdAt])
+}
+
+/// An app that sends leads in through /lead/intel. One per user and app.
+model LeadImportSource {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @db.Uuid
+  app              String    @db.VarChar(20)
+  /// Webhook apps (n8n): the token, encrypted so the page can show the URL again, and its hash for lookups.
+  webhookTokenEnc  String?
+  webhookTokenHash String?   @unique @db.VarChar(64)
+  /// The last column mapping used for this app, { [leadField]: columnName }, reused on the next import.
+  mapping          Json?
+  /// Columns and a few values from the last webhook push, so its mapping can be checked on the page.
+  lastColumns      Json?
+  lastImportAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batches LeadImportBatch[]
+
+  @@unique([userId, app])
+}
+
+/// One import: a file, a Drive link or one webhook push.
+model LeadImportBatch {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @db.Uuid
+  sourceId     String   @db.Uuid
+  app          String   @db.VarChar(20)
+  label        String   @db.VarChar(255)
+  rowCount     Int      @default(0)
+  createdCount Int      @default(0)
+  updatedCount Int      @default(0)
+  skippedCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source LeadImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  leads  CallIntelLead[]
+
+  @@index([userId, createdAt])
+  @@index([sourceId])
 }
 
 model LeadActivity {
@@ -1131,6 +1189,8 @@ model CallIntelSettings {
    */
   businessLocation      String?   @db.VarChar(255)
   businessNiche         String?   @db.VarChar(255)
+  /// /lead/intel board: which app each lead field comes from, e.g. { "email": "SELLBIRD" }.
+  leadFieldSources      Json?
   setupCompletedAt      DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -1229,4 +1289,44 @@ model FormSubmission {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt])
+}
+
+/// Settings for the whole platform, not one creator, edited by platform owners (OWNER_EMAILS) in
+/// /integrations. Values are encrypted with ENCRYPTION_KEY. Keys: "trigger.secretKey", "trigger.projectRef".
+model PlatformSetting {
+  key             String   @id @db.VarChar(64)
+  valueEnc        String
+  updatedByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Questions customers asked, grouped by meaning, for one creator and one project (webinarId)
+/// or none (General: website chats about no project). Rebuilt by the Questions job; the
+/// creator's status and answer are kept across runs. Approved answers feed every agent.
+model QuestionGroup {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @db.Uuid
+  webinarId      String?   @db.Uuid
+  /// Short name for the question, in the language customers used.
+  label          String    @db.VarChar(200)
+  /// Up to 5 real questions as asked, personal details removed, newest first.
+  examples       Json      @default("[]")
+  askedCount     Int       @default(0)
+  /// Times the visitor said nothing more after this question was answered.
+  wentQuietCount Int       @default(0)
+  /// OPEN, ANSWERED or IGNORED.
+  status         String    @default("OPEN") @db.VarChar(16)
+  /// The creator's answer. Agents use it once status is ANSWERED.
+  answer         String?
+  answeredAt     DateTime?
+  lastAskedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  webinar Webinar? @relation(fields: [webinarId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, webinarId, label])
+  @@index([userId, status])
 }

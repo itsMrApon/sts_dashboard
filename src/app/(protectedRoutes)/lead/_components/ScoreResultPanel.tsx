@@ -30,6 +30,8 @@ type Props = {
   scoreHistory?: MeetingScoreDetail[]
   meetingTrend?: MeetingTrend[]
   agentName: string | null
+  /** What the number means, e.g. "Fit score" for a website scan. */
+  scoreLabel?: string
   onAddToNotes: (text: string) => void
   onAskAbout: (prompt: string) => void
   onRunScore?: (deep: boolean) => void
@@ -87,6 +89,7 @@ export function ScoreResultPanel({
   scoreHistory = [],
   meetingTrend = [],
   agentName,
+  scoreLabel = 'Call score',
   onAddToNotes,
   onAskAbout,
   onRunScore,
@@ -118,7 +121,7 @@ export function ScoreResultPanel({
       <div className="shrink-0 pb-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-muted-foreground text-xs">Call score</p>
+            <p className="text-muted-foreground text-xs">{scoreLabel}</p>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-4xl font-semibold tracking-tight tabular-nums">
                 {score.overallScore}

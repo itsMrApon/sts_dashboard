@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { format } from 'date-fns'
-import { Calendar, Package, Settings2, Store, Tag, Video } from 'lucide-react'
+import { Calendar, MessageCircleQuestion, Package, Settings2, Store, Tag, Video } from 'lucide-react'
 import PipelineIcon from '@/icons/PipelineIcon'
 import ProjectLinksSheet from './ProjectLinksSheet'
 import type { CreatorOfferItem } from '@/lib/offers/creatorOffers'
@@ -97,6 +97,14 @@ const ProjectCard = ({ project, shareBaseUrl }: Props) => {
             aria-label="View pipeline"
           >
             <PipelineIcon className="h-6 w-6" />
+          </Link>
+          <Link
+            href={`/projects/${project.id}/questions`}
+            className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-secondary"
+            aria-label="Questions buyers asked"
+            title="Questions buyers asked"
+          >
+            <MessageCircleQuestion className="h-5 w-5" />
           </Link>
         </div>
       </div>

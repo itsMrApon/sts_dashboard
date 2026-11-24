@@ -44,7 +44,8 @@ export function createSts(options) {
             const { token } = await ensureSession(force);
             const headers = new Headers(init.headers);
             headers.set(SESSION_HEADER, token);
-            if (init.body)
+            // JSON bodies only: a FormData upload sets its own multipart boundary.
+            if (typeof init.body === 'string')
                 headers.set('Content-Type', 'application/json');
             return fetch(`${apiBase}${path}`, { ...init, headers });
         };
@@ -68,6 +69,18 @@ export function createSts(options) {
         chat: {
             send(message) {
                 return request('/api/sdk/v1/chat', { method: 'POST', body: JSON.stringify({ message }) });
+            },
+            /**
+             * Sends a document the chat asked for (PDF or photo, up to 10 MB) to the business's Google
+             * Drive. `documentId` is the id from `services.chat.documentRequests`, when you know it.
+             * Pass the returned `message` to `send()` so the assistant can confirm it arrived.
+             */
+            attach(file, documentId) {
+                const body = new FormData();
+                body.append('file', file);
+                if (documentId)
+                    body.append('documentId', documentId);
+                return request('/api/sdk/v1/chat/upload', { method: 'POST', body });
             },
         },
         speak: {
@@ -99,6 +112,10 @@ export function createSts(options) {
         business: {
             async get() {
                 return (await request('/api/sdk/v1/business')).business;
+            },
+            /** The business's own answers to what customers ask most, for an FAQ block. */
+            async answers() {
+                return (await request('/api/sdk/v1/answers')).answers;
             },
         },
     };

@@ -16,6 +16,8 @@ const isPublicRoute = createRouteMatcher([
   '/o/:slug',
   '/o/:slug/opengraph-image(.*)',
   '/pay/:slug',
+  // A customer's private review link.
+  '/review/:token',
   '/chat(.*)',
   // Public tour player only — /wizard (list) and /wizard/:slug/configure stay protected.
   '/wizard/:slug',

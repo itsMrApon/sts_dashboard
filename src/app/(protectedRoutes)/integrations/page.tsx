@@ -31,6 +31,10 @@ const page = async () => {
     }),
     loadLeadConnectionSettings(auth.user.id),
   ])
+  const [whatsAppRow, instagramRow] = await Promise.all([
+    prismaClient.whatsAppConnection.findUnique({ where: { userId: auth.user.id }, select: { displayPhone: true } }),
+    prismaClient.instagramConnection.findUnique({ where: { userId: auth.user.id }, select: { username: true } }),
+  ])
   const triggerDev = isPlatformOwner(auth.user.email)
     ? { connected: (await loadTriggerSettings()).source !== 'none' }
     : null
@@ -52,6 +56,8 @@ const page = async () => {
         serperOk: leadSettings.serperConfigured,
       }}
       triggerDev={triggerDev}
+      whatsApp={whatsAppRow ? whatsAppRow.displayPhone || 'Connected' : null}
+      instagram={instagramRow ? instagramRow.username || 'your account' : null}
     />
   )
 }

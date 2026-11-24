@@ -1,4 +1,4 @@
-import { type StsAnswer, type StsBusiness, type StsChatReply, type StsChatUpload, type StsForm, type StsFormAnswer, type StsOptions, type StsSessionInfo, type StsSpeakConnection, type StsWizard } from './types.js';
+import { type StsAnswer, type StsReview, type StsBusiness, type StsChatReply, type StsChatUpload, type StsForm, type StsFormAnswer, type StsOptions, type StsSessionInfo, type StsSpeakConnection, type StsWizard } from './types.js';
 /**
  * Framework-agnostic STS-AI client. One instance per site.
  * Handles the site-key → session exchange and refreshes the session before it expires.
@@ -31,6 +31,8 @@ export declare function createSts(options: StsOptions): {
         get(): Promise<StsBusiness>;
         /** The business's own answers to what customers ask most, for an FAQ block. */
         answers(): Promise<StsAnswer[]>;
+        /** Reviews the business chose to show, newest first. */
+        reviews(): Promise<StsReview[]>;
     };
 };
 export type StsClient = ReturnType<typeof createSts>;

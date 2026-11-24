@@ -15,6 +15,7 @@ const SECTIONS: { href: string; label: string; exact?: boolean }[] = [
   { href: '/services/links', label: 'Links' },
   { href: '/services/live', label: 'Live' },
   { href: '/services/contact', label: 'Contact' },
+  { href: '/services/reviews', label: 'Reviews' },
 ]
 
 export function ServicesSubnav() {

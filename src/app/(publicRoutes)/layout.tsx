@@ -1,5 +1,6 @@
 import React from 'react'
 import { PlainControls } from '@/components/sakuga/SakugaScope'
+import { PublicAnalytics } from '@/components/analytics/PublicAnalytics'
 
 type Props = { children: React.ReactNode }
 
@@ -7,6 +8,7 @@ type Props = { children: React.ReactNode }
 const layout = ({ children }: Props) => {
   return (
     <div className="w-full container mx-auto min-h-screen">
+      <PublicAnalytics />
       <PlainControls>{children}</PlainControls>
     </div>
   )

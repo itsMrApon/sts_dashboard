@@ -25,6 +25,10 @@ type Props = {
   leadSources?: { fathomOk: boolean; googleOk: boolean; gcalLinked: boolean; serperOk: boolean }
   /** Platform owners only: the trigger.dev project that runs everyone's background jobs. */
   triggerDev?: { connected: boolean } | null
+  /** The creator's WhatsApp number when connected ("Connected" when Kapso gave no number). */
+  whatsApp?: string | null
+  /** The connected Instagram username. */
+  instagram?: string | null
 }
 
 function introKind(kind: string): string {
@@ -39,6 +43,8 @@ export function PartnersIntro({
   phoneNumber = null,
   leadSources,
   triggerDev = null,
+  whatsApp = null,
+  instagram = null,
 }: Props) {
   const connectedKinds = new Set(connectedPartners.map((partner) => introKind(partner.kind)))
   const partnersHref = (kind: string) => {
@@ -94,6 +100,24 @@ export function PartnersIntro({
           badge={phoneNumber ? 'Connected' : undefined}
         >
           <PartnerLogo kind="twilio" />
+        </IntegrationCard>
+        <IntegrationCard
+          title="WhatsApp"
+          description={whatsApp ? `Your Chat AI answers ${whatsApp}` : 'Your Chat AI answers your own WhatsApp number (Kapso)'}
+          link="/integrations/whatsapp"
+          cta={whatsApp ? 'Manage' : 'Set up'}
+          badge={whatsApp ? 'Connected' : undefined}
+        >
+          <PartnerLogo kind="whatsapp" />
+        </IntegrationCard>
+        <IntegrationCard
+          title="Instagram"
+          description={instagram ? `Comment keywords on @${instagram} send a DM and make a lead` : 'Comment a keyword, get a DM: commenters become leads'}
+          link="/integrations/instagram"
+          cta={instagram ? 'Manage' : 'Set up'}
+          badge={instagram ? 'Connected' : undefined}
+        >
+          <PartnerLogo kind="instagram" />
         </IntegrationCard>
 
         <IntegrationGroupHeading

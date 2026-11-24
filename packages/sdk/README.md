@@ -101,6 +101,7 @@ useEffect(() => {
 On a site that changes pages without reloading, call `follow()` again after each page change.
 | `useStsBusiness()` | `business { name, description, profile }` |
 | `useStsAnswers()` | `answers [{ question, answer }], ready, error`: the business's own answers, for an FAQ block |
+| `useStsReviews()` | `reviews [{ name, rating, text, date }], ready, error`: reviews the business chose to show |
 | `useStsInfo()` | business name + which services are on |
 
 ### Wizard on your page

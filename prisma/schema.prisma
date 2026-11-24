@@ -46,6 +46,11 @@ model User {
   leadActivities             LeadActivity[]
   providerUsageDaily         ProviderUsageDaily[]
   questionGroups             QuestionGroup[]
+  whatsAppConnection         WhatsAppConnection?
+  reviews                    Review[]
+  reviewSettings             ReviewSettings?
+  instagramConnection        InstagramConnection?
+  instagramCampaigns         InstagramCampaign[]
   /// Platform packages: "Setup & Integrate" ($49 one-time) and "Run My Business" ($499/month).
   /// `subscription` stays the single access flag and is derived from these.
   setupPaidAt                DateTime?
@@ -148,6 +153,7 @@ model Webinar {
   slug            String?           @unique @db.VarChar(80)
   attendances     Attendance[]
   questionGroups  QuestionGroup[]
+  reviews         Review[]
   publishProducts PublishProduct[]
   orderModes      OfferOrderMode[]
   /// This offer's own guided tour (the Guided tour panel on /o/{slug}).
@@ -1329,4 +1335,150 @@ model QuestionGroup {
 
   @@unique([userId, webinarId, label])
   @@index([userId, status])
+}
+
+/// A creator's own WhatsApp number, connected through their Kapso project (Integrations →
+/// WhatsApp). Keys are encrypted. Kapso posts customer messages to
+/// /api/whatsapp/webhook/<token>; the token is stored hashed (and encrypted, to show it again).
+model WhatsAppConnection {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @unique @db.Uuid
+  provider         String    @default("kapso") @db.VarChar(16)
+  apiKeyEnc        String
+  phoneNumberId    String    @db.VarChar(64)
+  /// The secret_key set on the Kapso webhook; every delivery is signed with it.
+  webhookSecretEnc String
+  webhookTokenEnc  String
+  webhookTokenHash String    @unique @db.VarChar(64)
+  displayPhone     String?   @db.VarChar(32)
+  /// Reply to customers with the Chat AI assistant.
+  aiReplies        Boolean   @default(true)
+  lastInboundAt    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Webhook deliveries already handled (Kapso's X-Idempotency-Key, Meta ids), so retries
+/// never answer a customer twice. Old rows are cleaned up by the cleanup job.
+model WebhookDelivery {
+  key       String   @id @db.VarChar(200)
+  source    String   @db.VarChar(32)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// A customer's review of a creator. Starts as a request (a private link /review/<token>),
+/// becomes SUBMITTED when the customer writes it, and shows on the website only once the
+/// creator APPROVES it (or HIDDEN). Text is kept exactly as written, Bangla included.
+model Review {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @db.Uuid
+  webinarId    String?   @db.Uuid
+  /// The paid order that triggered the request (one request per order).
+  orderId      String?   @unique @db.Uuid
+  contactId    String?   @db.Uuid
+  token        String    @unique @db.VarChar(64)
+  customerName String?   @db.VarChar(100)
+  rating       Int?
+  text         String?
+  /// REQUESTED, SUBMITTED, APPROVED or HIDDEN.
+  status       String    @default("REQUESTED") @db.VarChar(16)
+  requestedAt  DateTime  @default(now())
+  /// When the request email went out (null: link only, copied by the creator).
+  sentAt       DateTime?
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  webinar Webinar? @relation(fields: [webinarId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+}
+
+/// Per creator: ask buyers for a review automatically, this many days after they paid.
+model ReviewSettings {
+  userId      String   @id @db.Uuid
+  autoRequest Boolean  @default(false)
+  delayDays   Int      @default(3)
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A creator's Instagram professional account, connected through the platform's Meta app
+/// (Instagram API with Instagram Login). Token is long-lived (60 days) and refreshed daily.
+model InstagramConnection {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @unique @db.Uuid
+  /// The account id Meta puts in webhook entry.id.
+  igUserId          String   @unique @db.VarChar(64)
+  username          String?  @db.VarChar(64)
+  accessTokenEnc    String
+  tokenExpiresAt    DateTime?
+  webhookSubscribed Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// "Comment PRICE on this reel and get a DM": keywords on one post (or any post) that trigger
+/// a private reply, an optional public reply, and a lead for the commenter.
+model InstagramCampaign {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @db.Uuid
+  /// null = any post or reel of the account.
+  mediaId       String?  @db.VarChar(64)
+  mediaCaption  String?  @db.VarChar(200)
+  mediaThumb    String?  @db.VarChar(1000)
+  /// Matched without regard to case; Bangla kept as typed.
+  keywords      String[]
+  /// "contains" or "word" (whole word).
+  matchMode     String   @default("contains") @db.VarChar(16)
+  /// The DM. {username} is replaced with the commenter's username.
+  dmText        String
+  linkUrl       String?  @db.VarChar(500)
+  publicReply   String?
+  askContact    Boolean  @default(true)
+  active        Boolean  @default(true)
+  matchedCount  Int      @default(0)
+  sentCount     Int      @default(0)
+  contactsCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobs InstagramDmJob[]
+
+  @@index([userId, active])
+}
+
+/// One matched comment: the send queue and the log in one row. One per campaign and comment.
+model InstagramDmJob {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId        String    @db.Uuid
+  userId            String    @db.Uuid
+  commentId         String    @db.VarChar(64)
+  commenterId       String    @db.VarChar(64)
+  commenterUsername String?   @db.VarChar(64)
+  commentText       String
+  /// PENDING, SENT, SKIPPED or FAILED.
+  status            String    @default("PENDING") @db.VarChar(16)
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @default(now())
+  error             String?
+  leadId            String?   @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  campaign InstagramCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, commentId])
+  @@index([status, nextAttemptAt])
+  @@index([userId, commenterId])
 }

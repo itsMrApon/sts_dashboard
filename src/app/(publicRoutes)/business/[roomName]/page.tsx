@@ -10,6 +10,7 @@ import { getPublicWizard } from '@/lib/wizard/wizardRepo'
 import { businessStructuredData, jsonLdScript } from '@/lib/business/structuredData'
 import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
 import { loadSiteAnswers } from '@/lib/questions/questionGroups'
+import { loadApprovedReviews } from '@/lib/reviews/reviews'
 import { PublicServiceShell, ServiceUnavailable } from '../../_components/PublicServiceShell'
 import { loadBusinessOffers, loadBusinessOffersForSite } from '@/lib/business/businessOffers'
 import { BusinessSite } from './_components/BusinessSite'
@@ -72,11 +73,12 @@ export default async function BusinessServicePage({ params }: Props) {
 
   // "Talk to a person" needs the business's social contacts; homePreview skips the AI prompt build.
   const needsContacts = (chatAccess !== 'off' && services.chat.config.showHumanHandoff) || speakAccess !== 'off'
-  const [context, tour, siteOffers, answers] = await Promise.all([
+  const [context, tour, siteOffers, answers, reviews] = await Promise.all([
     needsContacts ? buildAgentContext(business.roomName, { mode: 'homePreview' }) : null,
     loaded.wizardSlug ? getPublicWizard(loaded.wizardSlug, loaded.isOwner ? business.userId : null) : null,
     loadBusinessOffersForSite(business.publishProfileId, ''),
     siteAccess === 'off' ? [] : loadSiteAnswers(business.userId),
+    siteAccess === 'off' ? [] : loadApprovedReviews(business.userId),
   ])
 
   const voice = services.speak.agent ?? loaded.agent
@@ -163,6 +165,7 @@ export default async function BusinessServicePage({ params }: Props) {
             offers={offers}
             links={loaded.links}
             answers={answers}
+            reviews={reviews}
           />
         )}
       </BusinessRoom>

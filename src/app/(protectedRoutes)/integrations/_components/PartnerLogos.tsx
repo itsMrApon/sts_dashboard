@@ -126,8 +126,29 @@ export function OpenSeoLogo() {
   )
 }
 
+export function WhatsAppLogo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="text-green-500" aria-hidden>
+      <path d="M12 2.5a9.5 9.5 0 0 0-8.2 14.3L2.5 21.5l4.8-1.3A9.5 9.5 0 1 0 12 2.5z" fill="currentColor" />
+      <path d="M9 7.8c.2-.4.4-.4.7-.4h.5c.2 0 .4 0 .6.5l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.2.3 0 .5.5.9 1.3 1.7 2.3 2.2.2.1.4.1.5 0l.6-.7c.2-.2.4-.2.6-.1l1.6.8c.3.1.4.3.4.4 0 .5-.2 1.1-.7 1.4-.6.4-1.4.6-2.5.2a9 9 0 0 1-4.6-4.3c-.6-1.2-.6-2.4-.1-3.4z" fill="white" />
+    </svg>
+  )
+}
+
+export function InstagramLogo() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="text-pink-500" aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5.5" stroke="currentColor" strokeWidth="2.2" />
+      <circle cx="12" cy="12" r="4.2" stroke="currentColor" strokeWidth="2.2" />
+      <circle cx="17.3" cy="6.7" r="1.3" fill="currentColor" />
+    </svg>
+  )
+}
+
 const PARTNER_LOGOS: Record<string, ComponentType> = {
   trigger: TriggerDevLogo,
+  instagram: InstagramLogo,
+  whatsapp: WhatsAppLogo,
   openseo: OpenSeoLogo,
   fathom: FathomLogo,
   google: GoogleCalendarLogo,

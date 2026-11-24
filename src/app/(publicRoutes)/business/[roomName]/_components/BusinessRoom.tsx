@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ClipboardList, Compass, CreditCard, MessageCircle, Mic, Volume2, VolumeX, X } from 'lucide-react'
 import { submitHostedForm } from '@/actions/publicServices'
 import { FormFlow } from '@/components/services/form/FormFlow'
+import { track } from '@/lib/analytics/track'
 import { useWizardNarrator } from '@/components/wizard/useWizardNarrator'
 import type { ChatServiceConfig, FormServiceConfig, SpeakServiceConfig } from '@/lib/services/types'
 import { spokenText, type PublicWizard, type PublicWizardStep } from '@/lib/wizard/types'
@@ -140,6 +141,7 @@ export function BusinessRoom({ roomName, businessName, tagline, accent, tour, pa
 
   const openPanel = useCallback((kind: PanelKind) => {
     setPanel(kind)
+    track('panel_opened', { panel: kind })
     window.history.replaceState(null, '', `#${kind}`)
   }, [])
 
@@ -162,6 +164,7 @@ export function BusinessRoom({ roomName, businessName, tagline, accent, tour, pa
         }
         setAutoAsk(question.trim().slice(0, 300) || null)
         setPanel('chat')
+        track('ask_clicked')
         window.history.replaceState(null, '', '#chat')
         return
       }
@@ -256,6 +259,7 @@ export function BusinessRoom({ roomName, businessName, tagline, accent, tour, pa
   const start = useCallback(() => {
     if (soundChoice === 'on') unlock()
     saveSoundChoice(roomName, soundChoice)
+    track('tour_started', { sound: soundChoice })
     setNeedsTap(false)
     setIntroOpen(false)
     playedRef.current.clear()
@@ -432,7 +436,11 @@ export function BusinessRoom({ roomName, businessName, tagline, accent, tour, pa
                 config={panels.form.config}
                 defaultCountry={panels.form.defaultCountry}
                 chatHref={panels.chat ? '#chat' : undefined}
-                onSubmit={(values, consent) => submitHostedForm({ roomName, values, consent, src: cameFrom })}
+                onSubmit={async (values, consent) => {
+                  const result = await submitHostedForm({ roomName, values, consent, src: cameFrom })
+                  if (result.ok) track('form_submitted', { src: cameFrom })
+                  return result
+                }}
               />
             </div>
           ) : null}

@@ -117,6 +117,10 @@ export function createSts(options) {
             async answers() {
                 return (await request('/api/sdk/v1/answers')).answers;
             },
+            /** Reviews the business chose to show, newest first. */
+            async reviews() {
+                return (await request('/api/sdk/v1/reviews')).reviews;
+            },
         },
     };
 }

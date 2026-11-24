@@ -15,6 +15,8 @@ type Props = {
   links: PublicServiceLinks
   /** The owner's approved answers (Projects → General questions), shown as an FAQ. */
   answers?: { question: string; answer: string }[]
+  /** Reviews the owner chose to show (Services → Reviews). */
+  reviews?: { name: string; rating: number; text: string }[]
 }
 
 /** Opens the room's chat with this question already sent (handled by BusinessRoom). */
@@ -43,7 +45,7 @@ function platformLabel(platform: string): string {
 }
 
 /** The published business website: hero, services, offers, key dates, social and footer. */
-export function BusinessSite({ businessName, description, content, offers, links, answers = [] }: Props) {
+export function BusinessSite({ businessName, description, content, offers, links, answers = [], reviews = [] }: Props) {
   const services = content.services.filter((service) => service.active)
   const dates = upcoming(content.keyDates)
   const serviceName = new Map(content.services.map((service) => [service.id, service.name]))
@@ -184,6 +186,26 @@ export function BusinessSite({ businessName, description, content, offers, links
                   ))}
                 </div>
               </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {reviews.length > 0 ? (
+        <section data-sts-step="reviews" className={SECTION} aria-labelledby="reviews-title">
+          <h2 id="reviews-title" className={SECTION_TITLE}>
+            What customers say
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {reviews.map((review, index) => (
+              <figure key={`${review.name}-${index}`} className={`${CARD} flex flex-col gap-3`}>
+                <p className="text-sm tracking-widest text-amber-400" aria-label={`${review.rating} out of 5 stars`}>
+                  {'★'.repeat(review.rating)}
+                  <span className="text-zinc-600">{'★'.repeat(5 - review.rating)}</span>
+                </p>
+                {review.text ? <blockquote className="whitespace-pre-wrap text-sm text-zinc-200">“{review.text}”</blockquote> : null}
+                <figcaption className="mt-auto text-xs text-zinc-400">{review.name}</figcaption>
+              </figure>
             ))}
           </div>
         </section>

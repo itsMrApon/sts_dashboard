@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { type StsClient } from './core.js';
-import { type StsAnswer, type StsBusiness, type StsBusinessService, type StsChatLinks, type StsContactCard, type StsForm, type StsFormAnswer, type StsLiveSession, type StsOffer, type StsDoc, type StsSessionInfo, type StsWizard, type StsWizardStep } from './types.js';
+import { type StsAnswer, type StsReview, type StsBusiness, type StsBusinessService, type StsChatLinks, type StsContactCard, type StsForm, type StsFormAnswer, type StsLiveSession, type StsOffer, type StsDoc, type StsSessionInfo, type StsWizard, type StsWizardStep } from './types.js';
 /** Wrap your site once. Every hook below talks to your STS-AI business through this client. */
 export declare function StsProvider({ apiBase, siteKey, children }: {
     apiBase: string;
@@ -99,6 +99,12 @@ export declare function useStsBusiness(): {
  */
 export declare function useStsAnswers(): {
     answers: StsAnswer[];
+    ready: boolean;
+    error: string | null;
+};
+/** Reviews the business chose to show, for a reviews block your designer styles. */
+export declare function useStsReviews(): {
+    reviews: StsReview[];
     ready: boolean;
     error: string | null;
 };

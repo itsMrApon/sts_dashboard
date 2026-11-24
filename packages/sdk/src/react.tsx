@@ -4,6 +4,7 @@ import { createWizardPlayer, type WizardPlayer } from './wizardPlayer.js'
 import {
   StsError,
   type StsAnswer,
+  type StsReview,
   type StsBusiness,
   type StsBusinessService,
   type StsChatLinks,
@@ -459,6 +460,26 @@ export function useStsAnswers() {
     }
   }, [client])
   return { answers, ready, error }
+}
+
+/** Reviews the business chose to show, for a reviews block your designer styles. */
+export function useStsReviews() {
+  const client = useSts()
+  const [reviews, setReviews] = useState<StsReview[]>([])
+  const [ready, setReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    client.business
+      .reviews()
+      .then((value) => active && setReviews(value))
+      .catch((err) => active && setError(errorMessage(err)))
+      .finally(() => active && setReady(true))
+    return () => {
+      active = false
+    }
+  }, [client])
+  return { reviews, ready, error }
 }
 
 export type {

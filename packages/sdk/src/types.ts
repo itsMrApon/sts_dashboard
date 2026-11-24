@@ -100,6 +100,9 @@ export type StsChatReply = { reply: string; links: StsChatLinks }
 /** One question customers ask and the business's own answer to it. */
 export type StsAnswer = { question: string; answer: string }
 
+/** A review the business chose to show. `name` is the customer's first name only. */
+export type StsReview = { name: string; rating: number; text: string; date: string | null }
+
 /** A document the chat may ask for. `accept` tells your file picker what to allow. */
 export type StsDocumentRequest = { id: string; name: string; when: string; accept: 'pdf' | 'image' | 'any' }
 

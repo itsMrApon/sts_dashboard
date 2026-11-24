@@ -1,6 +1,7 @@
 import {
   StsError,
   type StsAnswer,
+  type StsReview,
   type StsBusiness,
   type StsChatReply,
   type StsChatUpload,
@@ -133,6 +134,10 @@ export function createSts(options: StsOptions) {
       /** The business's own answers to what customers ask most, for an FAQ block. */
       async answers(): Promise<StsAnswer[]> {
         return (await request<{ answers: StsAnswer[] }>('/api/sdk/v1/answers')).answers
+      },
+      /** Reviews the business chose to show, newest first. */
+      async reviews(): Promise<StsReview[]> {
+        return (await request<{ reviews: StsReview[] }>('/api/sdk/v1/reviews')).reviews
       },
     },
   }

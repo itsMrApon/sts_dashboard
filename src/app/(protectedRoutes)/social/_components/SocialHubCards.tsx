@@ -12,7 +12,7 @@ export function SocialHubCards({ status }: Props) {
     // gap-8 leaves room for the + rulers that sit 12px outside each card's corners.
     <div className="mx-auto grid w-full max-w-3xl gap-8 px-3 sm:grid-cols-2">
       <HubCard
-        href="/social/instagram"
+        href="/integrations/instagram"
         title="Instagram"
         description="Comment a keyword, get a DM: commenters become leads."
         status={status.instagram}
@@ -28,7 +28,7 @@ export function SocialHubCards({ status }: Props) {
         />
       </HubCard>
       <HubCard
-        href="/social/whatsapp"
+        href="/integrations/whatsapp"
         title="WhatsApp"
         description="Your Chat AI answers customers on your own number."
         status={status.whatsapp}

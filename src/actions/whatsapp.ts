@@ -55,9 +55,8 @@ export async function saveWhatsApp(input: {
     displayPhone,
     aiReplies: input.aiReplies,
   })
-  revalidatePath('/social/whatsapp')
+  revalidatePath('/integrations/whatsapp')
   revalidatePath('/integrations')
-  revalidatePath('/social')
   return { ok: true, message: displayPhone ? `Connected ${displayPhone}` : 'WhatsApp connected' }
 }
 
@@ -78,8 +77,7 @@ export async function disconnectWhatsApp(): Promise<Result> {
   const userId = await currentUserId()
   if (!userId) return { ok: false, error: 'Sign in again.' }
   await prismaClient.whatsAppConnection.deleteMany({ where: { userId } })
-  revalidatePath('/social/whatsapp')
+  revalidatePath('/integrations/whatsapp')
   revalidatePath('/integrations')
-  revalidatePath('/social')
   return { ok: true, message: 'WhatsApp disconnected' }
 }

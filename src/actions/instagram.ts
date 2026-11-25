@@ -65,7 +65,7 @@ export async function saveInstagramCampaign(input: {
   } else {
     await prismaClient.instagramCampaign.create({ data: { userId, ...data } })
   }
-  revalidatePath('/social/instagram')
+  revalidatePath('/integrations/instagram')
   return { ok: true, message: 'Campaign saved' }
 }
 
@@ -73,7 +73,7 @@ export async function setInstagramCampaignActive(input: { id: string; active: bo
   const userId = await currentUserId()
   if (!userId) return { ok: false, error: 'Sign in again.' }
   await prismaClient.instagramCampaign.updateMany({ where: { id: input.id, userId }, data: { active: input.active } })
-  revalidatePath('/social/instagram')
+  revalidatePath('/integrations/instagram')
   return { ok: true, message: input.active ? 'Campaign on' : 'Campaign paused' }
 }
 
@@ -81,7 +81,7 @@ export async function deleteInstagramCampaign(input: { id: string }): Promise<Re
   const userId = await currentUserId()
   if (!userId) return { ok: false, error: 'Sign in again.' }
   await prismaClient.instagramCampaign.deleteMany({ where: { id: input.id, userId } })
-  revalidatePath('/social/instagram')
+  revalidatePath('/integrations/instagram')
   return { ok: true, message: 'Campaign deleted' }
 }
 
@@ -90,8 +90,7 @@ export async function disconnectInstagram(): Promise<Result> {
   if (!userId) return { ok: false, error: 'Sign in again.' }
   await prismaClient.instagramConnection.deleteMany({ where: { userId } })
   await prismaClient.instagramCampaign.updateMany({ where: { userId }, data: { active: false } })
-  revalidatePath('/social/instagram')
+  revalidatePath('/integrations/instagram')
   revalidatePath('/integrations')
-  revalidatePath('/social')
   return { ok: true, message: 'Instagram disconnected. Campaigns are paused.' }
 }

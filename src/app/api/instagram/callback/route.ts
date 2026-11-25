@@ -13,7 +13,7 @@ import {
 export const runtime = 'nodejs'
 
 function back(req: Request, query: string) {
-  return NextResponse.redirect(new URL(`/social/instagram?${query}`, req.url))
+  return NextResponse.redirect(new URL(`/integrations/instagram?${query}`, req.url))
 }
 
 /** Instagram sends the creator back here after they approve: save the account and its token. */

@@ -5,9 +5,7 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const SECTIONS: { href: string; label: string; exact?: boolean }[] = [
-  { href: '/social', label: 'All channels', exact: true },
-  { href: '/social/instagram', label: 'Instagram' },
-  { href: '/social/whatsapp', label: 'WhatsApp' },
+  { href: '/social', label: 'Overview', exact: true },
 ]
 
 export function SocialSubnav() {

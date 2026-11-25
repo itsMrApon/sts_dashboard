@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
-const SECTIONS: { href: string; label: string; exact?: boolean }[] = [
-  { href: '/social', label: 'Overview', exact: true },
+const SECTIONS: { href: string; label: string; active: (pathname: string) => boolean }[] = [
+  { href: '/social', label: 'Overview', active: (p) => p === '/social' },
+  { href: '/social/all', label: 'Library', active: (p) => p.startsWith('/social/') && p !== '/social/saved' },
+  { href: '/social/saved', label: 'Saved', active: (p) => p === '/social/saved' },
 ]
 
 export function SocialSubnav() {
@@ -13,7 +15,7 @@ export function SocialSubnav() {
   return (
     <nav aria-label="Social sections" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
       {SECTIONS.map((section) => {
-        const active = section.exact ? pathname === section.href : pathname.startsWith(section.href)
+        const active = section.active(pathname)
         return (
           <Link
             key={section.href}

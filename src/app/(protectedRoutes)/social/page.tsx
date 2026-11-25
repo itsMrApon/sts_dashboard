@@ -1,29 +1,31 @@
-import { prismaClient } from '@/lib/prismaClient'
+import { CLI_CLIENT_LABEL, isCliClient, listCliTokens } from '@/lib/cli/cliAuth'
 import { loadSocialContext } from './_lib/socialContext'
 import { SocialShell } from './_components/SocialShell'
-import { SocialHubCards } from './_components/SocialHubCards'
+import { SocialFolders } from './_components/SocialFolders'
 
-/** Social home: the channels where customers find and message the business. */
+/**
+ * Social home: a library of skills, prompts, n8n workflows, plugins and reports. The creator copies
+ * one into their own AI agent, which builds the post, video or report with their business brain.
+ * (Instagram and WhatsApp connections stay in Integrations.)
+ */
 export default async function SocialPage() {
   const { user } = await loadSocialContext()
-  const [instagram, campaigns, whatsapp] = await Promise.all([
-    prismaClient.instagramConnection.findUnique({ where: { userId: user.id }, select: { username: true } }),
-    prismaClient.instagramCampaign.count({ where: { userId: user.id, active: true } }),
-    prismaClient.whatsAppConnection.findUnique({ where: { userId: user.id }, select: { displayPhone: true, aiReplies: true } }),
-  ])
+  const tokens = await listCliTokens(user.id)
+  const agents = tokens.map((token) => ({
+    id: token.id,
+    clientLabel: isCliClient(token.client) ? CLI_CLIENT_LABEL[token.client] : token.client,
+    name: token.name,
+    prefix: token.prefix,
+    createdAt: token.createdAt.toISOString(),
+    lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
+  }))
 
   return (
-    <SocialShell title="Social" description="Instagram and WhatsApp: where customers find you and message you.">
-      <SocialHubCards
-        status={{
-          instagram: instagram
-            ? { on: true, label: `@${instagram.username ?? 'connected'} · ${campaigns} campaign${campaigns === 1 ? '' : 's'} on` }
-            : { on: false, label: 'Not connected' },
-          whatsapp: whatsapp
-            ? { on: whatsapp.aiReplies, label: `${whatsapp.displayPhone ?? 'Connected'} · AI ${whatsapp.aiReplies ? 'on' : 'off'}` }
-            : { on: false, label: 'Not connected' },
-        }}
-      />
+    <SocialShell
+      title="Social"
+      description="Copy a skill, prompt or workflow into your AI agent. It builds the post, video, flyer or report with your business brain."
+    >
+      <SocialFolders agents={agents} />
     </SocialShell>
   )
 }

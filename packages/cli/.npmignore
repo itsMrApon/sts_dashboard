@@ -1,0 +1,3 @@
+# Publish what package.json "files" lists (dist, README.md); .gitignore must not hide dist.
+src
+tsconfig.json

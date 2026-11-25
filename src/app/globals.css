@@ -318,3 +318,31 @@ sakuga-toast { --sk-toast-max: min(380px, calc(100vw - 32px)); }
 :where(button, [role='button'], a[data-slot='button'], sakuga-button):not(:where([data-sakuga='off'] *)) > svg:first-child:not(:only-child):not(.animate-spin) {
   display: none;
 }
+
+/* ───────── Social library diagrams: the diagram-design palette (paper, ink, one coral accent) ───────── */
+.dd-theme {
+  --dd-paper: #f5f4f0;
+  --dd-paper-2: #ffffff;
+  --dd-ink: #2d3142;
+  --dd-muted: #5f6475;
+  --dd-soft: #949eb2;
+  --dd-rule: rgba(45, 49, 66, 0.12);
+  --dd-rule-strong: rgba(45, 49, 66, 0.3);
+  --dd-dot: rgba(45, 49, 66, 0.1);
+  --dd-accent: #bf4520;
+  --dd-accent-tint: rgba(191, 69, 32, 0.08);
+  --dd-on-accent: #ffffff;
+}
+.dark .dd-theme {
+  --dd-paper: #2d3142;
+  --dd-paper-2: #393e53;
+  --dd-ink: #f5f5f5;
+  --dd-muted: #bfc0c0;
+  --dd-soft: #949eb2;
+  --dd-rule: rgba(245, 245, 245, 0.12);
+  --dd-rule-strong: rgba(245, 245, 245, 0.28);
+  --dd-dot: rgba(245, 245, 245, 0.1);
+  --dd-accent: #f08a59;
+  --dd-accent-tint: rgba(240, 138, 89, 0.12);
+  --dd-on-accent: #2d3142;
+}

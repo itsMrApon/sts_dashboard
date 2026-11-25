@@ -1,0 +1,27 @@
+{
+  "name": "@sts-ai/cli",
+  "version": "1.0.0",
+  "description": "Connect your AI agent (Claude Code, Codex, Cursor) to your sts-ai business brain over MCP.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "sts-ai": "dist/index.js"
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "keywords": ["sts-ai", "mcp", "claude-code", "codex", "cursor", "ai-agent"],
+  "homepage": "https://sudotechserve.com/social",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

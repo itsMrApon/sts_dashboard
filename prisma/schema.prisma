@@ -52,6 +52,8 @@ model User {
   instagramConnection        InstagramConnection?
   emailConnection            EmailConnection?
   instagramCampaigns         InstagramCampaign[]
+  cliLoginRequests           CliLoginRequest[]
+  cliTokens                  CliToken[]
   /// Platform packages: "Setup & Integrate" ($49 one-time) and "Run My Business" ($499/month).
   /// `subscription` stays the single access flag and is derived from these.
   setupPaidAt                DateTime?
@@ -1414,16 +1416,16 @@ model ReviewSettings {
 /// A creator's Instagram professional account, connected through the platform's Meta app
 /// (Instagram API with Instagram Login). Token is long-lived (60 days) and refreshed daily.
 model InstagramConnection {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String   @unique @db.Uuid
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @unique @db.Uuid
   /// The account id Meta puts in webhook entry.id.
-  igUserId          String   @unique @db.VarChar(64)
-  username          String?  @db.VarChar(64)
+  igUserId          String    @unique @db.VarChar(64)
+  username          String?   @db.VarChar(64)
   accessTokenEnc    String
   tokenExpiresAt    DateTime?
-  webhookSubscribed Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  webhookSubscribed Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -1453,7 +1455,7 @@ model InstagramCampaign {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   jobs InstagramDmJob[]
 
   @@index([userId, active])
@@ -1461,21 +1463,21 @@ model InstagramCampaign {
 
 /// One matched comment: the send queue and the log in one row. One per campaign and comment.
 model InstagramDmJob {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  campaignId        String    @db.Uuid
-  userId            String    @db.Uuid
-  commentId         String    @db.VarChar(64)
-  commenterId       String    @db.VarChar(64)
-  commenterUsername String?   @db.VarChar(64)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId        String   @db.Uuid
+  userId            String   @db.Uuid
+  commentId         String   @db.VarChar(64)
+  commenterId       String   @db.VarChar(64)
+  commenterUsername String?  @db.VarChar(64)
   commentText       String
   /// PENDING, SENT, SKIPPED or FAILED.
-  status            String    @default("PENDING") @db.VarChar(16)
-  attempts          Int       @default(0)
-  nextAttemptAt     DateTime  @default(now())
+  status            String   @default("PENDING") @db.VarChar(16)
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @default(now())
   error             String?
-  leadId            String?   @db.Uuid
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  leadId            String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   campaign InstagramCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
@@ -1505,4 +1507,50 @@ model EmailConnection {
   updatedAt   DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A login from the sts-ai CLI (`npx @sts-ai/cli init`) waiting for the creator to approve it in
+/// the browser. The CLI holds a secret device code and polls; only its hash is stored here.
+model CliLoginRequest {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// sha256 (hex) of the device code only the CLI knows.
+  deviceCodeHash String   @unique @db.VarChar(64)
+  /// Short code shown in the terminal and on the approve page, e.g. KQ7M-3XPA.
+  userCode       String   @unique @db.VarChar(16)
+  /// claude | codex | cursor
+  client         String   @db.VarChar(16)
+  /// The computer's name, so the creator knows what they approve.
+  deviceName     String?  @db.VarChar(100)
+  /// PENDING, APPROVED, DENIED or CONSUMED (the CLI took its token).
+  status         String   @default("PENDING") @db.VarChar(16)
+  /// Set when approved.
+  userId         String?  @db.Uuid
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// A long-lived token an AI agent uses to read the creator's business brain over MCP
+/// (/api/mcp/agent). Only the sha256 is stored; the creator can revoke it in Social.
+model CliToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @db.Uuid
+  /// sha256 (hex) of the full token.
+  tokenHash  String    @unique @db.VarChar(64)
+  /// The first characters (sts_ab12cd), to tell tokens apart.
+  prefix     String    @db.VarChar(16)
+  /// claude | codex | cursor
+  client     String    @db.VarChar(16)
+  /// The computer it was approved for.
+  name       String    @db.VarChar(100)
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }

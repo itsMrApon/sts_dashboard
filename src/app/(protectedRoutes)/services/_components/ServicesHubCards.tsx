@@ -89,7 +89,7 @@ export function ServicesHubCards({ status }: Props) {
   )
 }
 
-function HubCard({
+export function HubCard({
   href,
   title,
   description,

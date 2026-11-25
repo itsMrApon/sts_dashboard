@@ -1,4 +1,4 @@
-import { Sparkle, Webcam, Home, Users, Settings, MessageCircle, Megaphone } from 'lucide-react'
+import { Sparkle, Webcam, Home, Users, Settings, MessageCircle, Megaphone, Share2 } from 'lucide-react'
 export const sidebarData = [
   {
     id: 1,
@@ -20,24 +20,30 @@ export const sidebarData = [
   },
   {
     id: 4,
+    title: 'Social',
+    icon: Share2,
+    link: '/social',
+  },
+  {
+    id: 5,
     title: 'Leads',
     icon: Users,
     link: '/lead',
   },
   {
-    id: 5,
+    id: 6,
     title: 'Integrations',
     icon: Megaphone,
     link: '/integrations',
   },
   {
-    id: 6,
+    id: 7,
     title: 'Ai Agents',
     icon: Sparkle,
     link: '/ai-agents',
   },
   {
-    id: 7,
+    id: 8,
     title: 'Settings',
     icon: Settings,
     link: '/settings',

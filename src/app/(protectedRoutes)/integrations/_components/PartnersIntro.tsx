@@ -105,20 +105,15 @@ export function PartnersIntro({
           <PartnerLogo kind="twilio" />
         </IntegrationCard>
         <IntegrationCard
-          title="WhatsApp"
-          description={whatsApp ? `Your Chat AI answers ${whatsApp}` : 'Your Chat AI answers your own WhatsApp number (Kapso)'}
-          link="/integrations/whatsapp"
-          cta={whatsApp ? 'Manage' : 'Set up'}
-          badge={whatsApp ? 'Connected' : undefined}
-        >
-          <PartnerLogo kind="whatsapp" />
-        </IntegrationCard>
-        <IntegrationCard
-          title="Instagram"
-          description={instagram ? `Comment keywords on @${instagram} send a DM and make a lead` : 'Comment a keyword, get a DM: commenters become leads'}
-          link="/integrations/instagram"
-          cta={instagram ? 'Manage' : 'Set up'}
-          badge={instagram ? 'Connected' : undefined}
+          title="Instagram & WhatsApp"
+          description={
+            whatsApp || instagram
+              ? [instagram ? `Instagram @${instagram}` : null, whatsApp ? `WhatsApp ${whatsApp}` : null].filter(Boolean).join(' · ')
+              : 'Comment-to-DM leads and your Chat AI on WhatsApp. Set up in Social'
+          }
+          link="/social"
+          cta="Open Social"
+          badge={whatsApp || instagram ? 'Connected' : undefined}
         >
           <PartnerLogo kind="instagram" />
         </IntegrationCard>

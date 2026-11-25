@@ -20,7 +20,7 @@ export function SetupLinks({
       <h2 className="mb-2 font-medium">{title}</h2>
       <ol className="space-y-1.5">
         {links.map((link, index) => (
-          <li key={link.href} className="flex gap-2">
+          <li key={`${index}-${link.href}`} className="flex gap-2">
             <span className="w-4 shrink-0 text-right text-xs leading-5 text-muted-foreground">{index + 1}.</span>
             <span className="min-w-0">
               <a

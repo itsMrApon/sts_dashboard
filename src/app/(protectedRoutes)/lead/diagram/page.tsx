@@ -1,9 +1,6 @@
-import { LeadSectionEmpty, LeadSectionPage } from '../_components/LeadSectionPage'
+import { redirect } from 'next/navigation'
 
+/** Diagram became Approval. */
 export default function LeadDiagramPage() {
-  return (
-    <LeadSectionPage>
-      {() => <LeadSectionEmpty title="Diagram" body="Diagrams for your leads will live here." />}
-    </LeadSectionPage>
-  )
+  redirect('/lead/approval')
 }

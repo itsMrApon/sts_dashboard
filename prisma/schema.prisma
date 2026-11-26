@@ -54,6 +54,9 @@ model User {
   instagramCampaigns         InstagramCampaign[]
   cliLoginRequests           CliLoginRequest[]
   cliTokens                  CliToken[]
+  agentRequests              AgentRequest[]
+  agentToolGrants            AgentToolGrant[]
+  messageDrafts              MessageDraft[]
   /// Platform packages: "Setup & Integrate" ($49 one-time) and "Run My Business" ($499/month).
   /// `subscription` stays the single access flag and is derived from these.
   setupPaidAt                DateTime?
@@ -479,16 +482,17 @@ model MessageChannel {
 }
 
 model MessageConversation {
-  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  channelId  String         @db.Uuid
-  externalId String
-  platform   Platform
-  messages   Json
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelId    String         @db.Uuid
+  externalId   String
+  platform     Platform
+  messages     Json
   /// Set while a person handles the chat (pipeline "Take over", or replying): the AI stays quiet.
-  aiPausedAt DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  channel    MessageChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  aiPausedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  channel      MessageChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  MessageDraft MessageDraft?
 
   @@unique([channelId, externalId])
   @@index([channelId])
@@ -1550,7 +1554,81 @@ model CliToken {
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests AgentRequest[]
 
   @@index([userId, revokedAt])
+}
+
+/// A change the creator's AI agent asked to make (over /api/mcp/agent). Nothing happens until the
+/// creator allows it in Lead → Approval (or has "always allowed" that tool). Secrets the change
+/// needs are kept encrypted in secretEnc and never shown; `input` is the display-safe copy.
+model AgentRequest {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @db.Uuid
+  tokenId      String?   @db.Uuid
+  /// claude | codex | cursor
+  client       String    @db.VarChar(16)
+  /// Groups the requests of one agent task (derived from the task title the agent sends).
+  runId        String    @db.VarChar(64)
+  runTitle     String    @db.VarChar(200)
+  /// The app area the tool belongs to: knowledge, integrations, leads, social…
+  area         String    @db.VarChar(32)
+  tool         String    @db.VarChar(80)
+  title        String    @db.VarChar(200)
+  detail       String?   @db.VarChar(500)
+  reason       String?
+  input        Json      @default("{}")
+  secretEnc    String?
+  /// PENDING, APPLIED, FAILED, DENIED or EXPIRED.
+  status       String    @default("PENDING") @db.VarChar(16)
+  /// The creator's note when denying ("do this instead…"), passed back to the agent.
+  note         String?
+  result       Json?
+  error        String?   @db.VarChar(1000)
+  /// True when an "always allow" grant applied it without asking.
+  autoApproved Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  decidedAt    DateTime?
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token CliToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status, createdAt])
+}
+
+/// "Always allow <tool>": the agent's requests for this tool are applied without asking.
+model AgentToolGrant {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  tool      String   @db.VarChar(80)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tool])
+}
+
+/// The one unsent draft of a conversation in Social → Message: written by the creator, the in-app
+/// AI ("Write with AI"), an AI agent, or a lead match the creator allowed. Nothing is sent until the
+/// creator clicks Send. Kept out of MessageConversation.messages so the Chat AI never reads it.
+model MessageDraft {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @db.Uuid
+  conversationId String   @unique @db.Uuid
+  /// email | message | greeting | offer | deadline | reply | match
+  kind           String   @default("message") @db.VarChar(16)
+  /// you | ai | agent | match
+  source         String   @default("ai") @db.VarChar(16)
+  subject        String?  @db.VarChar(200)
+  body           String
+  /// Why it was written (a lead match's reason), shown above the draft.
+  note           String?  @db.VarChar(500)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation MessageConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
 }

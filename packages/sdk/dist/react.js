@@ -1,3 +1,4 @@
+'use client';
 import { jsx as _jsx } from "react/jsx-runtime";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createSts } from './core.js';
@@ -99,7 +100,7 @@ export function useStsChat() {
 const MAX_CAPTIONS = 20;
 const LEVEL_INTERVAL_MS = 100;
 /**
- * Voice call over WebRTC. Requires `livekit-client` installed on your site. Headless like the
+ * Voice call over WebRTC (LiveKit is included in this package). Headless like the
  * chat: your designer builds the call button, mute button, captions and any animation.
  */
 export function useStsSpeak() {
@@ -341,6 +342,20 @@ export function useStsWizard(slug) {
         playerRef.current?.stop();
         setPlaying(false);
     }, []);
+    /**
+     * Plays one step from your own event (by id or `data-sts-step` name), e.g.
+     * `window.addEventListener('pricing-open', () => tour.play('pricing'))`. Needs one click on the
+     * page first for sound (any start/follow, or `unlock()`).
+     */
+    const play = useCallback((stepName) => {
+        const player = playerRef.current ?? makePlayer();
+        return player?.play(stepName) ?? false;
+    }, [makePlayer]);
+    /** Call from any click so later `play()` calls can make sound. */
+    const unlock = useCallback(() => {
+        const player = playerRef.current ?? makePlayer();
+        player?.unlock();
+    }, [makePlayer]);
     const setMuted = useCallback((value) => {
         setMutedState(value);
         playerRef.current?.setMuted(value);
@@ -353,6 +368,8 @@ export function useStsWizard(slug) {
         savedSound,
         rememberSound,
         stop,
+        play,
+        unlock,
         playing,
         speaking,
         step,

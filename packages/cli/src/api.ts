@@ -80,3 +80,22 @@ export async function readBrainHeadline(mcpUrl: string, token: string): Promise<
   if (call.data?.result?.isError) return `(${text})`
   return text.split('\n')[0]?.replace(/^#\s*/, '') || '(business brain is empty)'
 }
+
+export type SiteSetup =
+  | { status: 'ok'; siteKey: string; allowedOrigins: string[]; businessName: string; replaced: boolean }
+  | { status: 'exists'; allowedOrigins: string[] }
+
+/**
+ * Makes the website's site key and allows its addresses (POST /api/cli/site). When a key is
+ * already live, answers `exists` unless `replace` is set: a new key stops the old one working.
+ */
+export async function setupSite(baseUrl: string, token: string, input: { origins: string[]; replace: boolean }): Promise<SiteSetup> {
+  const { status, data } = await post<{ siteKey?: string; allowedOrigins?: string[]; businessName?: string; replaced?: boolean; code?: string; error?: string }>(
+    `${baseUrl}/api/cli/site`,
+    input,
+    token,
+  )
+  if (status === 409) return { status: 'exists', allowedOrigins: data?.allowedOrigins ?? [] }
+  if (status !== 200 || !data?.siteKey) throw new Error(data?.error || `sts-ai answered ${status} while setting up the website.`)
+  return { status: 'ok', siteKey: data.siteKey, allowedOrigins: data.allowedOrigins ?? [], businessName: data.businessName ?? '', replaced: Boolean(data.replaced) }
+}

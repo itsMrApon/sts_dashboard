@@ -137,29 +137,6 @@ const RECIPES: Record<string, PartnerRecipe> = {
     inbound: 'Inbound: keyword, ranking, local SEO and audit results flow from OpenSEO into STS chat.',
     outbound: 'Outbound: STS chat can create projects, save keywords and start rank trackers in OpenSEO after confirmation.',
   },
-  firecrawl: {
-    product: 'Firecrawl',
-    runtimes: ['Hosted Firecrawl MCP', 'Docker (self-hosted fallback)'],
-    defaultUrl: 'https://mcp.firecrawl.dev/mcp',
-    defaultPort: '3002',
-    dockerCommand:
-      'docker run -d -p 3002:3002 -e FIRECRAWL_API_KEY=your_key mendableai/firecrawl',
-    npmCommand: 'npx -y firecrawl-mcp',
-    detectHint:
-      'Probe the MCP URL (hosted https://mcp.firecrawl.dev/mcp or local :3002). Do not recreate a cluster if hosted MCP already works.',
-    healthCheck: 'MCP initialize handshake succeeds.',
-    credentialHow:
-      'Use a Firecrawl API key. Hosted MCP often embeds the key in the URL; otherwise paste Bearer.',
-    authPasteFormat: 'Firecrawl API key (Bearer, if the MCP URL needs it)',
-    authHeader: 'Authorization: Bearer <firecrawl_api_key>',
-    chatCommands: ['/firecrawl', '/crawl'],
-    testInChat:
-      'In STS workspace chat, run `/firecrawl` and crawl a public page from this workspace profile.',
-    presetSync:
-      'Crawl the creator site from STS links and summarize pages that should update the publish profile.',
-    inbound: 'Inbound: crawled page text flows into STS as workspace context.',
-    outbound: 'Outbound: STS asks Firecrawl to crawl URLs the creator names in chat.',
-  },
   custom: {
     product: 'custom MCP server',
     runtimes: ['Docker or Node, depending on the server'],

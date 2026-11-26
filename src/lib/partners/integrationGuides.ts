@@ -142,35 +142,6 @@ const GUIDES: Record<string, Omit<PartnerIntegrationGuide, 'kind' | 'label' | 'd
       },
     ],
   },
-  firecrawl: {
-    tagline: 'Crawl and extract site content into this workspace.',
-    zeroConfigTitle: 'Zero-config previews',
-    zeroConfigBody:
-      'Click a walkthrough step, then copy Cursor, Claude, CLI, or Universal. Step 1 wires Firecrawl MCP. Step 2 pastes the MCP URL into Engineered for constraints. Step 3 crawls a page from this workspace profile.',
-    constraintsTitle: 'Engineered for constraints',
-    constraintsBody:
-      'Paste the Firecrawl MCP URL. Hosted works as https://mcp.firecrawl.dev/mcp with your key. Chat uses /firecrawl or /crawl.',
-    authHint: 'Firecrawl API key (if the MCP URL needs Bearer)',
-    walkthrough: {
-      install:
-        'Use hosted Firecrawl MCP, or run the Docker image locally. Copy a prompt from the preview.',
-      connect:
-        'Scroll to Engineered for constraints. Paste the MCP URL and API key if required, then Connect.',
-      test: 'Open workspace chat, run /firecrawl, and crawl a page from this workspace profile.',
-    },
-    cliOptions: [
-      {
-        id: 'docker',
-        label: 'Docker',
-        command: 'docker run -d -p 3002:3002 -e FIRECRAWL_API_KEY=your_key mendableai/firecrawl',
-      },
-      {
-        id: 'npm',
-        label: 'npm',
-        command: 'npx -y firecrawl-mcp',
-      },
-    ],
-  },
   custom: {
     tagline: 'Any MCP server this workspace should chat with.',
     zeroConfigTitle: 'Zero-config previews',

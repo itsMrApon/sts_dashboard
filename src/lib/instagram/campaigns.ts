@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
+import { appendToConversation } from '@/lib/messages/conversationStore'
 import { prismaClient } from '@/lib/prismaClient'
 import { connectionByIgUserId } from '@/lib/instagram/connection'
 import { replyToComment, sendDirectMessage, sendPrivateReply, InstagramApiError } from '@/lib/instagram/graph'
@@ -176,6 +178,18 @@ export async function handleDirectMessage(igUserId: string, senderId: string, te
   if (senderId === igUserId) return
   const connection = await connectionByIgUserId(igUserId)
   if (!connection) return
+
+  // Keep every DM so it shows in Messages (and can be answered there within 24 hours).
+  const business = await getCreatorBusiness(connection.userId)
+  if (business) {
+    await appendToConversation({
+      roomName: business.roomName,
+      userId: connection.userId,
+      externalId: `instagram:${senderId}`.slice(0, 128),
+      messages: [{ role: 'user', content: text.slice(0, 4000), timestamp: new Date().toISOString() }],
+    }).catch((error) => console.error('[instagram] could not store dm', error))
+  }
+
   const job = await prismaClient.instagramDmJob.findFirst({
     where: { userId: connection.userId, commenterId: senderId, status: 'SENT', leadId: { not: null } },
     orderBy: { updatedAt: 'desc' },

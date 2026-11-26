@@ -95,7 +95,7 @@ export const SKILL_ITEMS: SocialItem[] = [
     summary: 'Point at a URL; get a motion-graphics promo built from the page itself.',
     channels: ['instagram', 'youtube', 'linkedin', 'x'],
     formats: ['video'],
-    needs: ['stsBrain', 'firecrawl', 'hyperframes', 'playwright'],
+    needs: ['stsBrain', 'scrapeAgent', 'hyperframes', 'playwright'],
     source: SOURCES.herkEditKit,
     skillPath: '.claude/skills/website-to-hyperframes',
     diagram: {

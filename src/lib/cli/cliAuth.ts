@@ -138,11 +138,11 @@ export async function decideCliLogin(input: { userCode: string; userId: string; 
 }
 
 /** The user behind an agent's bearer token, or null if it's unknown or revoked. */
-export async function verifyCliToken(token: string): Promise<{ tokenId: string; userId: string } | null> {
+export async function verifyCliToken(token: string): Promise<{ tokenId: string; userId: string; client: string } | null> {
   if (!token.startsWith('sts_') || token.length < 20 || token.length > 100) return null
   const row = await prismaClient.cliToken.findUnique({
     where: { tokenHash: sha256(token) },
-    select: { id: true, userId: true, revokedAt: true, lastUsedAt: true },
+    select: { id: true, userId: true, client: true, revokedAt: true, lastUsedAt: true },
   })
   if (!row || row.revokedAt) return null
   if (!row.lastUsedAt || Date.now() - row.lastUsedAt.getTime() > LAST_USED_GRANULARITY_MS) {
@@ -150,7 +150,7 @@ export async function verifyCliToken(token: string): Promise<{ tokenId: string; 
       .update({ where: { id: row.id }, data: { lastUsedAt: new Date() } })
       .catch(() => undefined)
   }
-  return { tokenId: row.id, userId: row.userId }
+  return { tokenId: row.id, userId: row.userId, client: row.client }
 }
 
 export async function listCliTokens(userId: string) {

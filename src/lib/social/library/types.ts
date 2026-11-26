@@ -60,7 +60,6 @@ export type NeedId =
   | 'airtable'
   | 'apify'
   | 'agentReach'
-  | 'firecrawl'
   | 'scrapeAgent'
   | 'serper'
   | 'mautic'

@@ -68,15 +68,15 @@ function buildSystemPrompt(options: {
   const usesMedusa = partnerSelected(options.services, 'medusa')
   const usesErpnext = partnerSelected(options.services, 'erpnext')
   const usesN8n = partnerSelected(options.services, 'n8n')
-  const usesFirecrawl = partnerSelected(options.services, 'firecrawl')
   const usesOpenSeo = partnerSelected(options.services, 'openseo')
   const usesNextjs = partnerSelected(options.services, 'nextjs')
   const kinds: string[] = []
   if (usesMedusa) kinds.push('medusa')
   if (usesN8n) kinds.push('n8n')
   if (usesErpnext) kinds.push('erpnext')
-  if (usesFirecrawl) kinds.push('firecrawl')
   if (usesOpenSeo) kinds.push('openseo')
+  const usesCustom = options.services.some((id) => id.startsWith('custom:'))
+  if (usesCustom) kinds.push('custom MCP')
 
   return [
     'You are the STS-AI partner assistant for creators.',
@@ -91,10 +91,11 @@ function buildSystemPrompt(options: {
     'You are a pipeline runner, not a free agent. Run one chain and stop: parse intent → call the listed partner APIs → format the real results → return.',
     'Do not plan extra steps, do not browse unrelated tools, do not role-play a general chatbot.',
     'Each account has exactly one connector per partner (one n8n, one Medusa, etc.). Never ask which workspace, tenant, instance, or environment to use.',
-    'If the user message starts with /n8n (or says Active partner: n8n), you MUST use n8n tools. Same rule for /medusa and /erpnext.',
+    'If the user message starts with /n8n (or says Active partner: n8n), you MUST use n8n tools. Same rule for /medusa, /erpnext, /openseo and /mcp (the custom MCP server).',
     'If the prompt lists preferred tools, call those in order. Fill arguments from the user text (workflow name, SKU, conversation id).',
     'Read tools may run automatically. Write/mutating tools require the user to confirm in the UI before execution — describe what you will do clearly.',
-    'If the request is not about a connected partner, do not invent an answer. Say they do not need / for small talk, and point them at n8n, Medusa, or ERPNext.',
+    'If the request is not about a connected partner, do not invent an answer. Say they do not need / for small talk, and point them at /n8n, /medusa, /erpnext, /openseo or /mcp.',
+    'If the selected partner is not connected, say so in one line and tell them to connect it in Integrations → Partner apps.',
     usesMedusa
       ? 'When Medusa is selected, use Medusa tools for sales sheets, orders, catalog, and low stock. Do not invent revenue or inventory.'
       : null,
@@ -104,11 +105,11 @@ function buildSystemPrompt(options: {
     usesN8n
       ? 'When n8n is selected, list/match workflows by name, execute or webhook-trigger them, and read executions for output/Drive links. The workflow already exists in n8n — start it, do not scaffold a new one unless asked.'
       : null,
-    usesFirecrawl
-      ? 'When Firecrawl is selected, answer crawl/content questions using firecrawlMcp in the JSON context.'
-      : null,
     usesOpenSeo
       ? 'When OpenSEO is selected, use OpenSEO tools for keyword research, search volumes, rankings, local SEO and site audits. Report the real numbers the tools return; never estimate search volume yourself. Tools that cost DataForSEO credits (rank trackers, audits) need the user to confirm.'
+      : null,
+    usesCustom
+      ? 'When a custom MCP server is selected (/mcp), use that server’s own tools for the request and report what they return.'
       : null,
     usesNextjs
       ? 'When Next.js is selected, answer site/MCP routing questions using nextjsMcp in the JSON context.'
@@ -188,7 +189,7 @@ export const POST = withRouteErrors('api/tenants/assistant', async function POST
     .map(normalizePartnerKind)
     .filter(
       (s) =>
-        ['medusa', 'erpnext', 'n8n', 'firecrawl', 'openseo'].includes(s) ||
+        ['medusa', 'erpnext', 'n8n', 'openseo'].includes(s) ||
         s.startsWith('custom:'),
     )
 

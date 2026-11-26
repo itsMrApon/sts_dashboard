@@ -85,9 +85,6 @@ export const SETUP_LINKS: Record<string, { links: IntegrationSetupLink[]; note?:
       { label: 'Give it a public address (Cloudflare Tunnel)', href: 'https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/' },
     ],
   },
-  firecrawl: {
-    links: [{ label: 'Copy your Firecrawl API key', href: 'https://www.firecrawl.dev/app/api-keys' }],
-  },
   openseo: {
     links: [
       { label: 'Install OpenSEO', href: 'https://github.com/every-app/open-seo' },

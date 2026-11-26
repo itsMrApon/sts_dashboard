@@ -53,14 +53,6 @@ const SPECS: Record<string, PartnerPromptSpec> = {
     syncGoal:
       'Read the STS workspace publish profile and create/update an n8n workflow (or webhook script) that uses that profile — e.g. social posting / lead ingest. If a social script already exists, update it; otherwise create a new one named for this workspace.',
   },
-  firecrawl: {
-    defaultPort: '',
-    detectHint: 'Check Firecrawl MCP reachability at the configured MCP URL.',
-    dockerHint: 'If Firecrawl MCP is unavailable, guide obtaining a Firecrawl API/MCP endpoint.',
-    setupGoal: 'Connect Firecrawl MCP credentials and report the URL to paste into STS Partners.',
-    syncGoal:
-      'Use Firecrawl to crawl the creator site (from STS links/profile) and summarize pages that should update the publish profile.',
-  },
   openseo: {
     defaultPort: '3001',
     detectHint:

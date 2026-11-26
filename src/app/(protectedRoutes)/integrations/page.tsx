@@ -7,7 +7,7 @@ import { startPerf, timeAsync } from '@/lib/dev/perf'
 import { loadLeadConnectionSettings } from '@/lib/leads/leadConnectionSettings'
 import { loadTriggerSettings } from '@/lib/jobs/triggerSettings'
 import { isPlatformOwner } from '@/lib/platform/platformOwner'
-import { PartnersIntro } from './_components/PartnersIntro'
+import { IntegrationsFolders } from './_components/IntegrationsFolders'
 
 const page = async () => {
   const timer = startPerf('route.integrations')
@@ -45,7 +45,7 @@ const page = async () => {
 
   timer.end({ partnerCount: connectedPartners.length })
   return (
-    <PartnersIntro
+    <IntegrationsFolders
       workspaceId={business.workspaceId}
       connectedPartners={connectedPartners}
       telegramLinked={Boolean(telegram)}

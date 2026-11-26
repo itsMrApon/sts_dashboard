@@ -31,7 +31,7 @@ export declare function useStsChat(): {
     send: (text: string) => Promise<void>;
     attach: (file: File, documentId?: string) => Promise<void>;
     reset: () => void;
-    status: "error" | "idle" | "thinking";
+    status: "idle" | "thinking" | "error";
     error: string | null;
 };
 type SpeakState = 'idle' | 'connecting' | 'live' | 'ended' | 'error';
@@ -43,7 +43,7 @@ export type StsCaption = {
     final: boolean;
 };
 /**
- * Voice call over WebRTC. Requires `livekit-client` installed on your site. Headless like the
+ * Voice call over WebRTC (LiveKit is included in this package). Headless like the
  * chat: your designer builds the call button, mute button, captions and any animation.
  */
 export declare function useStsSpeak(): {
@@ -80,6 +80,8 @@ export declare function useStsWizard(slug?: string): {
     savedSound: () => "on" | "off" | null;
     rememberSound: (choice: "on" | "off") => void;
     stop: () => void;
+    play: (stepName: string) => boolean;
+    unlock: () => void;
     playing: boolean;
     speaking: boolean;
     step: StsWizardStep | null;

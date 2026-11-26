@@ -39,13 +39,6 @@ export function N8nLogo() {
   )
 }
 
-export function FirecrawlLogo() {
-  return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className="text-orange-500" aria-hidden>
-      <path d="M13.2 2.2c.3 2.4-.4 4.2-1.8 5.8 2.3-.3 4.3-1.8 5.4-3.9 1.8 3.2 1.4 6.6-.4 9.1 1.2-.2 2.3-.8 3.2-1.7.2 3.6-2 7.3-6.1 9.1-3.6 1.6-7.8.8-10.2-2.2C1.4 16.1 2 12 4.6 9.4c.8 2.1 2.3 3.4 4.1 3.8C7.6 8.8 9.3 5 13.2 2.2z" />
-    </svg>
-  )
-}
 
 export function CustomMcpLogo() {
   return (
@@ -166,7 +159,6 @@ const PARTNER_LOGOS: Record<string, ComponentType> = {
   medusa: MedusaLogo,
   erpnext: ErpnextLogo,
   n8n: N8nLogo,
-  firecrawl: FirecrawlLogo,
   custom: CustomMcpLogo,
   telegram: TelegramLogo,
   twilio: TwilioLogo,

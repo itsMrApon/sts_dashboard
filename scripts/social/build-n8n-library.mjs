@@ -86,7 +86,7 @@ const NEED_BY_INTEGRATION = {
 }
 const NEED_BY_NAME = [
   [/elevenlabs/i, 'elevenlabs'], [/kling/i, 'kling'], [/flux/i, 'flux'], [/creatomate/i, 'creatomate'],
-  [/heygen/i, 'heygen'], [/apify/i, 'apify'], [/firecrawl/i, 'firecrawl'], [/gemini/i, 'gemini'],
+  [/heygen/i, 'heygen'], [/apify/i, 'apify'], [/gemini/i, 'gemini'],
   [/ffmpeg/i, 'ffmpeg'], [/comfy/i, 'comfyui'],
 ]
 

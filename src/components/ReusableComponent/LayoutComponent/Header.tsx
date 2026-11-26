@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import PurpleIcon from '../PurpleIcon'
 import STS2 from '@/icons/sts-2'
 import { cn } from '@/lib/utils'
+import { MessagesButton } from '@/components/messages/MessagesButton'
 
 const HeaderSubscription = dynamic(
   () => import('./HeaderSubscription').then((m) => m.default),
@@ -48,12 +49,10 @@ const Header = ({ user }: Props) => {
           <PurpleIcon className="hidden sm:flex">
             <STS2 className="w-8 h-8" />
           </PurpleIcon>
-          {/* Paid creators add offers and services here; everyone else sees the packages. */}
-          {user.subscription ? (
-            <Button onClick={() => router.push('/projects?new=1', { scroll: false })}>+ Add service</Button>
-          ) : (
-            <HeaderSubscription />
-          )}
+          {/* Every conversation (WhatsApp, Instagram, website, projects, email) opens from here. */}
+          <MessagesButton />
+          {/* Creators without a plan still see the packages next to it. */}
+          {user.subscription ? null : <HeaderSubscription />}
 
         </div>
     </div>

@@ -20,7 +20,6 @@ function resolveKind(kind?: string) {
     automate: 'n8n',
     workflow: 'n8n',
     erp: 'erpnext',
-    crawl: 'firecrawl',
     seo: 'openseo',
     mcp: 'custom',
   }

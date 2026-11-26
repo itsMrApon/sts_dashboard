@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { Activity, KeyRound, Link2, Trash2 } from 'lucide-react'
 import { toast } from '@/lib/toast'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import { NEW_PARTNER_CHAT, openMessages } from '@/components/messages/openMessages'
 import {
   Component as DevToolLandingPage,
   type DemoLine,
@@ -274,12 +275,13 @@ export function PartnerIntegrationPage({
               Remove
             </span>
           </button>
-          <Link
-            href="/integrations/chat"
+          <button
+            type="button"
+            onClick={() => openMessages(NEW_PARTNER_CHAT)}
             className="rounded-lg border border-zinc-800 bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900"
           >
             Open assistant
-          </Link>
+          </button>
         </div>
       ) : (
         <div className="mt-5 space-y-3">
@@ -323,12 +325,13 @@ export function PartnerIntegrationPage({
               All partners
             </Link>
             <p className="text-sm font-medium text-zinc-200">{guide.label}</p>
-            <Link
-              href="/integrations/chat"
+            <button
+              type="button"
+              onClick={() => openMessages(NEW_PARTNER_CHAT)}
               className="inline-flex items-center gap-2 text-sm text-zinc-400 transition-colors hover:text-zinc-100"
             >
               Assistant
-            </Link>
+            </button>
           </div>
         }
         badge={`${guide.label} integration`}

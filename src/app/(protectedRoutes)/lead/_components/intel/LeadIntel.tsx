@@ -28,11 +28,19 @@ import { FindLeadsDialog } from '../FindLeadsDialog'
 import { LEAD_INTEGRATION_LINKS } from '../leadIntegrationLinks'
 import { ImportMappingDialog, type PendingSheet } from './ImportMappingDialog'
 
-/** The folders, front of the tray first. */
-const FOLDERS = ['N8N', 'FATHOM', 'GOOGLE_MAPS', 'GOOGLE_DRIVE', 'CSV', 'SELLBIRD'] as const
+/** The folders, front of the tray first: two Lead sections, then every place leads come from. */
+const FOLDERS = ['APPROVAL', 'CALENDAR', 'N8N', 'FATHOM', 'GOOGLE_MAPS', 'GOOGLE_DRIVE', 'CSV', 'SELLBIRD'] as const
 type Folder = (typeof FOLDERS)[number]
 
+/** Folders that open a Lead section instead of an import. */
+const SECTION_LINK: Partial<Record<Folder, string>> = {
+  APPROVAL: '/lead/approval',
+  CALENDAR: '/lead/calendar',
+}
+
 const FOLDER_LABEL: Record<Folder, string> = {
+  APPROVAL: 'Approval',
+  CALENDAR: 'Calendar',
   N8N: 'n8n',
   FATHOM: 'Fathom',
   GOOGLE_MAPS: 'Google Maps',
@@ -42,6 +50,8 @@ const FOLDER_LABEL: Record<Folder, string> = {
 }
 
 const FOLDER_HINT: Record<Folder, string> = {
+  APPROVAL: 'leads that need what you sell',
+  CALENDAR: 'outreach, meetings and follow-ups',
   N8N: 'run one of your n8n workflows',
   FATHOM: 'bring in recent calls',
   GOOGLE_MAPS: 'find businesses near you',
@@ -75,8 +85,9 @@ const SHEET_BADGE: Record<ImportApp, string> = {
 }
 
 /**
- * /lead/intel: a tray of folders, one per place leads come from. Hover pulls a folder up, a click
- * opens it. Each folder opens its own small import: run an n8n workflow, bring in Fathom calls,
+ * /lead: a tray of folders. Approval and Calendar at the front open those pages; after them, one
+ * folder per place leads come from. Hover pulls a folder up, a click opens it. Each of those opens
+ * its own small import: run an n8n workflow, bring in Fathom calls,
  * find businesses on Maps, or read a Drive link or a file. Folders whose app isn't connected yet
  * send you to its box on /integrations.
  */
@@ -89,6 +100,8 @@ export function LeadIntel({ data }: { data: LeadIntelData }) {
   const [busy, setBusy] = useState(false)
 
   const connected: Record<Folder, boolean> = {
+    APPROVAL: true,
+    CALENDAR: true,
     N8N: data.n8n.connected,
     FATHOM: data.fathom.connected,
     GOOGLE_MAPS: data.maps.serperConfigured,
@@ -155,20 +168,27 @@ export function LeadIntel({ data }: { data: LeadIntelData }) {
 
   const labels = FOLDERS.map((f) => FOLDER_LABEL[f])
 
+  /** Approval and Calendar go to their page; the others open their import. */
+  function openFolder(folder: Folder) {
+    const link = SECTION_LINK[folder]
+    if (link) router.push(link)
+    else setOpen(folder)
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto pb-6">
+    <div className="flex h-full min-h-0 flex-col items-center overflow-y-auto overscroll-contain pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <div className="flex w-full max-w-xl flex-col items-center">
         <Riffle
           aria-label="Lead sources, as folders. Hover or use the arrow keys to pull one, then click or press Enter to open it."
           labels={labels}
-          className="text-foreground w-full max-w-md"
+          className="text-foreground w-full max-w-[min(28rem,50dvh)]"
           onRead={(text) => {
             const n = Number(text)
             setPulled(Number.isInteger(n) && n >= 1 ? (FOLDERS[n - 1] ?? null) : null)
           }}
           onPick={(card) => {
             const folder = FOLDERS[card - 1]
-            if (folder) setOpen(folder)
+            if (folder) openFolder(folder)
           }}
         />
 
@@ -176,10 +196,9 @@ export function LeadIntel({ data }: { data: LeadIntelData }) {
           {pulled ? (
             <>
               <span className="text-foreground font-medium">{FOLDER_LABEL[pulled]}</span> · {FOLDER_HINT[pulled]}
-              {connected[pulled] ? ' · click to open' : ' · not connected yet'}
             </>
           ) : (
-            'Pull a folder to see where it brings leads from'
+            'Pull a folder to see what it opens'
           )}
         </p>
 
@@ -189,7 +208,7 @@ export function LeadIntel({ data }: { data: LeadIntelData }) {
             <li key={folder}>
               <button
                 type="button"
-                onClick={() => setOpen(folder)}
+                onClick={() => openFolder(folder)}
                 onMouseEnter={() => setPulled(folder)}
                 className={cn(
                   'border-border bg-background hover:bg-muted inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-[13px] font-medium transition-colors',

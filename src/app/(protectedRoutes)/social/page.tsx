@@ -1,31 +1,26 @@
-import { CLI_CLIENT_LABEL, isCliClient, listCliTokens } from '@/lib/cli/cliAuth'
+import { PageViewport } from '@/components/ReusableComponent/PageViewport'
+import { ConnectAgentButton } from '@/components/agent/ConnectAgentButton'
 import { loadSocialContext } from './_lib/socialContext'
-import { SocialShell } from './_components/SocialShell'
 import { SocialFolders } from './_components/SocialFolders'
 
 /**
- * Social home: a library of skills, prompts, n8n workflows, plugins and reports. The creator copies
- * one into their own AI agent, which builds the post, video or report with their business brain.
- * (Instagram and WhatsApp connections stay in Integrations.)
+ * Social home: the folder tray (skills, prompts, workflows, plugins, reports, saved) on a page that
+ * does not scroll, like Lead, with the Connect agent button centred over it. Each folder opens its part of
+ * the library.
  */
 export default async function SocialPage() {
-  const { user } = await loadSocialContext()
-  const tokens = await listCliTokens(user.id)
-  const agents = tokens.map((token) => ({
-    id: token.id,
-    clientLabel: isCliClient(token.client) ? CLI_CLIENT_LABEL[token.client] : token.client,
-    name: token.name,
-    prefix: token.prefix,
-    createdAt: token.createdAt.toISOString(),
-    lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
-  }))
-
+  // Signs the creator in (and sends them to sign-in when they are not).
+  await loadSocialContext()
   return (
-    <SocialShell
-      title="Social"
-      description="Copy a skill, prompt or workflow into your AI agent. It builds the post, video, flyer or report with your business brain."
-    >
-      <SocialFolders agents={agents} />
-    </SocialShell>
+    <PageViewport bottomPad={16}>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 justify-center">
+          <ConnectAgentButton />
+        </div>
+        <div className="min-h-0 flex-1">
+          <SocialFolders />
+        </div>
+      </div>
+    </PageViewport>
   )
 }

@@ -82,7 +82,7 @@ export function FathomSettings({ fathomOk }: Pick<LeadConnectionSettings, 'fatho
           <p className="text-muted-foreground">
             New calls come in by themselves when they end, and a nightly backup pulls the last 3 days. To bring in
             older calls, open the Fathom folder in{' '}
-            <Link href="/lead/intel" className="text-foreground font-medium underline">
+            <Link href="/lead" className="text-foreground font-medium underline">
               Lead → Intel
             </Link>
             .

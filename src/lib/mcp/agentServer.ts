@@ -1,20 +1,29 @@
 import 'server-only'
+import { AGENT_TOOLS, findAgentTool } from '@/lib/agentBridge/registry'
+import { submitWriteRequest, WRITE_TOOL_EXTRA_PROPERTIES } from '@/lib/agentBridge/bridge'
+import { AgentInputError, type AgentContext, type AgentTool } from '@/lib/agentBridge/types'
 import { brainToMarkdown, loadApprovedReviews, loadBusinessBrain } from './businessBrain'
 
 /**
  * A small, stateless MCP server (Streamable HTTP transport, JSON responses, no SSE) for the
  * creator's own AI agent: Claude Code, Codex or Cursor, set up by `npx @sts-ai/cli init`.
- * Everything is read-only and scoped to the user behind the bearer token.
+ * Tools come from the agent bridge registry: read tools answer at once, write tools become
+ * requests the creator approves in Lead → Approval.
  */
 
 export const SUPPORTED_PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const
-const SERVER_INFO = { name: 'sts-ai', title: 'sts-ai business brain', version: '1.0.0' }
+const SERVER_INFO = { name: 'sts-ai', title: 'sts-ai business brain', version: '1.1.0' }
 
 const INSTRUCTIONS = [
-  'This server is the creator’s sts-ai business brain: their business profile, offers and prices,',
-  'links, social accounts and approved customer reviews. Call get_business_brain before writing any',
-  'content for the business, and use it as the source of truth. Never invent prices, offers or claims.',
-  'Keep Bangla text exactly as written.',
+  'This server is the creator’s sts-ai account: their business brain (profile, offers, prices, links,',
+  'social accounts, reviews, answers to customer questions), their integrations, leads and the Social library.',
+  'Call get_business_brain before writing anything for the business and use it as the source of truth;',
+  'never invent prices, offers or claims. Keep Bangla text exactly as written.',
+  'Answers and the business description are saved at once (propose_answer, propose_business_description):',
+  'when the creator tells you facts about their business, save them. Anything that reaches a customer',
+  '(draft_reply, draft_email_to_lead) or touches connections (propose_connection, import_n8n_workflow,',
+  'act_on_connection) waits for the creator in sts-ai → Lead → Approval. Pass a short `task` and a `why`;',
+  'check results with get_request_status.',
 ].join(' ')
 
 type JsonRpcId = string | number | null
@@ -23,65 +32,64 @@ export type JsonRpcResponse =
   | { jsonrpc: '2.0'; id: JsonRpcId; result: unknown }
   | { jsonrpc: '2.0'; id: JsonRpcId; error: { code: number; message: string } }
 
-const TOOLS = [
-  {
-    name: 'get_business_brain',
-    title: 'Business brain',
-    description:
-      'Everything about the creator’s business in one markdown document: name, description, business page, offers with links and prices, social accounts, latest approved reviews and the business knowledge their own AI assistant uses. Call this first.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-  },
-  {
-    name: 'list_offers',
-    title: 'Offers and links',
-    description: 'The business’s live offers (products, services, webinars, projects) with their public page and buy links, as JSON.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-  },
-  {
-    name: 'list_reviews',
-    title: 'Approved reviews',
-    description: 'Customer reviews the creator approved for public use, newest first. Reviewers are shown by first name only.',
-    inputSchema: {
-      type: 'object',
-      properties: { limit: { type: 'integer', minimum: 1, maximum: 50, description: 'How many reviews (default 20).' } },
-      additionalProperties: false,
-    },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-  },
-] as const
-
 const BRAIN_URI = 'sts-ai://business/brain'
 
 const ok = (id: JsonRpcId, result: unknown): JsonRpcResponse => ({ jsonrpc: '2.0', id, result })
 const fail = (id: JsonRpcId, code: number, message: string): JsonRpcResponse => ({ jsonrpc: '2.0', id, error: { code, message } })
-const text = (value: string) => ({ content: [{ type: 'text', text: value }] })
+const text = (value: string, extra?: Record<string, unknown>) => ({ content: [{ type: 'text', text: value }], ...extra })
+const toolError = (message: string) => text(message, { isError: true })
 
-const NO_BUSINESS = 'This account has no business set up yet. Finish onboarding in sts-ai first.'
+function describe(tool: AgentTool) {
+  if (tool.kind === 'read') {
+    return {
+      name: tool.name,
+      title: tool.title,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      annotations: { readOnlyHint: true, openWorldHint: tool.area === 'integrations' },
+    }
+  }
+  const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
+  return {
+    name: tool.name,
+    title: tool.title,
+    description: tool.policy === 'direct' ? tool.description : `${tool.description} (Needs the creator’s approval in sts-ai → Lead → Approval.)`,
+    inputSchema: { ...schema, properties: { ...(schema.properties ?? {}), ...WRITE_TOOL_EXTRA_PROPERTIES } },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: tool.area === 'integrations' },
+  }
+}
 
-async function callTool(userId: string, name: string, args: Record<string, unknown>) {
-  if (name === 'get_business_brain') {
-    const [brain, reviews] = await Promise.all([loadBusinessBrain(userId), loadApprovedReviews(userId, 5)])
-    if (!brain) return { ...text(NO_BUSINESS), isError: true }
-    return text(brainToMarkdown(brain, reviews))
+async function callTool(ctx: AgentContext, name: string, args: Record<string, unknown>) {
+  const tool = findAgentTool(name)
+  if (!tool) return null
+  try {
+    if (tool.kind === 'read') {
+      const output = await tool.run(ctx, args)
+      return typeof output === 'string' ? text(output) : text(output.text, output.structured ? { structuredContent: output.structured } : undefined)
+    }
+    const outcome = await submitWriteRequest(ctx, tool, args)
+    const approvalUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/lead/approval`
+    if (outcome.status === 'PENDING') {
+      return text(
+        `Request ${outcome.requestId} is waiting for the creator’s approval in sts-ai → Lead → Approval (${approvalUrl}). Nothing has changed yet. Tell the creator, then check with get_request_status.`,
+        { structuredContent: { ...outcome } },
+      )
+    }
+    if (outcome.status === 'APPLIED') {
+      return text(`Done. Result: ${JSON.stringify(outcome.result ?? null)}`, {
+        structuredContent: { ...outcome },
+      })
+    }
+    return toolError(`It failed: ${outcome.error}`)
+  } catch (error) {
+    if (error instanceof AgentInputError) return toolError(error.message)
+    console.error('[mcp/agent] tool failed', name, error)
+    return toolError(error instanceof Error ? error.message : 'The tool failed.')
   }
-  if (name === 'list_offers') {
-    const brain = await loadBusinessBrain(userId)
-    if (!brain) return { ...text(NO_BUSINESS), isError: true }
-    const offers = { businessPageUrl: brain.businessPageUrl, primaryOfferUrl: brain.primaryOfferUrl, offers: brain.offers }
-    return { ...text(JSON.stringify(offers, null, 2)), structuredContent: offers }
-  }
-  if (name === 'list_reviews') {
-    const limit = typeof args.limit === 'number' && Number.isFinite(args.limit) ? Math.round(args.limit) : 20
-    const reviews = await loadApprovedReviews(userId, limit)
-    return { ...text(reviews.length ? JSON.stringify(reviews, null, 2) : 'No approved reviews yet.'), structuredContent: { reviews } }
-  }
-  return null
 }
 
 /** Handles one JSON-RPC message. Returns null for notifications (no reply). */
-export async function handleMcpMessage(userId: string, message: JsonRpcMessage): Promise<JsonRpcResponse | null> {
+export async function handleMcpMessage(ctx: AgentContext, message: JsonRpcMessage): Promise<JsonRpcResponse | null> {
   const isNotification = message.id === undefined
   const id = message.id ?? null
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
@@ -106,11 +114,14 @@ export async function handleMcpMessage(userId: string, message: JsonRpcMessage):
     case 'ping':
       return ok(id, {})
     case 'tools/list':
-      return ok(id, { tools: TOOLS })
+      return ok(id, { tools: AGENT_TOOLS.map(describe) })
     case 'tools/call': {
       const name = typeof params.name === 'string' ? params.name : ''
-      const args = params.arguments && typeof params.arguments === 'object' ? (params.arguments as Record<string, unknown>) : {}
-      const result = await callTool(userId, name, args)
+      const args =
+        params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments)
+          ? (params.arguments as Record<string, unknown>)
+          : {}
+      const result = await callTool(ctx, name, args)
       return result ? ok(id, result) : fail(id, -32602, `Unknown tool: ${name}`)
     }
     case 'resources/list':
@@ -123,8 +134,8 @@ export async function handleMcpMessage(userId: string, message: JsonRpcMessage):
       return ok(id, { resourceTemplates: [] })
     case 'resources/read': {
       if (params.uri !== BRAIN_URI) return fail(id, -32002, 'Resource not found')
-      const [brain, reviews] = await Promise.all([loadBusinessBrain(userId), loadApprovedReviews(userId, 5)])
-      if (!brain) return fail(id, -32002, NO_BUSINESS)
+      const [brain, reviews] = await Promise.all([loadBusinessBrain(ctx.userId), loadApprovedReviews(ctx.userId, 5)])
+      if (!brain) return fail(id, -32002, 'This account has no business set up yet.')
       return ok(id, { contents: [{ uri: BRAIN_URI, mimeType: 'text/markdown', text: brainToMarkdown(brain, reviews) }] })
     }
     case 'prompts/list':

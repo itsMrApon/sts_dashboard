@@ -1,7 +1,7 @@
 {
   "name": "@sts-ai/sdk",
-  "version": "0.1.0",
-  "description": "Headless STS-AI SDK for creator websites: Chat AI, Speak AI, Form, Wizard and business details. Bring your own UI.",
+  "version": "1.0.1",
+  "description": "One package for every sts-ai service on your own website: Chat AI, Voice AI, Form, Tour and business details. Your design, our services. React, Vue/Nuxt or plain JavaScript.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -16,25 +16,57 @@
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "livekit-client": "^2.17.0",
-    "react": "^18.0.0 || ^19.0.0"
+    "react": "^18.0.0 || ^19.0.0",
+    "vue": "^3.3.0"
   },
   "peerDependenciesMeta": {
-    "livekit-client": { "optional": true },
-    "react": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^19",
     "livekit-client": "^2.17.2",
     "react": "^19.0.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vue": "^3.5.0"
+  },
+  "dependencies": {
+    "livekit-client": "^2.17.2"
+  },
+  "keywords": [
+    "sts-ai",
+    "chat",
+    "voice",
+    "livekit",
+    "headless",
+    "react",
+    "vue",
+    "nuxt"
+  ],
+  "homepage": "https://sudotechserve.com",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.17"
   }
 }

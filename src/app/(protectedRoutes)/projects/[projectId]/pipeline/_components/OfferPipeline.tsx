@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
 import { cn } from '@/lib/utils'
+import { openMessages } from '@/components/messages/openMessages'
 import { getPipelineThread, sendPipelineReply, setPipelineAiPaused } from '@/actions/pipeline'
 import { Button } from '@/components/ui/button'
 import {
@@ -240,6 +241,15 @@ function Conversation({
             {person.registeredAt ? <span>Registered {format(new Date(person.registeredAt), 'MMM d, h:mm a')}</span> : null}
           </div>
         </div>
+        {contactId && view.offer.slug && (thread?.messages.length || thread?.calls.length) ? (
+          <button
+            type="button"
+            onClick={() => openMessages(`offer:${view.offer.slug}:${contactId}`)}
+            className="shrink-0 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Open in Messages
+          </button>
+        ) : null}
         {contactId && thread && view.offer.canChat ? (
           <Button size="sm" variant={thread.aiPaused ? 'default' : 'outline'} onClick={toggleAi} disabled={switching} className="shrink-0">
             {thread.aiPaused ? 'Hand back to AI' : 'Take over'}

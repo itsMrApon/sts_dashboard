@@ -15,7 +15,7 @@ export type Need = {
 export const NEEDS: Record<NeedId, Need> = {
   stsBrain: {
     label: 'sts-ai business brain',
-    how: 'Run the sts-ai CLI init (above). It adds an MCP server called sts-ai with read-only tools: get_business_brain (profile, offers and prices, links, social accounts, approved reviews, business knowledge), list_offers and list_reviews. Call get_business_brain first.',
+    how: 'Run the sts-ai CLI init (above). It adds an MCP server called sts-ai: get_business_brain (profile, offers, prices, links, social accounts, reviews, answers) and list tools for connections, leads and the Social library. Tools that change something (propose_answer, propose_business_description, propose_connection, import_n8n_workflow, act_on_connection) wait for the creator’s approval in Lead → Approval. Call get_business_brain first; when the creator tells you facts about the business, offer to save them with propose_answer.',
     group: 'brain',
   },
   n8n: {
@@ -171,11 +171,6 @@ export const NEEDS: Record<NeedId, Need> = {
   agentReach: {
     label: 'Agent-Reach',
     how: 'Agent-Reach (github.com/Panniantong/Agent-Reach): one CLI to read and search X, Reddit, YouTube and more without API fees.',
-    group: 'data',
-  },
-  firecrawl: {
-    label: 'Firecrawl',
-    how: 'The Firecrawl MCP server (or API key) to turn any URL into clean markdown for the agent.',
     group: 'data',
   },
   scrapeAgent: {

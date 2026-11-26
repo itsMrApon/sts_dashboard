@@ -502,7 +502,7 @@ export function LeadList(props: Props) {
             <p className="text-foreground font-medium">No leads in this view</p>
             <p>
               Try another batch, or bring leads in from{' '}
-              <Link href="/lead/intel" className="text-foreground underline">
+              <Link href="/lead" className="text-foreground underline">
                 Intel
               </Link>
               .

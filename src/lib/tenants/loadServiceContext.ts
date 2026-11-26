@@ -105,22 +105,6 @@ export async function loadServiceContext(
         },
       )
     }
-    if (service.mcpKind === 'firecrawl') {
-      const status = statusByKind.get('firecrawl')
-      context.firecrawlMcp = status
-        ? {
-            provider: 'firecrawl',
-            status: status.status,
-            transport: status.transport,
-            toolCount: status.toolCount,
-            mcpUrl: status.mcpUrl,
-            message: status.message,
-          }
-        : // No platform FIRECRAWL_MCP_URL fallback: creators connect their own Firecrawl.
-          await loadExternalMcpContext('firecrawl', tenantId, undefined, {
-            note: 'Add your Firecrawl partner connector to use web crawling.',
-          })
-    }
   }
 
   for (const id of serviceIds.filter(isCustomConnectorId)) {

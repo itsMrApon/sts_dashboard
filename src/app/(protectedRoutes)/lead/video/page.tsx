@@ -1,9 +1,6 @@
-import { LeadSectionEmpty, LeadSectionPage } from '../_components/LeadSectionPage'
+import { redirect } from 'next/navigation'
 
+/** Video became Message. */
 export default function LeadVideoPage() {
-  return (
-    <LeadSectionPage>
-      {() => <LeadSectionEmpty title="Video" body="Videos for your leads will live here." />}
-    </LeadSectionPage>
-  )
+  redirect('/lead?inbox=1')
 }

@@ -5,6 +5,7 @@ import { chatStyleInstruction } from '@/lib/services/persona'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
 import { claimDelivery, type ResolvedConnection } from '@/lib/whatsapp/connection'
 import { sendText } from '@/lib/whatsapp/kapso'
+import { appendToConversation } from '@/lib/messages/conversationStore'
 
 /** One customer message as Kapso sends it (payload v2). Fields may be missing; read defensively. */
 type KapsoMessageEvent = {
@@ -64,7 +65,16 @@ export async function handleInboundMessage(connection: ResolvedConnection, event
     where: { externalId: sessionId, channel: { roomName: business.roomName }, aiPausedAt: { not: null } },
     select: { id: true },
   })
-  if (paused || !connection.aiReplies) return
+  if (paused || !connection.aiReplies) {
+    // No AI reply, but keep the message so it shows in Messages for the creator to answer.
+    await appendToConversation({
+      roomName: business.roomName,
+      userId: connection.userId,
+      externalId: sessionId,
+      messages: [{ role: 'user', content: text, timestamp: new Date().toISOString() }],
+    })
+    return
+  }
 
   const { chat } = await getBusinessServices(business.workspaceId)
   const result = await generateRoomChatReply({

@@ -10,22 +10,27 @@ import {
  * frame.
  */
 
-// sts-ai: six folders (one per lead source) instead of eight cards
-export const N = 6, W = 84, H = 54, G = 13, TW = 22, TH = 7, TABS = [6, 31, 56], TK = 1.4;
+// sts-ai: as many folders as the caller names (`labels`), up to ten; six when it names none.
+// (The tab punches number eight; folders 9 and 10 show no lit punch.)
+// Every function below takes that count as `n`.
+export const N = 6, MAX_N = 10, W = 84, H = 54, G = 13, TW = 22, TH = 7, TABS = [6, 31, 56], TK = 1.4;
 export const REST = -12, BACK = -24, FWD = 20, LIFT = 16;
-export const X0 = -5, X1 = W + 5, Y0 = -9, Y1 = (N - 1) * G + 9, WH = 20, WR = 6, WT = 2.4;
+export const X0 = -5, X1 = W + 5, Y0 = -9, WH = 20, WR = 6, WT = 2.4;
+/** sts-ai: the tray's near wall, which moves out with the number of folders. */
+export const Y1 = (n: number = N) => (n - 1) * G + 9;
 
 /** The camera, fitted to the tray with a card lifted, so nothing leaves the frame in any pose. */
-export function camera(): Camera {
+export function camera(n: number = N): Camera {
   const C = Cam(45, 0.5, 1.62);
-  fit(C, [[X0, Y0, 0], [X1, Y1, -8], [X1, Y0, 0], [X0, Y1, 0], [X0, Y0, H + TH], [X1, Y0, H + TH + LIFT]], 200, 166);
+  const y1 = Y1(n);
+  fit(C, [[X0, Y0, 0], [X1, y1, -8], [X1, Y0, 0], [X0, y1, 0], [X0, Y0, H + TH], [X1, Y0, H + TH + LIFT]], 200, 166);
   return C;
 }
 
 /** The tray's outline and the rim's inner edge. */
-export const trayRings = (): { outer: Ring; inner: Ring } => ({
-  outer: rrect(X0, Y0, X1, Y1, WR, 6),
-  inner: rrect(X0 + WT, Y0 + WT, X1 - WT, Y1 - WT, WR - WT, 6),
+export const trayRings = (n: number = N): { outer: Ring; inner: Ring } => ({
+  outer: rrect(X0, Y0, X1, Y1(n), WR, 6),
+  inner: rrect(X0 + WT, Y0 + WT, X1 - WT, Y1(n) - WT, WR - WT, 6),
 });
 
 /** A run of points ordered left to right on screen. */
@@ -35,7 +40,7 @@ const LR = (pts: Vec2[]) => (pts[0][0] <= pts[pts.length - 1][0] ? pts : pts.sli
  * The tray's paths, which never move. `far` is painted before the cards, `near`
  * after them; each entry is [d, class].
  */
-export function tray(P: Projector, front: (q: Sample) => boolean, outer: Ring, inner: Ring) {
+export function tray(P: Projector, front: (q: Sample) => boolean, outer: Ring, inner: Ring, n: number = N) {
   // far half: body, the rim's inner edge, and the floor seam along the far walls
   const far: [string, string][] = [
     [poly(hull(ringAt(P, outer, 0).concat(ringAt(P, outer, WH)))), "sil"],
@@ -45,7 +50,7 @@ export function tray(P: Projector, front: (q: Sample) => boolean, outer: Ring, i
   // near half: one opaque piece from the rim's inner edge down to the floor
   const iF = LR(ringAt(P, run(inner, front), WH)), oT = LR(ringAt(P, run(outer, front), WH)), oB = LR(ringAt(P, run(outer, front), 0));
   // a finger pull, set into the front
-  const hx = (X0 + X1) / 2, onFront = (ring: Ring) => ring.map((q) => P(q.u, Y1, q.v));
+  const hx = (X0 + X1) / 2, y1 = Y1(n), onFront = (ring: Ring) => ring.map((q) => P(q.u, y1, q.v));
   const near: [string, string][] = [
     [poly([...iF, oT[oT.length - 1], ...oB.slice().reverse(), oT[0]]), "fo"],
     [open(oT), "nf lo"],
@@ -61,8 +66,8 @@ export function tray(P: Projector, front: (q: Sample) => boolean, outer: Ring, i
  * Card i, back to front: its number (8 at the back), which of the three tab
  * positions it takes, and its filleted outline, drawn upright in its own plane.
  */
-export function card(i: number) {
-  const n = N - i, t0 = TABS[(N - 1 - i) % 3];
+export function card(i: number, count: number = N) {
+  const n = count - i, t0 = TABS[(count - 1 - i) % 3];
   const shape = fillet(
     [[0, 0], [W, 0], [W, H], [t0 + TW, H], [t0 + TW, H + TH], [t0, H + TH], [t0, H], [0, H]],
     [1, 1, 3.2, 1.8, 2.4, 2.4, 1.8, 3.2],
@@ -93,7 +98,7 @@ export function pose(P: Projector, i: number, t0: number, shape: readonly Vec2[]
 }
 
 /** The fitted camera, its projector and facing test, and the tray's rings: what both the engine and the still start from. */
-export function scene() {
-  const C = camera();
-  return { C, P: proj(C), front: facing(C), ...trayRings() };
+export function scene(n: number = N) {
+  const C = camera(n);
+  return { C, P: proj(C), front: facing(C), ...trayRings(n) };
 }

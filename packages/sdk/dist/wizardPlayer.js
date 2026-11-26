@@ -133,9 +133,12 @@ export function createWizardPlayer(wizard, events = {}) {
             clearTimeout(dwellTimer);
         dwellTimer = null;
     }
-    /** Follow mode: plays one step, cutting off whichever step was still talking. */
-    async function playOnce(step) {
-        if (played.has(step.id))
+    /**
+     * Plays one step, cutting off whichever step was still talking. Follow mode plays each step
+     * once; `again` plays it even if it already spoke (a step triggered by your own event).
+     */
+    async function playOnce(step, again = false) {
+        if (played.has(step.id) && !again)
             return;
         played.add(step.id);
         silence();
@@ -202,6 +205,23 @@ export function createWizardPlayer(wizard, events = {}) {
         follow() {
             unlockAudio();
             follow();
+        },
+        /**
+         * Plays one step from your own code, by its id or its `data-sts-step` name, for example from
+         * `window.addEventListener('my-event', () => tour.play('pricing'))`. Browsers only allow sound
+         * after the visitor clicked once on the page, so start or follow the tour from a click first
+         * (or call `unlock()` from any click). Returns false when there is no such step.
+         */
+        play(step) {
+            const found = wizard.steps.find((item) => item.id === step || item.target === step);
+            if (!found)
+                return false;
+            void playOnce(found, true);
+            return true;
+        },
+        /** Call from any click to allow sound for steps you play later with `play()`. */
+        unlock() {
+            unlockAudio();
         },
         /** Lets every step play again, for example when the visitor restarts the tour. */
         reset() {

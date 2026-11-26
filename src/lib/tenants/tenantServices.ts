@@ -7,10 +7,9 @@ export type TenantServiceId =
   | 'mcp'
   | 'messages'
   | 'n8n'
-  | 'firecrawl'
   | 'openseo'
 
-export type McpKind = 'tenant' | 'medusa' | 'nextjs' | 'n8n' | 'firecrawl' | 'external'
+export type McpKind = 'tenant' | 'medusa' | 'nextjs' | 'n8n' | 'external'
 
 /** Canonical partner kind. Aliases and legacy Saleor rows all map to Medusa. */
 export function normalizePartnerKind(kind: string): string {
@@ -68,12 +67,6 @@ export const TENANT_SERVICE_CATALOG: TenantServiceDefinition[] = [
     mcpKind: 'n8n',
   },
   {
-    id: 'firecrawl',
-    label: 'Firecrawl',
-    description: 'Web crawl and content extraction via Firecrawl MCP',
-    mcpKind: 'firecrawl',
-  },
-  {
     id: 'openseo',
     label: 'OpenSEO',
     description: 'Keyword research, rankings, local SEO and site audits via the creator’s OpenSEO MCP',
@@ -113,7 +106,6 @@ export const INBOUND_CONNECTOR_IDS: TenantServiceId[] = [
   'medusa',
   'erpnext',
   'n8n',
-  'firecrawl',
   'openseo',
 ]
 
@@ -190,9 +182,6 @@ export function promptSuggestionsForServices(serviceIds: string[]): string[] {
   if (hasPartner(serviceIds, 'n8n')) {
     suggestions.push('Start my n8n workflow by name.')
     suggestions.push('Where is the latest n8n output file stored?')
-  }
-  if (hasPartner(serviceIds, 'firecrawl')) {
-    suggestions.push('Crawl the latest site pages for this tenant context.')
   }
   if (hasPartner(serviceIds, 'openseo')) {
     suggestions.push('What do people search for around my business, and how hard is each to rank for?')

@@ -40,7 +40,7 @@ export async function getN8nWebhookUrl(fresh = false): Promise<ActionResult<{ ur
     },
     update: { webhookTokenEnc: encryptToken(token), webhookTokenHash: hashWebhookToken(token) },
   })
-  revalidatePath('/lead/intel')
+  revalidatePath('/lead')
   return { ok: true, data: { url: `${appBaseUrl()}/api/leads/import/${token}` } }
 }
 

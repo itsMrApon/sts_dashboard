@@ -2,7 +2,9 @@ import { NEEDS } from './needs'
 import type { AgentClient, SocialItem, SocialKind } from './types'
 
 /** The one setup command every prompt starts with. */
-export const STS_CLI_VERSION = '1.0'
+// Pinned to the release line (not '1'): npx reuses any cached copy that matches, so '1' could keep
+// running an older 1.0 on a computer that ran it before. Bump with each CLI release.
+export const STS_CLI_VERSION = '1.1'
 export function stsInitCommand(client: AgentClient): string {
   return `npx --yes @sts-ai/cli@${STS_CLI_VERSION} init --client ${client} --write`
 }

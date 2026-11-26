@@ -12,6 +12,8 @@ export const getWebsiteConnection = cache(async (roomName: string): Promise<Webs
     where: { roomName },
     select: { enabled: true, allowedOrigins: true },
   })
-  const origin = config?.enabled ? (config.allowedOrigins[0] ?? null) : null
+  // Show the real website address, not a localhost one allowed for development.
+  const origins = config?.enabled ? config.allowedOrigins : []
+  const origin = origins.find((o) => !/^https?:\/\/(localhost|127\.0\.0\.1)(:|$)/.test(o)) ?? origins[0] ?? null
   return { connected: origin !== null, origin }
 })

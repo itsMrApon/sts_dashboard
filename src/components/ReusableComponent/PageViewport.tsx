@@ -47,13 +47,47 @@ export function PageViewport({
   useEffect(() => {
     const html = document.documentElement
     const body = document.body
-    const prevHtml = html.style.overflow
-    const prevBody = body.style.overflow
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlOverscroll: html.style.overscrollBehavior,
+      bodyOverflow: body.style.overflow,
+      bodyOverscroll: body.style.overscrollBehavior,
+      bodyPosition: body.style.position,
+      bodyInset: body.style.inset,
+      bodyWidth: body.style.width,
+    }
     html.style.overflow = 'hidden'
     body.style.overflow = 'hidden'
+    // No rubber-band bounce or pull-to-refresh dragging the page.
+    html.style.overscrollBehavior = 'none'
+    body.style.overscrollBehavior = 'none'
+    // Phones: overflow: hidden does not stop a finger from scrolling the page in iOS Safari (the
+    // layout's bottom padding for the tab bar makes it a little taller than the screen), so the
+    // body is pinned in place. Panes inside still scroll.
+    const phone = window.matchMedia('(max-width: 767px)')
+    const pin = () => {
+      if (phone.matches) {
+        window.scrollTo(0, 0)
+        body.style.position = 'fixed'
+        body.style.inset = '0'
+        body.style.width = '100%'
+      } else {
+        body.style.position = prev.bodyPosition
+        body.style.inset = prev.bodyInset
+        body.style.width = prev.bodyWidth
+      }
+    }
+    pin()
+    phone.addEventListener('change', pin)
     return () => {
-      html.style.overflow = prevHtml
-      body.style.overflow = prevBody
+      phone.removeEventListener('change', pin)
+      html.style.overflow = prev.htmlOverflow
+      html.style.overscrollBehavior = prev.htmlOverscroll
+      body.style.overflow = prev.bodyOverflow
+      body.style.overscrollBehavior = prev.bodyOverscroll
+      body.style.position = prev.bodyPosition
+      body.style.inset = prev.bodyInset
+      body.style.width = prev.bodyWidth
     }
   }, [])
 

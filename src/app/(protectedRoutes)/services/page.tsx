@@ -2,8 +2,10 @@ import { prismaClient } from '@/lib/prismaClient'
 import { getBusinessServices, type ServiceAssistant } from '@/lib/services/serviceConfig'
 import { liveSessionsForSite, loadBusinessOffers, loadUpcomingLiveSessions } from '@/lib/business/businessOffers'
 import { siteContentFromLegacy } from '@/lib/business/siteContent'
+import { getWebsiteConnection } from '@/lib/embed/websiteConnection'
+import { CLI_CLIENT_LABEL, isCliClient, listCliTokens } from '@/lib/cli/cliAuth'
 import { loadServicesContext } from './_lib/servicesContext'
-import { ServicesHubCards, type HubStatus } from './_components/ServicesHubCards'
+import { ServicesFolders, type HubStatus } from './_components/ServicesFolders'
 
 /** A service card's status: live, off, or still waiting for its assistant (AI Agents). */
 function serviceStatus(on: boolean, agent: ServiceAssistant | null): HubStatus {
@@ -18,10 +20,10 @@ function countStatus(count: number, word: string, empty: string): HubStatus {
   return count > 0 ? { on: true, label: plural(count, word) } : { on: false, label: empty }
 }
 
-/** Services home: the website services. Each one is run by its own AI Agents assistant. */
+/** Services home: the website services as a folder tray. Each one is run by its own AI Agents assistant. */
 export default async function ServicesPage() {
   const { business } = await loadServicesContext()
-  const [services, wizard, workspace, offers, liveSessions] = await Promise.all([
+  const [services, wizard, workspace, offers, liveSessions, website, agents] = await Promise.all([
     getBusinessServices(business.workspaceId),
     prismaClient.voiceWizard.findFirst({ where: { userId: business.userId, webinarId: null }, select: { isPublished: true } }),
     prismaClient.workspace.findUnique({
@@ -30,7 +32,11 @@ export default async function ServicesPage() {
     }),
     loadBusinessOffers(business.publishProfileId),
     loadUpcomingLiveSessions(business.publishProfileId, ''),
+    getWebsiteConnection(business.roomName),
+    listCliTokens(business.userId),
   ])
+  // The most recently used agent the CLI connected (tokens come newest first).
+  const agent = [...agents].sort((a, b) => (b.lastUsedAt?.getTime() ?? 0) - (a.lastUsedAt?.getTime() ?? 0))[0]
   const site = siteContentFromLegacy({
     businessName: business.name,
     vertical: workspace?.contextVertical ?? null,
@@ -46,7 +52,14 @@ export default async function ServicesPage() {
 
   return (
     <div className="flex w-full flex-col gap-3">
-      <ServicesHubCards
+      <ServicesFolders
+        connection={{
+          website,
+          agent: {
+            connected: Boolean(agent),
+            label: agent ? (isCliClient(agent.client) ? CLI_CLIENT_LABEL[agent.client] : agent.client) : null,
+          },
+        }}
         status={{
           chat: serviceStatus(services.chat.enabled, services.chat.agent),
           speak: serviceStatus(services.speak.enabled, services.speak.agent),

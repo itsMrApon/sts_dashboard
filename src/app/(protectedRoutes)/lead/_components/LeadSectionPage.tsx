@@ -1,15 +1,14 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { onAuthenticateUser } from '@/actions/auth'
-import { LeadPageHeaderControls } from './LeadPageHeaderControls'
 import { LeadViewport } from './LeadViewport'
 import { LeadUnavailableState } from './LeadUnavailableState'
 
 type SignedInUser = { id: string; email: string; name: string }
 
 /**
- * Shared frame for /lead/<section>: the section tabs and the link to the lead connections, with the
- * section filling the rest of the height.
+ * Shared frame for the Lead pages: the page fills the height. (No section tabs: the folders on
+ * /lead open Approval and Calendar.)
  */
 export async function LeadSectionPage({ children }: { children: (user: SignedInUser) => ReactNode }) {
   const auth = await onAuthenticateUser()
@@ -19,16 +18,6 @@ export async function LeadSectionPage({ children }: { children: (user: SignedInU
 
   return (
     <div className="flex w-full flex-col gap-3">
-      <div className="flex shrink-0 justify-end">
-        {/* Five tabs need about 760px at full size; below that the compact bar fits. */}
-        <div className="md:hidden">
-          <LeadPageHeaderControls compact />
-        </div>
-        <div className="hidden md:block">
-          <LeadPageHeaderControls />
-        </div>
-      </div>
-
       <LeadViewport>{children(user)}</LeadViewport>
     </div>
   )

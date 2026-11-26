@@ -1,27 +1,52 @@
 # @sts-ai/sdk
 
-One headless SDK for every STS-AI website service: **Chat AI, Speak AI, Form, Wizard** and **business details**.
-It gives you state and actions only. Your designer builds every button, pop-up and chat box, so nothing clashes with your site.
+Every sts-ai service on **your own website, in your own design**: Chat AI, Voice AI, Form, Tour
+and your business details. The package gives you state and actions only; your designer draws
+every button, pop-up, orb and form, so nothing clashes with your site. Works with **React**,
+**Vue / Nuxt** and **plain JavaScript**. Voice (LiveKit) is included.
 
-## Setup
+## Setup: one command
 
-1. In STS-AI → **Messages → Overview → Website & SDK**: add your website URL and copy the site key (`sts_pk_live_…`).
-2. Turn on the services you want (Messages → Chat AI / Speak AI / Form / Wizard).
-3. Install the SDK:
+Run this inside your website's folder and approve once in the browser:
+
+```bash
+npx @sts-ai/cli init
+```
+
+It makes your website's key behind the scenes, allows your domain, installs this package and
+wires it into your site (Next.js: `app/layout.tsx`; Nuxt: `plugins/sts-ai.client.ts`). Which
+services show (Chat, Voice, Form, Tour) is switched in the sts-ai app, not in code.
+
+<details>
+<summary>By hand instead</summary>
 
 ```bash
 npm install @sts-ai/sdk
-npm install livekit-client   # only if you use Speak AI
 ```
 
+React / Next.js:
+
 ```tsx
-// app/layout.tsx
 import { StsProvider } from '@sts-ai/sdk/react'
 
-<StsProvider apiBase="https://your-sts-ai-app.com" siteKey={process.env.NEXT_PUBLIC_STS_SITE_KEY!}>
+<StsProvider apiBase="https://sudotechserve.com" siteKey={process.env.NEXT_PUBLIC_STS_SITE_KEY!}>
   {children}
 </StsProvider>
 ```
+
+Vue / Nuxt (`plugins/sts-ai.client.ts`):
+
+```ts
+import { createStsPlugin } from '@sts-ai/sdk/vue'
+
+export default defineNuxtPlugin((nuxtApp) => {
+  nuxtApp.vueApp.use(createStsPlugin({ apiBase: 'https://sudotechserve.com', siteKey: 'sts_pk_live_…' }))
+})
+```
+
+The site key is publishable (it only works on the website URLs you allow), so it is fine in
+client code.
+</details>
 
 ## Example: your own pop-up button with Chat AI
 
@@ -62,7 +87,7 @@ export function ChatBubble() {
 | `useStsChat()` | `available, greeting, suggestions, documentRequests, messages, send(text), attach(file, documentId?), reset(), status, error` |
 | `useStsSpeak()` | `state ('idle' \| 'connecting' \| 'live' \| 'ended' \| 'error'), start(), stop(), isAgentSpeaking, muted, setMuted(bool), captions, agentLevel, error` |
 | `useStsForm()` | `form, values, setValue(id, v), consent, setConsent, submit(), status, message, fieldError` |
-| `useStsWizard()` | `ready, start(), follow(), savedSound(), rememberSound('on' \| 'off'), stop(), playing, speaking, step, stepIndex, caption, muted, setMuted` |
+| `useStsWizard()` | `ready, start(), follow(), play(step), unlock(), savedSound(), rememberSound('on' \| 'off'), stop(), playing, speaking, step, stepIndex, caption, muted, setMuted` |
 
 ### Chat: the attach button
 
@@ -115,15 +140,55 @@ Tag sections, then style the active one:
 
 Steps whose section isn't on the page are skipped. Audio needs a click to start (browser rule), so call `start()` from a button.
 
-## Without React
+## Vue / Nuxt
+
+The same services as composables; every value is a ref.
+
+```vue
+<script setup lang="ts">
+import { useStsSpeak } from '@sts-ai/sdk/vue'
+const { state, start, stop, agentLevel } = useStsSpeak()
+</script>
+
+<template>
+  <!-- your own orb: it grows with the AI's voice -->
+  <button class="orb" :style="{ transform: `scale(${1 + agentLevel * 0.4})` }" @click="state === 'live' ? stop() : start()">
+    {{ state === 'live' ? 'End call' : 'Talk to us' }}
+  </button>
+</template>
+```
+
+`useStsChat()`, `useStsSpeak()`, `useStsForm()`, `useStsWizard()`, `useStsBusiness()`,
+`useStsAnswers()`, `useStsReviews()` and `useStsInfo()` return the same fields as the React hooks.
+
+## Tour from your own events
+
+Play one step whenever your page wants, by its id or its `data-sts-step` name:
 
 ```ts
-import { createSts } from '@sts-ai/sdk'
+const tour = useStsWizard()               // React or Vue
+button.addEventListener('click', () => tour.unlock())   // one click first: browsers need it for sound
+window.addEventListener('pricing-open', () => tour.play('pricing'))
+```
 
-const sts = createSts({ apiBase: 'https://your-sts-ai-app.com', siteKey: 'sts_pk_live_…' })
+## Without a framework
+
+```ts
+import { createSts, createChat, createVoice, createForm, createWizardPlayer } from '@sts-ai/sdk'
+
+const sts = createSts({ apiBase: 'https://sudotechserve.com', siteKey: 'sts_pk_live_…' })
+
+const chat = createChat(sts)
+chat.subscribe((state) => renderMessages(state.messages))   // your own chat box
+await chat.send('Hi!')
+
+const voice = createVoice(sts)
+voice.subscribe((state) => orb.style.setProperty('--level', String(state.agentLevel)))
+orbButton.addEventListener('click', () => voice.start())
+
 const { services } = await sts.info()
-const { reply } = await sts.chat.send('Hi!')
-await sts.form.submit({ name: 'Rahim', phone: '+8801…' }, true)
+const tour = createWizardPlayer(await sts.wizard.load(services.wizards[0].slug))
+document.addEventListener('scroll-into-pricing', () => tour.play('pricing'))
 ```
 
 ## Security

@@ -39,7 +39,7 @@ export const PROMPT_ITEMS: SocialItem[] = [
     summary: 'Paste an article or your page; get 7 slides in your brand colours.',
     channels: ['instagram', 'linkedin'],
     formats: ['carousel', 'image'],
-    needs: ['stsBrain', 'firecrawl', 'canva'],
+    needs: ['stsBrain', 'scrapeAgent', 'canva'],
     source: SOURCES.stsAi,
     diagram: {
       type: 'flow',
@@ -258,7 +258,7 @@ export const PROMPT_ITEMS: SocialItem[] = [
     summary: 'Repurpose a blog post into threads, carousels, reels and a newsletter.',
     channels: ['linkedin', 'x', 'instagram', 'email'],
     formats: ['post', 'carousel', 'video'],
-    needs: ['stsBrain', 'firecrawl'],
+    needs: ['stsBrain', 'scrapeAgent'],
     source: SOURCES.stsAi,
     diagram: {
       type: 'fan',

@@ -1,7 +1,7 @@
 // Copied from @lucasmarkes/hairline 0.5.1 (MIT, © 2026 Lucas Marques; see ./LICENSE). Riffle only; local changes are marked "sts-ai:".
 import { clamp, rad, type Vec2 } from "../core/iso";
 import { tdone, tset, tval, tween, type Tween } from "../core/motion";
-import { BACK, FWD, G, H, LIFT, N, REST, W, card, pose, scene, tray } from "./riffle-geometry";
+import { BACK, FWD, G, H, LIFT, MAX_N, N as DEFAULT_N, REST, W, card, pose, scene, tray } from "./riffle-geometry";
 import { disposer, mk, place, pointer, reflect, register, type FigureEls, type FigureHandle } from "../core/stage";
 
 /**
@@ -33,8 +33,10 @@ export const mount = ({ stage, svg, read, options }: FigureEls, value: number): 
   const bag = disposer();
   let stag = value;
 
-  const { P, front, outer, inner } = scene();
-  const paths = tray(P, front, outer, inner);
+  // sts-ai: one card per label (up to eight), six when there are none.
+  const N = clamp(options?.labels?.length || DEFAULT_N, 1, MAX_N);
+  const { P, front, outer, inner } = scene(N);
+  const paths = tray(P, front, outer, inner, N);
 
   const g = mk("g", {}, svg);
   reflect(svg, g, P, front, outer, 0, 14);
@@ -42,7 +44,7 @@ export const mount = ({ stage, svg, read, options }: FigureEls, value: number): 
 
   const cards: Card[] = [];
   for (let i = 0; i < N; i++) {
-    const { n, t0, shape } = card(i);
+    const { n, t0, shape } = card(i, N);
     const grp = mk("g", {}, g);
     const back = mk("path", { class: "lo" }, grp), face = mk("path", { class: "sil" }, grp);
     const head = mk("path", { class: "nf" }, grp), rules = mk("path", { class: "nf lo" }, grp);

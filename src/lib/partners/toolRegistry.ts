@@ -21,7 +21,7 @@ import type {
 } from './types'
 
 const REST_ADAPTER_KINDS = new Set(['medusa', 'erpnext', 'n8n'])
-const BUILTIN_PARTNER_KINDS = ['medusa', 'erpnext', 'n8n', 'firecrawl', 'openseo'] as const
+const BUILTIN_PARTNER_KINDS = ['medusa', 'erpnext', 'n8n', 'openseo'] as const
 
 const WRITE_NAME_HINT =
   /(create|update|delete|remove|trigger|execute|invoice|print|write|post|submit|cancel|refund|pay|send|reply)/i

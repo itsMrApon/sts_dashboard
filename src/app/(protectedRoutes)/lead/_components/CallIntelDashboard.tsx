@@ -14,7 +14,9 @@ import {
   type LeadCalendarMonth,
 } from './calendar/LeadCalendar'
 import { openLeadIntegration } from './leadIntegrationLinks'
-import type { LeadViewMode } from './LeadPageHeaderControls'
+
+/** The two Lead pages this dashboard draws. */
+export type LeadViewMode = 'calendar' | 'list'
 
 const GCAL_RECONNECT_TOAST_KEY = 'sts-gcal-reconnect-toast'
 

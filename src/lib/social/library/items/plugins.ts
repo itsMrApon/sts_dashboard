@@ -167,31 +167,6 @@ export const PLUGIN_ITEMS: SocialItem[] = [
     output: 'Screenshots and a short screen recording.',
   },
   {
-    id: 'plugin-firecrawl',
-    kind: 'plugin',
-    title: 'Firecrawl: any page to markdown',
-    summary: 'Clean text from articles, competitors and your own pages.',
-    channels: ['blog', 'linkedin', 'instagram'],
-    formats: ['research'],
-    needs: ['firecrawl'],
-    source: SOURCES.stsAi,
-    diagram: {
-      type: 'flow',
-      nodes: [
-        { label: 'URL / site', tag: 'INPUT' },
-        { label: 'Firecrawl', sub: 'crawl + clean', tag: 'MCP', focal: true },
-        { label: 'Markdown', tag: 'DATA' },
-        { label: 'Agent', sub: 'summarise, repurpose', tag: 'AGENT' },
-      ],
-    },
-    goal: 'Give the agent clean page content for research and repurposing.',
-    steps: [
-      'Add the Firecrawl MCP server with the API key.',
-      'Test on the creator’s own site and one competitor page.',
-    ],
-    output: 'A working connection and two markdown files.',
-  },
-  {
     id: 'plugin-agent-reach',
     kind: 'plugin',
     title: 'Agent-Reach: read the whole internet',

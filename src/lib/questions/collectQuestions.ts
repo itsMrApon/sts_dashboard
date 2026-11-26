@@ -85,7 +85,8 @@ async function loadCandidates(userId: string, now: Date): Promise<Candidate[]> {
       select: { id: true, slug: true },
     }),
     prismaClient.messageConversation.findMany({
-      where: { channel: { userId }, updatedAt: { gte: since } },
+      // Partner chats (`assistant:`) are the creator talking to their apps, not customer questions.
+      where: { channel: { userId }, updatedAt: { gte: since }, NOT: { externalId: { startsWith: 'assistant:' } } },
       orderBy: { updatedAt: 'desc' },
       take: MAX_CONVERSATIONS,
       select: { externalId: true, messages: true, updatedAt: true },

@@ -45,7 +45,10 @@ export const POST = withRouteErrors('api/mcp/agent', async function POST(request
   }
   const replies: JsonRpcResponse[] = []
   for (const message of messages) {
-    const reply = await handleMcpMessage(session.userId, (message ?? {}) as Parameters<typeof handleMcpMessage>[1])
+    const reply = await handleMcpMessage(
+      { userId: session.userId, tokenId: session.tokenId, client: session.client },
+      (message ?? {}) as Parameters<typeof handleMcpMessage>[1],
+    )
     if (reply) replies.push(reply)
   }
   // Only notifications: accepted, nothing to say.

@@ -21,6 +21,15 @@ export declare function createWizardPlayer(wizard: StsWizard, events?: WizardPla
      * again after your site changes page without a reload, to pick up that page's sections.
      */
     follow(): void;
+    /**
+     * Plays one step from your own code, by its id or its `data-sts-step` name, for example from
+     * `window.addEventListener('my-event', () => tour.play('pricing'))`. Browsers only allow sound
+     * after the visitor clicked once on the page, so start or follow the tour from a click first
+     * (or call `unlock()` from any click). Returns false when there is no such step.
+     */
+    play(step: string): boolean;
+    /** Call from any click to allow sound for steps you play later with `play()`. */
+    unlock(): void;
     /** Lets every step play again, for example when the visitor restarts the tour. */
     reset(): void;
     stop(): void;

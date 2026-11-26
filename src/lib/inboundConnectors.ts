@@ -2,7 +2,6 @@ export const INBOUND_CONNECTOR_KINDS = [
   'medusa',
   'erpnext',
   'n8n',
-  'firecrawl',
   'openseo',
   'custom',
 ] as const

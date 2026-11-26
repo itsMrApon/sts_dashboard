@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { AGENT_CLIENT_LABEL, stsInitCommand } from '@/lib/social/library/buildPrompt'
 import type { AgentClient } from '@/lib/social/library/types'
-import { copyText, useAgentClient } from '../_lib/useSocialPrefs'
+import { copyText, useAgentClient } from '@/app/(protectedRoutes)/social/_lib/useSocialPrefs'
 import { ConnectedAgents, type ConnectedAgent } from './ConnectedAgents'
 
 /**

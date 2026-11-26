@@ -11,7 +11,7 @@ import {
 import { WifiOff } from 'lucide-react'
 import Link from 'next/link'
 import { CallIntelDashboard } from './CallIntelDashboard'
-import type { LeadViewMode } from './LeadPageHeaderControls'
+import type { LeadViewMode } from './CallIntelDashboard'
 
 function isUnavailable(
   data: Awaited<ReturnType<typeof getCallIntelDashboard>>,

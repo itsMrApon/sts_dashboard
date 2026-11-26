@@ -27,7 +27,6 @@ export const PARTNER_SLASH_COMMANDS: PartnerSlashCommand[] = [
     description: 'Same as Medusa commerce tools',
     prefix: '/ecommerce',
     serviceKind: 'medusa',
-    showInBar: true,
   },
   {
     id: 'madusa',
@@ -57,7 +56,6 @@ export const PARTNER_SLASH_COMMANDS: PartnerSlashCommand[] = [
     description: 'Same as n8n workflows',
     prefix: '/automate',
     serviceKind: 'n8n',
-    showInBar: true,
   },
   {
     id: 'workflow',
@@ -80,21 +78,6 @@ export const PARTNER_SLASH_COMMANDS: PartnerSlashCommand[] = [
     description: 'Alias for /erpnext',
     prefix: '/erp',
     serviceKind: 'erpnext',
-  },
-  {
-    id: 'firecrawl',
-    label: 'Firecrawl',
-    description: 'Crawl and extract site content',
-    prefix: '/firecrawl',
-    serviceKind: 'firecrawl',
-    showInBar: true,
-  },
-  {
-    id: 'crawl',
-    label: 'Firecrawl',
-    description: 'Alias for /firecrawl',
-    prefix: '/crawl',
-    serviceKind: 'firecrawl',
   },
   {
     id: 'openseo',
@@ -158,7 +141,7 @@ const KNOWN_PREFIX_PATTERN = new RegExp(
 )
 
 const ACTIVE_PARTNER_PATTERN =
-  /active partner:\s*(n8n|medusa|madusa|erpnext|firecrawl|custom|ecommerce|automate)/i
+  /active partner:\s*(n8n|medusa|madusa|erpnext|openseo|seo|custom|ecommerce|automate)/i
 
 /**
  * Find partner slash commands anywhere in typed input or a pasted pipeline prompt.

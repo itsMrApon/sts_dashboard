@@ -11,12 +11,6 @@ import { STS_CLI_VERSION } from '@/lib/social/library/buildPrompt'
 
 export type HubStatus = { label: string; on: boolean }
 
-/** What `npx @sts-ai/cli init` connected: the website (its address) and the creator's AI agent. */
-export type ServicesConnection = {
-  website: { connected: boolean; origin: string | null }
-  agent: { connected: boolean; label: string | null }
-}
-
 /** The command that asks: connect the AI agent, set up the website, or both. */
 const SETUP_COMMAND = `npx --yes @sts-ai/cli@${STS_CLI_VERSION} init`
 
@@ -40,13 +34,7 @@ const FOLDERS: { key: ServiceKey; label: string; hint: string; href: string }[] 
  * /services: the same folder tray as /lead and /social, one folder per website service (plus the
  * AI assistants that run them), on a page that does not scroll, with Install over it.
  */
-export function ServicesFolders({
-  status,
-  connection,
-}: {
-  status: Record<Exclude<ServiceKey, 'assistants'>, HubStatus>
-  connection: ServicesConnection
-}) {
+export function ServicesFolders({ status }: { status: Record<Exclude<ServiceKey, 'assistants'>, HubStatus> }) {
   const router = useRouter()
   const [pulled, setPulled] = useState<ServiceKey | null>(null)
   const folder = FOLDERS.find((f) => f.key === pulled) ?? null
@@ -55,19 +43,8 @@ export function ServicesFolders({
   return (
     <PageViewport bottomPad={16}>
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex shrink-0 flex-col items-center gap-2">
+        <div className="flex shrink-0 justify-center">
           <ConnectAgentButton command={SETUP_COMMAND} />
-          {/* Run in the website's folder: one approval connects the website and the AI agent. */}
-          <p className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className={cn('size-1.5 rounded-full', connection.website.connected ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-              {connection.website.connected ? `Website: ${connection.website.origin?.replace(/^https?:\/\//, '')}` : 'Website not connected'}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span aria-hidden className={cn('size-1.5 rounded-full', connection.agent.connected ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
-              {connection.agent.connected ? `AI agent: ${connection.agent.label}` : 'AI agent not connected'}
-            </span>
-          </p>
         </div>
         <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex w-full max-w-xl flex-col items-center">

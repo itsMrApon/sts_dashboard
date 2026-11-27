@@ -104,7 +104,7 @@ export const mount = ({ stage, svg, read, options }: FigureEls, value: number): 
       const delay = Math.abs(i - from) * stag;
       const th = a < 0 ? REST : i < a ? BACK : i > a ? FWD : 0;
       tset(cd.a, th, now, delay); tset(cd.z, a === i ? LIFT : 0, now, delay);
-      cd.face.classList.toggle("hi", i === a); cd.head.classList.toggle("hi", i === a); cd.name.classList.toggle("on", i === a); cd.punch[cd.n - 1].classList.toggle("m", i !== a);
+      cd.face.classList.toggle("hi", i === a); cd.head.classList.toggle("hi", i === a); cd.name.classList.toggle("on", i === a); cd.punch[cd.n - 1]?.classList.toggle("m", i !== a); // sts-ai: folders 9 and 10 have no number punch
     });
     read.textContent = caption(a);
     B.wake();

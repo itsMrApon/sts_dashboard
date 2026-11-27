@@ -31,11 +31,31 @@ function toError(response: Response, body: ErrorBody): StsError {
 }
 
 /**
+ * apiBase is where sts-ai runs, never the website itself. Same origin almost always means the
+ * site and a local sts-ai were both given localhost:3000, so every call 404s on the website.
+ */
+function warnIfSameOrigin(apiBase: string) {
+  if (typeof window === 'undefined' || !window.location?.origin) return
+  let origin: string
+  try {
+    origin = new URL(apiBase, window.location.href).origin
+  } catch {
+    return
+  }
+  if (origin !== window.location.origin) return
+  console.error(
+    `[sts-ai] apiBase is ${apiBase}, the same address as this website, so every call goes to the website instead of sts-ai. ` +
+      'Set apiBase to where sts-ai runs: https://sudotechserve.com, or a local sts-ai on another port (e.g. http://localhost:3001).',
+  )
+}
+
+/**
  * Framework-agnostic STS-AI client. One instance per site.
  * Handles the site-key → session exchange and refreshes the session before it expires.
  */
 export function createSts(options: StsOptions) {
   const apiBase = options.apiBase.replace(/\/$/, '')
+  warnIfSameOrigin(apiBase)
   let session: SessionState | null = null
   let pending: Promise<SessionState> | null = null
 

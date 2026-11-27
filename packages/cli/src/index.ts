@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
 import { pollLogin, readBrainHeadline, revokeToken, setupSite, startLogin, type Client } from './api.js'
 import { CLIENT_LABEL, configureClient, describeChanges } from './clients.js'
-import { detectSite, exampleFor, FRAMEWORK_LABEL, installSdk, SDK_PACKAGE, wireSdk, type SiteProject } from './site.js'
+import { detectSite, exampleFor, FRAMEWORK_LABEL, installSdk, pointsAtSite, SDK_PACKAGE, wireSdk, type SiteProject } from './site.js'
 import { credentialsPath, forgetLogin, loadLogin, saveLogin } from './store.js'
 import { VERSION } from './version.js'
 
@@ -237,6 +237,13 @@ async function init(flags: Flags) {
     console.log(`\n${bold('sts-ai')} ${dim(`v${VERSION}`)}  ${dim(baseUrl)}`)
     const todo = await plan(flags, ask)
     if (!todo.agent && !todo.site) throw new Error('Nothing to connect.')
+    if (todo.site && pointsAtSite(baseUrl, todo.site)) {
+      throw new Error(
+        `${baseUrl} is this website's own dev server, so the website would call itself instead of sts-ai.\n` +
+          `  Use the hosted sts-ai (leave out --url, or --url ${DEFAULT_URL}), or run sts-ai on another port\n` +
+          `  (npm run dev -- -p 3001) and pass --url http://localhost:3001.`,
+      )
+    }
 
     const steps = [
       'log this computer in to sts-ai (you approve it in the browser)',
@@ -283,7 +290,9 @@ async function init(flags: Flags) {
       console.log(`  ${n++}. Turn services on or off in ${cyan(`${baseUrl}/services`)} (Chat, Voice, Form, Tour).`)
       console.log(`  ${n++}. Build your own chat box, orb, form or tour with the SDK:\n`)
       console.log(exampleFor(todo.site).split('\n').map((line) => `       ${dim(line)}`).join('\n'))
-      console.log(`\n     Every hook and example: ${cyan('https://www.npmjs.com/package/@sts-ai/sdk')}`)
+      console.log(`\n     The SDK has no look of its own: nothing shows until a component uses a hook.`)
+      console.log(`     For the scroll tour, mark sections with ${bold('data-sts-step="<step id>"')}.`)
+      console.log(`     Every hook and example: ${cyan('https://www.npmjs.com/package/@sts-ai/sdk')}`)
     }
     console.log('')
   } finally {

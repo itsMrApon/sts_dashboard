@@ -36,13 +36,14 @@ const first = (root: string, files: string[]) => files.map((f) => join(root, f))
 export function detectSite(root = process.cwd()): SiteProject | null {
   const pkgFile = join(root, 'package.json')
   if (!existsSync(pkgFile)) return null
-  let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
+  let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string>; scripts?: Record<string, string> }
   try {
     pkg = JSON.parse(readFileSync(pkgFile, 'utf8'))
   } catch {
     return null
   }
   const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) }
+  const port = (fallback: number) => devPortFrom(pkg.scripts?.dev) ?? fallback
   const packageManager = existsSync(join(root, 'pnpm-lock.yaml'))
     ? 'pnpm'
     : existsSync(join(root, 'yarn.lock'))
@@ -51,19 +52,37 @@ export function detectSite(root = process.cwd()): SiteProject | null {
         ? 'bun'
         : 'npm'
 
-  if (deps.nuxt) return { root, framework: 'nuxt', entry: join(root, 'plugins', 'sts-ai.client.ts'), packageManager, devPort: 3000 }
+  if (deps.nuxt) return { root, framework: 'nuxt', entry: join(root, 'plugins', 'sts-ai.client.ts'), packageManager, devPort: port(3000) }
   if (deps.next) {
     const appLayout = first(root, ['app/layout.tsx', 'src/app/layout.tsx', 'app/layout.jsx', 'src/app/layout.jsx', 'app/layout.js', 'src/app/layout.js'])
-    if (appLayout) return { root, framework: 'next-app', entry: appLayout, packageManager, devPort: 3000 }
+    if (appLayout) return { root, framework: 'next-app', entry: appLayout, packageManager, devPort: port(3000) }
     const pagesApp = first(root, ['pages/_app.tsx', 'src/pages/_app.tsx', 'pages/_app.jsx', 'src/pages/_app.jsx', 'pages/_app.js', 'src/pages/_app.js'])
-    return { root, framework: 'next-pages', entry: pagesApp, packageManager, devPort: 3000 }
+    return { root, framework: 'next-pages', entry: pagesApp, packageManager, devPort: port(3000) }
   }
   if (deps.vite && deps.react) {
     const main = first(root, ['src/main.tsx', 'src/main.jsx', 'src/index.tsx', 'src/index.jsx'])
-    return { root, framework: 'vite-react', entry: main, packageManager, devPort: 5173 }
+    return { root, framework: 'vite-react', entry: main, packageManager, devPort: port(5173) }
   }
-  if (deps.react || deps.vue) return { root, framework: 'unknown', entry: null, packageManager, devPort: 3000 }
+  if (deps.react || deps.vue) return { root, framework: 'unknown', entry: null, packageManager, devPort: port(3000) }
   return null
+}
+
+/** The port a `dev` script sets (`-p 4000`, `--port=4000`, `PORT=4000`), or null for the default. */
+export function devPortFrom(script: string | undefined): number | null {
+  const match = script?.match(/(?:^|\s)(?:-p|--port)(?:\s+|=)(\d{2,5})\b|\bPORT=(\d{2,5})\b/)
+  const value = match ? Number(match[1] ?? match[2]) : NaN
+  return Number.isInteger(value) && value > 0 && value < 65536 ? value : null
+}
+
+/**
+ * True when the sts-ai address is this website's own dev server (both on localhost:3000, say).
+ * Every SDK call would then go back to the website instead of to sts-ai.
+ */
+export function pointsAtSite(apiBase: string, site: SiteProject): boolean {
+  const url = new URL(apiBase)
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80))
+  return local && port === site.devPort
 }
 
 function backupOnce(file: string) {

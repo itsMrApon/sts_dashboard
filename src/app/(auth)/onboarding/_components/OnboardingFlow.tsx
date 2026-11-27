@@ -87,6 +87,15 @@ function useWideStage(): boolean {
   )
 }
 
+const noopSubscribe = () => () => {}
+/**
+ * False on the server and during hydration, true after. The theme is only known in the browser,
+ * so anything drawn from it waits for this, or the server HTML and the first client render differ.
+ */
+function useMounted(): boolean {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false)
+}
+
 const GOALS = [
   { id: 'answer', label: 'Answer questions' },
   { id: 'leads', label: 'Collect leads' },
@@ -167,6 +176,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
   const voice = useGuideVoice(voiceReady)
   const wide = useWideStage()
   const { resolvedTheme } = useTheme()
+  const mounted = useMounted()
   const vars = { name: name.trim() || undefined }
   const lineId: GuideLineId | null = card === 'keys' ? null : card
   const index = CARDS.indexOf(card)
@@ -682,23 +692,27 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
   if (wide) {
     // The steps ride the 3D ring: Next spins it to the next card, whose form appears once it lands.
     return (
-      <div className="relative h-dvh w-full">
+      // The page colour comes from CSS (applied before paint). The ring draws with the theme's colour
+      // on a canvas, and the theme is only known in the browser, so it starts after hydration.
+      <div className="relative h-dvh w-full bg-[#f0f0f0] dark:bg-[#0b0b0c]">
         {muteButton}
-        <WarpCarousel
-          cards={RING_CARDS}
-          index={index}
-          autoplay={false}
-          interactive={false}
-          spinSeconds={1.6}
-          background={resolvedTheme === 'dark' ? '#0b0b0c' : '#f0f0f0'}
-          ariaLabel="Setup steps"
-          style={{ minHeight: 0, aspectRatio: 'auto' }}
-          overlay={
-            <StepCard key={card} variant="face" {...cardProps}>
-              {content}
-            </StepCard>
-          }
-        />
+        {mounted ? (
+          <WarpCarousel
+            cards={RING_CARDS}
+            index={index}
+            autoplay={false}
+            interactive={false}
+            spinSeconds={1.6}
+            background={resolvedTheme === 'dark' ? '#0b0b0c' : '#f0f0f0'}
+            ariaLabel="Setup steps"
+            style={{ minHeight: 0, aspectRatio: 'auto' }}
+            overlay={
+              <StepCard key={card} variant="face" {...cardProps}>
+                {content}
+              </StepCard>
+            }
+          />
+        ) : null}
       </div>
     )
   }

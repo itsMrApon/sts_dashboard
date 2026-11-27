@@ -13,7 +13,7 @@ import { MessagesButton } from '@/components/messages/MessagesButton'
 // Creators without a plan: the STS logo pops up Subscribe (loaded only for them).
 const HeaderSubscription = dynamic(
   () => import('./HeaderSubscription').then((m) => m.default),
-  { ssr: false, loading: () => <div className="h-12 w-[65px] rounded-md bg-muted animate-pulse" /> }
+  { ssr: false, loading: () => <div className="h-[33px] w-[65px] rounded-md bg-muted animate-pulse" /> }
 )
 
 type Props = {

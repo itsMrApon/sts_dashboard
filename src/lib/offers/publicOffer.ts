@@ -3,6 +3,7 @@ import { offerAgentRoomName } from '@/lib/offers/offerAgent'
 import { cache } from 'react'
 import { OfferPriceKind, OrderModeKind } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
+import { resolveUserProviderKey } from '@/lib/credentials/providerKeys'
 import { ORDER_MODE_KINDS, readAiAssistantConfig, type OrderModesInput } from './offerTypes'
 import type { BuyerPriceOption, PublicOfferView } from './publicOfferTypes'
 import { toOfferKind } from './offerSettings'
@@ -94,7 +95,8 @@ export const loadPublicOffer = cache(async (slug: string): Promise<PublicOfferRe
     offer.orderModes.find((mode) => mode.kind === OrderModeKind.AI_ASSISTANT)?.config,
   )
   const agentRoomName = await offerAgentRoomName({ livekitAgentId: offer.livekitAgentId, presenterId: offer.presenterId })
-  const live = offer.presenter.subscription
+  // Live with a plan, or on the creator's own Gemini key (the free way).
+  const live = offer.presenter.subscription || Boolean(await resolveUserProviderKey(offer.presenterId, 'google'))
   const prices = buyerPrices(offer.prices)
   const hasPrice = prices.length > 0 || !!offer.priceId
 

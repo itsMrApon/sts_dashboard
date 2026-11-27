@@ -1,24 +1,21 @@
 'use server'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
 import type { Prisma } from '@prisma/client'
 import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
-import { aiAgentPrompt } from '@/lib/data'
 import { ensureAgentEditAccess, myAssistantsWhere } from '@/lib/agents/agentAccess'
-import {
-  ASSISTANT_SERVICE_META,
-  LOOK_KEYS,
-  canRunService,
-  isAssistantService,
-  splitServiceConfig,
-  type AssistantService,
-} from '@/lib/agents/assistantServices'
-import { isAgentLanguage } from '@/lib/agents/engineOptions'
-import { getEngineForUser } from '@/lib/agents/engineSettings'
+import { canRunService, isAssistantService, type AssistantService } from '@/lib/agents/assistantServices'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
-import { SERVICE_KIND, getBusinessServices, linkedAgentId } from '@/lib/services/serviceConfig'
-import { sanitizeChatConfig, sanitizeFormConfig, sanitizeSpeakConfig } from '@/lib/services/types'
+import {
+  ASSISTANT_LIMITS,
+  createAssistantForOwner,
+  linkAssistantForOwner,
+  revalidateAssistants,
+  saveAssistantBehaviourForOwner,
+  type NewAssistantInput,
+} from '@/lib/agents/assistantWrites'
+import { SERVICE_KIND, linkedAgentId } from '@/lib/services/serviceConfig'
+import { sanitizeChatConfig } from '@/lib/services/types'
 import { chatStyleInstruction } from '@/lib/services/persona'
 import { buildAgentContext } from '@/lib/messages/buildAgentContext'
 import { generateReply } from '@/lib/messages/geminiText'
@@ -49,9 +46,7 @@ export type AssistantSummary = {
   updatedAt: string
 }
 
-const NAME_MAX = 80
-const PROMPT_MAX = 40_000
-const FIRST_MESSAGE_MAX = 1_000
+const NAME_MAX = ASSISTANT_LIMITS.name
 
 async function signedInBusiness() {
   const auth = await onAuthenticateUser()
@@ -62,29 +57,6 @@ async function signedInBusiness() {
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
-}
-
-function generateRoomName(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40)
-  return `room-${slug || 'assistant'}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-/** Behaviour part of a service config, cleaned by the same sanitizer the service uses. */
-function cleanBehaviour(service: AssistantService, raw: unknown): Prisma.InputJsonObject {
-  if (service === 'tour') return {}
-  const sanitized =
-    service === 'chat' ? sanitizeChatConfig(raw) : service === 'voice' ? sanitizeSpeakConfig(raw) : sanitizeFormConfig(raw)
-  return splitServiceConfig(sanitized, LOOK_KEYS[service]).behaviour as Prisma.InputJsonObject
-}
-
-function revalidateAssistants() {
-  revalidateTag('livekit-agents')
-  revalidatePath('/ai-agents')
-  revalidatePath('/services', 'layout')
 }
 
 /** The signed-in creator's assistants, with what each one runs. */
@@ -134,52 +106,12 @@ export async function getAssistantServiceSettings(agentId: string): Promise<Resu
 
 /**
  * Makes `agentId` the assistant that runs `service` (null unlinks it, which takes the service
- * offline). The first time an assistant takes over, it copies the service's current behaviour,
- * so nothing the creator set up is lost.
+ * offline). Shared with the agent bridge: see linkAssistantForOwner.
  */
 export async function linkAssistantToService(service: AssistantService, agentId: string | null): Promise<Result> {
-  if (!isAssistantService(service)) return { ok: false, error: 'Unknown service' }
   const me = await signedInBusiness()
   if (!me) return { ok: false, error: 'UNAUTHENTICATED' }
-  const { business } = me
-  const kind = SERVICE_KIND[service]
-
-  if (agentId) {
-    const access = await ensureAgentEditAccess(agentId, me.userId)
-    if (!access.ok) return { ok: false, error: 'Assistant not found' }
-    const agent = await prismaClient.liveKitAgent.findUnique({
-      where: { id: access.agentId },
-      select: { service: true, serviceSettings: true },
-    })
-    if (!agent || !canRunService(agent.service, service)) {
-      return { ok: false, error: `This assistant is made for ${ASSISTANT_SERVICE_META[(agent?.service ?? service) as AssistantService]?.label ?? 'another service'}.` }
-    }
-    const settings = record(agent.serviceSettings)
-    if (service !== 'tour' && !settings[service]) {
-      const current = await getBusinessServices(business.workspaceId)
-      const live = service === 'chat' ? current.chat.config : service === 'voice' ? current.speak.config : current.form.config
-      await prismaClient.liveKitAgent.update({
-        where: { id: access.agentId },
-        data: { serviceSettings: { ...settings, [service]: cleanBehaviour(service, live) } as Prisma.InputJsonObject },
-      })
-    }
-  }
-
-  const existing = await prismaClient.serviceConfig.findUnique({
-    where: { workspaceId_kind: { workspaceId: business.workspaceId, kind } },
-    select: { config: true, enabled: true },
-  })
-  const config = { ...record(existing?.config) }
-  if (agentId) config.agentId = agentId
-  else delete config.agentId
-  await prismaClient.serviceConfig.upsert({
-    where: { workspaceId_kind: { workspaceId: business.workspaceId, kind } },
-    create: { workspaceId: business.workspaceId, kind, enabled: false, config: config as Prisma.InputJsonObject },
-    // Unlinking turns the service off: it can't run without an assistant.
-    update: { config: config as Prisma.InputJsonObject, ...(agentId ? {} : { enabled: false }) },
-  })
-  revalidateAssistants()
-  return { ok: true }
+  return linkAssistantForOwner({ userId: me.userId, workspaceId: me.business.workspaceId }, service, agentId)
 }
 
 /** Saves an assistant's behaviour for its service (Chat greeting, Form questions, call length…). */
@@ -188,92 +120,18 @@ export async function saveAssistantBehaviour(
   service: AssistantService,
   settings: unknown,
 ): Promise<Result<{ settings: Record<string, unknown> }>> {
-  if (!isAssistantService(service) || service === 'tour') return { ok: false, error: 'Unknown service' }
   const me = await signedInBusiness()
   if (!me) return { ok: false, error: 'UNAUTHENTICATED' }
-  const access = await ensureAgentEditAccess(agentId, me.userId)
-  if (!access.ok) return { ok: false, error: 'Assistant not found' }
-  const agent = await prismaClient.liveKitAgent.findUnique({
-    where: { id: access.agentId },
-    select: { service: true, serviceSettings: true },
-  })
-  if (!agent || !canRunService(agent.service, service)) return { ok: false, error: 'This assistant is made for another service.' }
-  const behaviour = cleanBehaviour(service, settings)
-  await prismaClient.liveKitAgent.update({
-    where: { id: access.agentId },
-    data: { serviceSettings: { ...record(agent.serviceSettings), [service]: behaviour } as Prisma.InputJsonObject },
-  })
-  revalidateAssistants()
-  return { ok: true, settings: behaviour }
+  return saveAssistantBehaviourForOwner(me.userId, agentId, service, settings)
 }
 
-export type NewAssistantInput = {
-  name: string
-  service: AssistantService
-  systemPrompt?: string
-  firstMessage?: string
-  language?: string
-  /** Service behaviour drafted for it (greeting, questions…). */
-  behaviour?: unknown
-  /** Make it run the service: always, or only when the service has no assistant yet. */
-  link?: boolean | 'if-free'
-}
+export type { NewAssistantInput }
 
 /** Creates an assistant made for one service. Text is stored exactly as given (Bangla intact). */
 export async function createAssistant(input: NewAssistantInput): Promise<Result<{ id: string; linked: boolean }>> {
   const me = await signedInBusiness()
   if (!me) return { ok: false, error: 'UNAUTHENTICATED' }
-  if (!isAssistantService(input.service)) return { ok: false, error: 'Pick a service for the assistant' }
-  const name = (input.name ?? '').trim().slice(0, NAME_MAX)
-  if (!name) return { ok: false, error: 'Give the assistant a name' }
-  const systemPrompt = (input.systemPrompt ?? '').slice(0, PROMPT_MAX) || aiAgentPrompt
-  const firstMessage = (input.firstMessage ?? '').slice(0, FIRST_MESSAGE_MAX)
-  const language = isAgentLanguage(input.language) ? input.language : 'en'
-  const behaviour = input.behaviour === undefined || input.service === 'tour' ? {} : cleanBehaviour(input.service, input.behaviour)
-
-  // The engine is account-wide; only its legacy per-agent columns are copied (the rest of the
-  // engine settings aren't columns on an assistant).
-  const { engine } = await getEngineForUser(me.userId)
-  let created: { id: string }
-  try {
-    created = await prismaClient.liveKitAgent.create({
-      data: {
-        userId: me.userId,
-        name,
-        roomName: generateRoomName(name),
-        service: input.service,
-        serviceSettings: (Object.keys(behaviour).length ? { [input.service]: behaviour } : {}) as Prisma.InputJsonObject,
-        systemPrompt,
-        firstMessage: firstMessage || null,
-        language,
-        llmProvider: engine.llmProvider,
-        llmModel: engine.llmModel,
-        voiceProvider: engine.voiceProvider,
-        voiceModel: engine.voiceModel,
-      },
-      select: { id: true },
-    })
-  } catch (error) {
-    console.error('[createAssistant]', error instanceof Error ? error.message : error)
-    return { ok: false, error: 'Could not save the assistant. Please try again.' }
-  }
-  let linked = false
-  if (input.link) {
-    const free = input.link === true ? true : !(await serviceHasAssistant(me.business.workspaceId, input.service))
-    if (free) {
-      const result = await linkAssistantToService(input.service, created.id)
-      if (!result.ok) return result
-      linked = true
-    }
-  }
-  revalidateAssistants()
-  return { ok: true, id: created.id, linked }
-}
-
-async function serviceHasAssistant(workspaceId: string, service: AssistantService): Promise<boolean> {
-  const current = await getBusinessServices(workspaceId)
-  const slot = service === 'chat' ? current.chat : service === 'voice' ? current.speak : service === 'form' ? current.form : current.tour
-  return Boolean(slot.agent)
+  return createAssistantForOwner({ userId: me.userId, workspaceId: me.business.workspaceId }, input)
 }
 
 /** New assistant, step 2: what the creator's links say (via the website reader). */

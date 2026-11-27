@@ -22,7 +22,10 @@ const INSTRUCTIONS = [
   'Answers and the business description are saved at once (propose_answer, propose_business_description):',
   'when the creator tells you facts about their business, save them. Anything that reaches a customer',
   '(draft_reply, draft_email_to_lead) or touches connections (propose_connection, import_n8n_workflow,',
-  'act_on_connection) waits for the creator in sts-ai → Lead → Approval. Pass a short `task` and a `why`;',
+  'act_on_connection) waits for the creator in sts-ai → Lead → Approval. So do changes to the website',
+  'services and their assistants (create_assistant, set_service_assistant, update_assistant,',
+  'set_chat_greeting, set_form_questions, update_tour); set_service_on is applied at once.',
+  'Read list_services and list_assistants first. Pass a short `task` and a `why`;',
   'check results with get_request_status.',
 ].join(' ')
 

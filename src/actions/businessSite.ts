@@ -6,7 +6,7 @@ import { onAuthenticateUser } from '@/actions/auth'
 import { importServicesCatalogToTenant, publishTenantContext } from '@/actions/tenants'
 import { prismaClient } from '@/lib/prismaClient'
 import { getCreatorBusiness, type CreatorBusiness } from '@/lib/business/creatorBusiness'
-import { PAID_ACCESS_ERROR, userHasPaidAccess } from '@/lib/billing/paidAccess'
+import { PAID_ACCESS_ERROR, userCanGoLive } from '@/lib/billing/paidAccess'
 import { getWebsiteConnection } from '@/lib/embed/websiteConnection'
 import { WEBSITE_REQUIRED_ERROR } from '@/lib/embed/websiteConnectionShared'
 import { generateReply } from '@/lib/messages/geminiText'
@@ -133,7 +133,7 @@ export async function saveBusinessLookupTags(input: { tags?: string[] }): Promis
 export async function publishBusinessSite(): Promise<ActionResult> {
   const business = await myBusiness()
   if (!business) return { ok: false, error: 'UNAUTHENTICATED' }
-  if (!(await userHasPaidAccess(business.userId))) return { ok: false, error: PAID_ACCESS_ERROR }
+  if (!(await userCanGoLive(business.userId))) return { ok: false, error: PAID_ACCESS_ERROR }
   // The first publish needs the website connection; re-publishing an already live site does not.
   const workspace = await prismaClient.workspace.findUnique({ where: { id: business.workspaceId }, select: { publishedAt: true } })
   if (!workspace?.publishedAt && !(await getWebsiteConnection(business.roomName)).connected) {

@@ -6,7 +6,7 @@ import { ensureGuideAgent } from '@/lib/onboarding/setupGuide'
 import { OnboardingFlow, type CardId } from './_components/OnboardingFlow'
 
 /**
- * Setup, one small card at a time: keys → business → first agent → tools → leads → finish. Progress
+ * Setup, one small card at a time: keys → business → agents → tools → social and channels → leads → finish. Progress
  * after the workspace exists is saved on it, so a refresh or a later visit resumes here.
  */
 export default async function OnboardingPage() {
@@ -23,7 +23,7 @@ export default async function OnboardingPage() {
   const keysReady = Boolean(geminiKey && cartesiaKey)
   let start: CardId
   if (!business) start = keysReady ? 'name' : 'keys'
-  else start = business.onboardingStep === 'agent' ? 'service' : business.onboardingStep === 'tools' ? 'tools' : business.onboardingStep === 'leads' ? 'leads' : 'finish'
+  else start = business.onboardingStep === 'agent' ? 'service' : (business.onboardingStep ?? 'finish')
   // Keys saved some other way (e.g. Config) skip card 1, so the wizard is made here instead.
   if (keysReady) await ensureGuideAgent(userId)
 

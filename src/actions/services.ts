@@ -8,7 +8,7 @@ import { getCreatorBusiness, type CreatorBusiness } from '@/lib/business/creator
 import { SERVICE_KIND, getBusinessServices, saveServiceConfig } from '@/lib/services/serviceConfig'
 import { LOOK_KEYS, splitServiceConfig } from '@/lib/agents/assistantServices'
 import { submitBusinessForm } from '@/lib/services/formSubmit'
-import { PAID_ACCESS_ERROR, userHasPaidAccess } from '@/lib/billing/paidAccess'
+import { PAID_ACCESS_ERROR, userCanGoLive } from '@/lib/billing/paidAccess'
 import { getWebsiteConnection } from '@/lib/embed/websiteConnection'
 import { WEBSITE_REQUIRED_ERROR } from '@/lib/embed/websiteConnectionShared'
 import { siteContentFromLegacy } from '@/lib/business/siteContent'
@@ -38,7 +38,7 @@ async function myBusiness(): Promise<CreatorBusiness | null> {
 
 /** Saving a draft is free; switching a service on needs a package. */
 async function blockedFromGoingLive(business: CreatorBusiness, enabled: boolean): Promise<boolean> {
-  return enabled && !(await userHasPaidAccess(business.userId))
+  return enabled && !(await userCanGoLive(business.userId))
 }
 
 type LookService = 'chat' | 'voice' | 'form'

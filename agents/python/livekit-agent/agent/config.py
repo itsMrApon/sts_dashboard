@@ -158,6 +158,15 @@ async def load_room_config(room_name: str) -> RoomConfig:
         def _fetch() -> Dict:
             req = request.Request(url, headers=headers, method="GET")
             with request.urlopen(req, timeout=25) as resp:
+                content_type = resp.headers.get("Content-Type", "")
+                if "json" not in content_type:
+                    # Another app is answering on SAAS_API_URL (e.g. a second dev server took the
+                    # port and sts-ai moved to 3001). Without the room's config the agent has no
+                    # creator keys and stays silent, so say exactly what is wrong.
+                    raise ValueError(
+                        f"{url} answered with {content_type or 'no content type'}, not sts-ai's JSON. "
+                        "Point SAAS_API_URL at the port sts-ai runs on."
+                    )
                 return json.load(resp)
 
         try:
@@ -165,7 +174,7 @@ async def load_room_config(room_name: str) -> RoomConfig:
             logger.info("Loaded room config from SaaS backend for room: %s", room_name)
             return RoomConfig(**data)
         except (error.URLError, error.HTTPError, TimeoutError, json.JSONDecodeError, Exception) as exc:  # noqa: BLE001
-            logger.warning(
+            logger.error(
                 "Failed to load room config from SaaS backend (%s). "
                 "Falling back to local configuration.",
                 exc,

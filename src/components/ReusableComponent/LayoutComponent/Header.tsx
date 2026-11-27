@@ -10,9 +10,10 @@ import STS2 from '@/icons/sts-2'
 import { cn } from '@/lib/utils'
 import { MessagesButton } from '@/components/messages/MessagesButton'
 
+// Creators without a plan: the STS logo pops up Subscribe (loaded only for them).
 const HeaderSubscription = dynamic(
   () => import('./HeaderSubscription').then((m) => m.default),
-  { ssr: false, loading: () => <div className="h-9 w-24 rounded-md bg-muted animate-pulse" /> }
+  { ssr: false, loading: () => <div className="h-12 w-[65px] rounded-md bg-muted animate-pulse" /> }
 )
 
 type Props = {
@@ -46,13 +47,17 @@ const Header = ({ user }: Props) => {
         )}
         {/* create todo and create a booking button */}
         <div className="flex gap-3 md:gap-6 items-center">
-          <PurpleIcon className="hidden sm:flex">
-            <STS2 className="w-8 h-8" />
-          </PurpleIcon>
+          {user.subscription ? (
+            <PurpleIcon className="hidden sm:flex">
+              <STS2 className="w-8 h-8" />
+            </PurpleIcon>
+          ) : (
+            <HeaderSubscription>
+              <STS2 className="w-8 h-8" />
+            </HeaderSubscription>
+          )}
           {/* Every conversation (WhatsApp, Instagram, website, projects, email) opens from here. */}
           <MessagesButton />
-          {/* Creators without a plan still see the packages next to it. */}
-          {user.subscription ? null : <HeaderSubscription />}
 
         </div>
     </div>

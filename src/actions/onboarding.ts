@@ -73,11 +73,11 @@ const TONE_IDS = ['friendly', 'professional', 'casual', 'enthusiastic']
 const GOAL_IDS = ['answer', 'leads', 'book', 'sell']
 
 /**
- * "Build agent": saves the tags, then writes and creates the agent after the response, so the
- * creator moves on to Tools right away. Progress: getFirstAgentStatus.
+ * "Build agents": saves the tags, then writes and creates one agent per picked service after the
+ * response, so the creator moves on to Tools right away. Progress: getFirstAgentStatus.
  */
 export async function startFirstAgent(input: {
-  service: AssistantService
+  services: AssistantService[]
   tags: string[]
   goals: string[]
   tone: string
@@ -88,7 +88,9 @@ export async function startFirstAgent(input: {
   const userId = auth.user.id
   const business = await getCreatorBusiness(userId)
   if (!business) return { ok: false, error: 'Create your business first.' }
-  if (!isAssistantService(input.service)) return { ok: false, error: 'Pick a service' }
+  // A creator can run several services (chat and voice and form…), each with its own agent.
+  const services = [...new Set(Array.isArray(input.services) ? input.services : [])].filter(isAssistantService)
+  if (!services.length) return { ok: false, error: 'Pick at least one service' }
 
   const tags = (Array.isArray(input.tags) ? input.tags : []).filter((tag): tag is string => typeof tag === 'string').slice(0, 12)
   if (tags.length) {
@@ -100,12 +102,12 @@ export async function startFirstAgent(input: {
     userId,
     workspaceId: business.workspaceId,
     businessName: business.name,
-    service: input.service,
+    services,
     goals: (Array.isArray(input.goals) ? input.goals : []).filter((goal) => GOAL_IDS.includes(goal)),
     tone: TONE_IDS.includes(input.tone) ? input.tone : 'friendly',
     language: input.language === 'bn' || input.language === 'both' ? input.language : ('en' as const),
   }
-  markFirstAgentBuilding(userId, input.service)
+  markFirstAgentBuilding(userId, services)
   after(() => runFirstAgentBuild(build))
   return { ok: true }
 }

@@ -14,9 +14,21 @@ import {
 import { getPackageCards, type PackageCard } from '@/actions/platformBilling'
 import PackagesPanel from './PackagesPanel'
 
-/** Header entry point for creators without access. Loads package prices only when opened. */
-export default function PackagesDialog() {
-  const [open, setOpen] = useState(false)
+type Props = {
+  /** Controlled mode: something else (the STS logo's popover) opens the plans. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+/** The plan picker for creators without a plan. Loads package prices only when opened. */
+export default function PackagesDialog({ open: controlledOpen, onOpenChange }: Props = {}) {
+  const [ownOpen, setOwnOpen] = useState(false)
+  const controlled = controlledOpen !== undefined
+  const open = controlled ? controlledOpen : ownOpen
+  const setOpen = (next: boolean) => {
+    if (!controlled) setOwnOpen(next)
+    onOpenChange?.(next)
+  }
   const [cards, setCards] = useState<PackageCard[] | null>(null)
 
   useEffect(() => {
@@ -36,9 +48,11 @@ export default function PackagesDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>+ Subscribe</Button>
-      </DialogTrigger>
+      {controlled ? null : (
+        <DialogTrigger asChild>
+          <Button>+ Subscribe</Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[920px]">
         {/* The plan picker has its own visible heading; this one is for screen readers. */}
         <DialogHeader className="sr-only">

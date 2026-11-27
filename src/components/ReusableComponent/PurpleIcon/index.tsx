@@ -8,7 +8,7 @@ type Props = {
 
 const PurpleIcon = ({className, children}: Props) => {
   return (
-    <div className={cn('px-4 pу-2 iconBackground', className)}>
+    <div className={cn('px-4 py-2 iconBackground', className)}>
       {children}
       </div>
   )

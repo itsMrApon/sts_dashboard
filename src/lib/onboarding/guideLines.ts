@@ -1,18 +1,19 @@
 /**
  * What the setup wizard says on each card. Spoken with the creator's Cartesia voice and shown as
- * text. {name} = business name, {agent} = the agent just built.
+ * text. {name} = business name, {agent} = the agents just built.
  */
 export const GUIDE_LINES = {
   name: "Hi, I'm your setup wizard. Let's start with your business name.",
   type: 'What kind of business is {name}?',
   location: 'Where is it based?',
-  service: 'Now your first agent. Which service should it run?',
+  service: 'Now your agents. Pick every service you want: chat, voice, form or tour. Each one gets its own agent.',
   tags: 'Add a tag or two so we can find you online later. A username or a website works.',
   goals: 'What should it do?',
   tone: 'How should it sound?',
   language: 'Which language should it speak?',
   ready: '{agent} is ready.',
   tools: 'These are the tools your agents can use. Connect them whenever you like.',
+  channels: 'Customers can reach you on Instagram, WhatsApp, Telegram, phone and email. Connect them in Integrations, and plan your posts in Social.',
   leads: 'Leads come from Google Maps, your calls and your calendar. Connect them whenever you like.',
   finish: "That's it. You can add more providers any time in Config.",
 } as const

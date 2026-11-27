@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useImperativeHandle, useRef, useState, type Ref } from 'react'
+import React, { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -17,6 +17,11 @@ import type { ConnectionDetails } from '@/lib/livekit/livekitVoiceAgent'
 
 /** Must match OFFER_TOPIC in agents/python/livekit-agent/agent/main.py. */
 const OFFER_TOPIC = 'sts.offer'
+/**
+ * How long the buyer waits for the voice assistant to join. The worker loads its config and keys
+ * first, so allow a slow start, but never leave the buyer on "joining…" when no worker answers.
+ */
+const AGENT_JOIN_TIMEOUT_MS = 25_000
 
 const STATE_LABEL: Record<string, string> = {
   disconnected: 'Connecting…',
@@ -64,6 +69,23 @@ function ActiveCall({ onOrderRequested, onEnd }: { onOrderRequested: () => void;
   })
 
   const active = state === 'speaking' || state === 'listening' || state === 'thinking'
+
+  // No assistant within the time limit (voice worker down or misconfigured): end the call and say so.
+  const joinedRef = useRef(false)
+  if (active) joinedRef.current = true
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (joinedRef.current) return
+      console.warn('[offer-voice] the voice assistant did not join', { room: room.name, state })
+      toast.error("The voice assistant didn't answer. Please try again in a minute, or use chat.")
+      void room.disconnect()
+      onEnd()
+    }, AGENT_JOIN_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+    // One timer per call: started when the call opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room])
+
   return (
     <div className="flex flex-col items-center gap-5">
       <Orb active={active} pulsing={state === 'speaking'} />

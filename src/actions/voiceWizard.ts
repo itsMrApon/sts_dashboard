@@ -7,7 +7,7 @@ import { draftStepsWithAi, loadOfferFacts } from '@/lib/wizard/draftSteps'
 import { getWizardForOwner } from '@/lib/wizard/wizardRepo'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
-import { PAID_ACCESS_ERROR, userHasPaidAccess } from '@/lib/billing/paidAccess'
+import { PAID_ACCESS_ERROR, userCanGoLive } from '@/lib/billing/paidAccess'
 import { getWebsiteConnection } from '@/lib/embed/websiteConnection'
 import { WEBSITE_REQUIRED_ERROR } from '@/lib/embed/websiteConnectionShared'
 import { pregenerateClips, pruneStaleClips } from '@/lib/wizard/wizardAudio'
@@ -101,7 +101,7 @@ export async function setVoiceWizardPublished(
   const wizard = await getWizardForOwner(slug, userId)
   if (!wizard) return { ok: false, error: 'Wizard not found' }
   if (published && wizard.steps.length === 0) return { ok: false, error: 'Add steps before publishing' }
-  if (published && !(await userHasPaidAccess(userId))) return { ok: false, error: PAID_ACCESS_ERROR }
+  if (published && !(await userCanGoLive(userId))) return { ok: false, error: PAID_ACCESS_ERROR }
   // The business tour needs its Tour assistant (product tours use the product's own agent).
   if (published && !wizard.webinarId) {
     const business = await getCreatorBusiness(userId)

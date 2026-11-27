@@ -22,7 +22,7 @@ import { useGuideVoice } from './useGuideVoice'
  * One small step per card. The first four come before the workspace exists. The agent is built
  * in the background after "language", so nobody waits on it.
  */
-const CARDS = ['keys', 'name', 'type', 'location', 'service', 'tags', 'goals', 'tone', 'language', 'tools', 'leads', 'finish'] as const
+const CARDS = ['keys', 'name', 'type', 'location', 'service', 'tags', 'goals', 'tone', 'language', 'tools', 'channels', 'leads', 'finish'] as const
 export type CardId = (typeof CARDS)[number]
 
 const TITLES: Record<CardId, [string, string]> = {
@@ -30,12 +30,13 @@ const TITLES: Record<CardId, [string, string]> = {
   name: ['Business', 'name'],
   type: ['Business', 'type'],
   location: ['Business', 'location'],
-  service: ['First agent', 'service'],
+  service: ['Your agents', 'services'],
   tags: ['Find you', 'online'],
   goals: ['What it', 'does'],
   tone: ['How it', 'sounds'],
   language: ['Its', 'language'],
   tools: ['Tools and', 'integrations'],
+  channels: ['Social and', 'channels'],
   leads: ['Find', 'leads'],
   finish: ['All', 'set'],
 }
@@ -46,12 +47,13 @@ const RING_FOOTERS: Record<CardId, string> = {
   name: 'Your workspace',
   type: 'Pick one',
   location: 'City, state',
-  service: 'Chat, voice, form or tour',
+  service: 'Chat, voice, form, tour: pick any',
   tags: 'Optional',
   goals: 'Pick any',
   tone: 'Pick one',
   language: 'Pick one',
   tools: 'Connect any time',
+  channels: 'Instagram, WhatsApp, more',
   leads: 'Maps, calls, calendar',
   finish: 'Ready',
 }
@@ -97,6 +99,15 @@ const LANGUAGES = [
   { id: 'both', label: 'Both' },
 ] as const
 const BUILT_IN_TOOLS = ['Capture leads', 'Email you', 'Read websites', 'Hand off to you']
+/** Where customers reach the creator (Integrations → Channels) and what Social does with them. */
+const CHANNELS: { kind: string; label: string }[] = [
+  { kind: 'instagram', label: 'Instagram' },
+  { kind: 'whatsapp', label: 'WhatsApp' },
+  { kind: 'telegram', label: 'Telegram' },
+  { kind: 'twilio', label: 'Phone' },
+  { kind: 'email', label: 'Email' },
+]
+const CHANNEL_FEATURES = ['Comment to DM', 'AI replies', 'One inbox', 'Social library']
 const LEAD_FEATURES = ['Find on Maps', 'Score calls', 'Sync calendar', 'Enrich websites']
 /** Where leads come from: Serper (Maps search), Fathom (call recordings), Google Calendar, website scraping. */
 const LEAD_SOURCES: { label: string; Icon: LucideIcon; color: string }[] = [
@@ -121,6 +132,12 @@ type Props = {
   savedKeys: Record<KeyField, boolean>
 }
 
+/** "A", "A and B", "A, B and C" (names kept exactly as written). */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? ''
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
+}
+
 export function OnboardingFlow({ start, businessName: initialBusinessName, savedKeys }: Props) {
   const [card, setCard] = useState<CardId>(start)
   const [pending, setPending] = useState(false)
@@ -136,7 +153,8 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
   const [type, setType] = useState('')
   const [location, setLocation] = useState('')
   // Agent
-  const [service, setService] = useState<AssistantService | null>(null)
+  // Several services can run at once (chat and voice and form…), each with its own agent.
+  const [services, setServices] = useState<AssistantService[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [tagText, setTagText] = useState('')
   const [goals, setGoals] = useState<string[]>([])
@@ -152,7 +170,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
   const vars = { name: name.trim() || undefined }
   const lineId: GuideLineId | null = card === 'keys' ? null : card
   const index = CARDS.indexOf(card)
-  const readyName = agentBuild?.status === 'ready' ? agentBuild.agentName : null
+  const readyName = agentBuild?.status === 'ready' ? joinNames(agentBuild.agentNames) : null
 
   // The wizard speaks each card's line as it opens.
   const { speak } = voice
@@ -162,8 +180,8 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineId, speak])
 
-  // While the agent builds in the background, Tools, Leads and Finish check on it every few seconds.
-  const watching = card === 'tools' || card === 'leads' || card === 'finish'
+  // While the agents build in the background, the later cards check on them every few seconds.
+  const watching = card === 'tools' || card === 'channels' || card === 'leads' || card === 'finish'
   const building = agentBuild ? agentBuild.status === 'building' : !noBuild
   useEffect(() => {
     if (!watching || !building) return
@@ -240,21 +258,21 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
     return next
   }
 
-  /** Starts the agent in the background and moves straight on to Tools. */
+  /** Starts one agent per picked service in the background and moves straight on to Tools. */
   const build = () =>
     run(async () => {
-      if (!service) return 'Pick a service'
+      if (!services.length) return 'Pick at least one service'
       const finalTags = tagText.trim() ? addTags(tagText) : tags
-      const started = await startFirstAgent({ service, tags: finalTags, goals, tone, language })
+      const started = await startFirstAgent({ services, tags: finalTags, goals, tone, language })
       if (!started.ok) return started.error
-      setAgentBuild({ status: 'building', service, agentName: null, starter: false })
+      setAgentBuild({ status: 'building', services, agentNames: [], starter: false })
       const moved = await advanceOnboarding('tools')
       if (!moved.ok) return moved.error
       go('tools')
       return null
     })
 
-  const moveTo = (next: 'tools' | 'leads' | 'finish') =>
+  const moveTo = (next: 'tools' | 'channels' | 'leads' | 'finish') =>
     run(async () => {
       const result = await advanceOnboarding(next)
       if (!result.ok) return result.error
@@ -275,15 +293,17 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
         {agentBuild.status === 'building' ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Building your {ASSISTANT_SERVICE_META[agentBuild.service].noun} in the background
+            Building your {joinNames(agentBuild.services.map((id) => ASSISTANT_SERVICE_META[id].noun))} in the background
           </>
         ) : agentBuild.status === 'ready' ? (
           <>
             <Check className="h-3.5 w-3.5" />
-            {agentBuild.agentName} is ready{agentBuild.starter ? ' with a starter prompt. Edit it in AI Agents.' : '.'}
+            {joinNames(agentBuild.agentNames)} {agentBuild.agentNames.length > 1 ? 'are' : 'is'} ready
+            {agentBuild.agentNames.length < agentBuild.services.length ? ' (the rest can be made in AI Agents)' : ''}
+            {agentBuild.starter ? '. Some use a starter prompt: edit it in AI Agents.' : '.'}
           </>
         ) : (
-          <>Couldn&apos;t build the agent. Create one any time in AI Agents.</>
+          <>Couldn&apos;t build the agents. Create them any time in AI Agents.</>
         )}
       </p>
     ) : null
@@ -420,17 +440,27 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
     case 'service':
       body = (
         <div className="flex flex-col gap-2">
-          {ASSISTANT_SERVICES.map((id) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={service === id}
-              onClick={() => setService(id)}
-              className="rounded-xl border border-white/20 px-3.5 py-2.5 text-left transition-colors hover:bg-white/10 aria-pressed:border-white aria-pressed:bg-white aria-pressed:text-black"
-            >
-              <span className="block text-sm font-medium">{ASSISTANT_SERVICE_META[id].label}</span>
-            </button>
-          ))}
+          {ASSISTANT_SERVICES.map((id) => {
+            const on = services.includes(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setServices(on ? services.filter((item) => item !== id) : [...services, id])}
+                className="flex items-center justify-between gap-3 rounded-xl border border-white/20 px-3.5 py-2.5 text-left transition-colors hover:bg-white/10 aria-pressed:border-white aria-pressed:bg-white aria-pressed:text-black"
+              >
+                <span className="block text-sm font-medium">{ASSISTANT_SERVICE_META[id].label}</span>
+                <span
+                  aria-hidden
+                  className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded border', on ? 'border-black bg-black text-white' : 'border-white/50')}
+                >
+                  {on ? <Check className="h-3 w-3" /> : null}
+                </span>
+              </button>
+            )
+          })}
+          <p className="text-xs text-white/70">Pick as many as you like. Each one gets its own agent.</p>
         </div>
       )
       footer = (
@@ -438,7 +468,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
           <button type="button" onClick={() => void moveTo('tools')} disabled={pending} className={CARD_GHOST}>
             Skip
           </button>
-          {primary('Next', () => go('tags'), !service)}
+          {primary('Next', () => go('tags'), !services.length)}
         </>
       )
       break
@@ -516,7 +546,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
       footer = (
         <>
           {back('tone')}
-          {primary('Build agent', () => void build(), !service)}
+          {primary(services.length > 1 ? 'Build agents' : 'Build agent', () => void build(), !services.length)}
         </>
       )
       break
@@ -545,6 +575,37 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
       footer = (
         <>
           <span />
+          {primary('Next', () => void moveTo('channels'))}
+        </>
+      )
+      break
+
+    case 'channels':
+      body = (
+        <div className="flex flex-col gap-4">
+          {agentStatus}
+          <ul className="grid grid-cols-2 gap-2 text-sm">
+            {CHANNEL_FEATURES.map((feature) => (
+              <li key={feature} className="flex items-center gap-2">
+                <Check className="h-3.5 w-3.5 text-white/70" />
+                {feature}
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            {CHANNELS.map((channel) => (
+              <span key={channel.kind} title={channel.label} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white p-2 [&_svg]:h-full [&_svg]:w-full">
+                <PartnerLogo kind={channel.kind} />
+                <span className="sr-only">{channel.label}</span>
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-white/70">Connect them after setup in Integrations → Channels. Social keeps your posts and replies.</p>
+        </div>
+      )
+      footer = (
+        <>
+          {back('tools')}
           {primary('Next', () => void moveTo('leads'))}
         </>
       )
@@ -574,7 +635,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
       )
       footer = (
         <>
-          {back('tools')}
+          {back('channels')}
           {primary('Next', () => void moveTo('finish'))}
         </>
       )

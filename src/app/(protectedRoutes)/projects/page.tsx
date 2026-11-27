@@ -1,4 +1,5 @@
 import React from 'react'
+import { userCanGoLive } from '@/lib/billing/paidAccess'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Webcam, MessageCircle, HomeIcon } from 'lucide-react'
@@ -37,13 +38,17 @@ const page = async ({ searchParams }: Props) => {
   const filter = parseOfferFilter(filterParam)
 
   // Default path: offers list only (cached). Stripe/LiveKit only when the legacy launcher opens.
-  const offers = await listCreatorOffers(checkUser.user.id, filter)
+  const [offers, canGoLive] = await Promise.all([
+    listCreatorOffers(checkUser.user.id, filter),
+    // A plan, or the creator's own Gemini key (free).
+    userCanGoLive(checkUser.user.id),
+  ])
 
   const shareBaseUrl = publicBaseUrl()
 
   return (
     <>
-      <ProjectWizard canCreate={!!checkUser.user.subscription} />
+      <ProjectWizard canCreate={canGoLive} />
       <div className="flex w-full flex-col gap-8">
         <PageHeader
           leftIcon={<HomeIcon className="h-3 w-3" />}
@@ -73,7 +78,7 @@ const page = async ({ searchParams }: Props) => {
             >
               General questions
             </Link>
-            {checkUser.user.subscription ? (
+            {canGoLive ? (
               <Button asChild size="sm">
                 <Link href={`/projects?${filter === 'all' ? '' : `filter=${filter}&`}new=1`} scroll={false}>
                   + New
@@ -90,7 +95,7 @@ const page = async ({ searchParams }: Props) => {
             ))}
           </div>
         ) : (
-          <ProjectsEmptyState filter={filter} canCreate={!!checkUser.user.subscription} />
+          <ProjectsEmptyState filter={filter} canCreate={canGoLive} />
         )}
       </div>
     </>

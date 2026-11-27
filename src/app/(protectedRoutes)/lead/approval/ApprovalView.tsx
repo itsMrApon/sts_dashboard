@@ -48,6 +48,12 @@ const ACTION_LABEL: Record<string, string> = {
   import_n8n_workflow: 'Import an n8n workflow',
   act_on_connection: 'Run an action on a connection',
   set_service_on: 'Turn a website service on or off',
+  create_assistant: 'Create an AI assistant',
+  set_service_assistant: 'Pick the assistant that runs a service',
+  update_assistant: 'Edit an assistant',
+  set_chat_greeting: 'Change the chat greeting',
+  set_form_questions: 'Change the form’s questions',
+  update_tour: 'Edit the business tour',
 }
 
 const STATUS_LABEL: Record<string, string> = { APPLIED: 'Done', FAILED: 'Failed', DENIED: 'Denied', EXPIRED: 'Expired' }

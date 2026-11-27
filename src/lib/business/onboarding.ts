@@ -2,7 +2,7 @@
  * Setup progress, stored on the workspace (Workspace.onboardingStep). Null = finished.
  * The keys and business cards come before the workspace exists, so stored steps start at "agent".
  */
-export const ONBOARDING_RESUME_STEPS = ['agent', 'tools', 'leads', 'finish'] as const
+export const ONBOARDING_RESUME_STEPS = ['agent', 'tools', 'channels', 'leads', 'finish'] as const
 export type OnboardingResumeStep = (typeof ONBOARDING_RESUME_STEPS)[number]
 
 export function isOnboardingResumeStep(value: unknown): value is OnboardingResumeStep {

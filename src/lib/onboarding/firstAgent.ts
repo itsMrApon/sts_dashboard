@@ -2,21 +2,23 @@ import 'server-only'
 import type { Prisma } from '@prisma/client'
 import { prismaClient } from '@/lib/prismaClient'
 import { draftAssistant, type AssistantDraft, type AssistantLanguageChoice } from '@/lib/agents/assistantDraft'
-import { ASSISTANT_SERVICE_META, LOOK_KEYS, splitServiceConfig, type AssistantService } from '@/lib/agents/assistantServices'
+import { ASSISTANT_SERVICE_META, type AssistantService } from '@/lib/agents/assistantServices'
+import { cleanAssistantBehaviour } from '@/lib/agents/assistantWrites'
 import { getEngineForUser } from '@/lib/agents/engineSettings'
 import { SERVICE_KIND, linkedAgentId } from '@/lib/services/serviceConfig'
-import { sanitizeChatConfig, sanitizeFormConfig, sanitizeSpeakConfig } from '@/lib/services/types'
 
 /**
- * The first agent from setup, built after the response so the creator never waits on Gemini.
- * Progress is kept in memory per creator (one server process); after a restart the agent is
- * simply there in AI Agents, or not yet.
+ * The first agents from setup (one per service the creator picked: chat, voice, form, tour), built
+ * after the response so the creator never waits on Gemini. Progress is kept in memory per creator
+ * (one server process); after a restart the agents are simply there in AI Agents, or not yet.
  */
 export type FirstAgentBuild = {
+  /** ready = at least one agent was built; failed = none could be. */
   status: 'building' | 'ready' | 'failed'
-  service: AssistantService
-  agentName: string | null
-  /** True when Gemini couldn't write it and the starter prompt was used. */
+  services: AssistantService[]
+  /** Names of the agents that were built, in the order of `services`. */
+  agentNames: string[]
+  /** True when Gemini couldn't write one of them and the starter prompt was used. */
   starter: boolean
 }
 
@@ -37,12 +39,8 @@ export type FirstAgentInput = {
   language: AssistantLanguageChoice
 }
 
-/** Same cleaning the services use: only behaviour keys, never looks. */
-function cleanBehaviour(service: AssistantService, raw: unknown): Prisma.InputJsonObject {
-  if (service === 'tour') return {}
-  const sanitized = service === 'chat' ? sanitizeChatConfig(raw) : service === 'voice' ? sanitizeSpeakConfig(raw) : sanitizeFormConfig(raw)
-  return splitServiceConfig(sanitized, LOOK_KEYS[service]).behaviour as Prisma.InputJsonObject
-}
+/** Setup's input: the same answers, for every service the creator picked. */
+export type FirstAgentsInput = Omit<FirstAgentInput, 'service'> & { services: AssistantService[] }
 
 /** Used when Gemini can't write the draft: a plain, editable prompt so setup never dead-ends. */
 function starterDraft(input: FirstAgentInput): AssistantDraft {
@@ -85,7 +83,7 @@ async function buildFirstAgent(input: FirstAgentInput): Promise<{ name: string; 
   })
   if (!drafted.ok) console.warn('[firstAgent] draft failed, using the starter prompt:', drafted.error)
   const draft = drafted.ok ? drafted.draft : starterDraft(input)
-  const behaviour = cleanBehaviour(input.service, draft.behaviour)
+  const behaviour = cleanAssistantBehaviour(input.service, draft.behaviour)
 
   const { engine } = await getEngineForUser(input.userId)
   const created = await prismaClient.liveKitAgent.create({
@@ -123,19 +121,28 @@ async function buildFirstAgent(input: FirstAgentInput): Promise<{ name: string; 
   return { name: draft.name, starter: !drafted.ok }
 }
 
-/** Marks the build as running, then does it. Meant to run in `after()`; never throws. */
-export async function runFirstAgentBuild(input: FirstAgentInput): Promise<void> {
-  builds.set(input.userId, { status: 'building', service: input.service, agentName: null, starter: false })
-  try {
-    const { name, starter } = await buildFirstAgent(input)
-    builds.set(input.userId, { status: 'ready', service: input.service, agentName: name, starter })
-  } catch (error) {
-    console.error('[firstAgent]', error instanceof Error ? error.message : error)
-    builds.set(input.userId, { status: 'failed', service: input.service, agentName: null, starter: false })
-  }
+/**
+ * Builds one agent per picked service, side by side (each is one Gemini draft). Meant to run in
+ * `after()`; never throws. One failing service doesn't stop the others.
+ */
+export async function runFirstAgentBuild(input: FirstAgentsInput): Promise<void> {
+  const { services, ...answers } = input
+  markFirstAgentBuilding(input.userId, services)
+  const results = await Promise.allSettled(services.map((service) => buildFirstAgent({ ...answers, service })))
+  const built: { name: string; starter: boolean }[] = []
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') built.push(result.value)
+    else console.error(`[firstAgent] ${services[i]}:`, result.reason instanceof Error ? result.reason.message : result.reason)
+  })
+  builds.set(input.userId, {
+    status: built.length ? 'ready' : 'failed',
+    services,
+    agentNames: built.map((agent) => agent.name),
+    starter: built.some((agent) => agent.starter),
+  })
 }
 
 /** Set before the response, so the next card's first status check already sees "building". */
-export function markFirstAgentBuilding(userId: string, service: AssistantService): void {
-  builds.set(userId, { status: 'building', service, agentName: null, starter: false })
+export function markFirstAgentBuilding(userId: string, services: AssistantService[]): void {
+  builds.set(userId, { status: 'building', services, agentNames: [], starter: false })
 }

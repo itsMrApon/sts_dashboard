@@ -6,7 +6,7 @@ import { onAuthenticateUser } from '@/actions/auth'
 import { prismaClient } from '@/lib/prismaClient'
 import { ensureOfferTourQuietly } from '@/lib/wizard/wizardRepo'
 import { getCreatorBusiness } from '@/lib/business/creatorBusiness'
-import { PAID_ACCESS_ERROR } from '@/lib/billing/paidAccess'
+import { PAID_ACCESS_ERROR, userCanGoLive } from '@/lib/billing/paidAccess'
 import { buildOfferSlug } from '@/lib/offers/offerModel'
 import { stripe } from '@/lib/stripe'
 import {
@@ -44,7 +44,7 @@ type Owner =
 async function requireOwner(webinarId?: string): Promise<Owner> {
   const auth = await onAuthenticateUser()
   if (!auth.user) return { error: 'Please sign in again' }
-  if (!auth.user.subscription) return { error: PAID_ACCESS_ERROR }
+  if (!(await userCanGoLive(auth.user.id))) return { error: PAID_ACCESS_ERROR }
   if (!webinarId) return { user: auth.user, webinar: null }
   const webinar = await prismaClient.webinar.findFirst({
     where: { id: webinarId, presenterId: auth.user.id, deletedAt: null },

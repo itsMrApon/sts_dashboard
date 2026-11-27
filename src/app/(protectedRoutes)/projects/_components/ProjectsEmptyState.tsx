@@ -26,7 +26,7 @@ export default function ProjectsEmptyState({ filter, canCreate }: { filter: Offe
           </Link>
         </Button>
       ) : (
-        <p className="text-sm text-muted-foreground">Subscribe (top right) to start selling.</p>
+        <p className="text-sm text-muted-foreground">Add your own Gemini key in AI Agents → Config, or tap STS (top right) to subscribe.</p>
       )}
     </div>
   )

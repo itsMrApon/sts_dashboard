@@ -9,6 +9,7 @@ import {
 } from '@prisma/client'
 import { stripe } from '@/lib/stripe'
 import { prismaClient } from '@/lib/prismaClient'
+import { userCanGoLive } from '@/lib/billing/paidAccess'
 import type { WebinarLinkVariant } from '@/lib/webinarLinkVariants'
 import { buildOfferShareLinks } from './offerLinks'
 import { publicBaseUrl } from './publicBaseUrl'
@@ -323,7 +324,7 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
       !!business?.publishProfileId &&
       webinar.publishProducts.some((link) => link.publishProfileId === business.publishProfileId),
     stripeConnected: !!webinar.presenter.stripeConnectId,
-    hasPaidAccess: webinar.presenter.subscription,
+    hasPaidAccess: webinar.presenter.subscription || (await userCanGoLive(userId)),
     shareLinks: buildOfferShareLinks(webinar.slug, modes, baseUrl),
     orders: orders.map((order) => ({
       id: order.id,

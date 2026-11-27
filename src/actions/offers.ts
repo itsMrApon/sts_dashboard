@@ -32,6 +32,8 @@ type ActionResult<T = object> = ({ ok: true } & T) | { ok: false; error: string 
 
 const TITLE_MAX = 255
 const DESCRIPTION_MAX = 2000
+/** An uploaded cover, as a data: URL. The browser shrinks it to about 1200px first, so this is plenty. */
+const THUMBNAIL_MAX = 900_000
 
 type Owner =
   | { error: string }
@@ -57,7 +59,6 @@ async function requireOwner(webinarId?: string): Promise<Owner> {
 function revalidateOffer(webinarId: string) {
   revalidatePath('/projects')
   revalidatePath(`/projects/${webinarId}`)
-  revalidatePath(`/projects/${webinarId}/pipeline`)
   revalidateTag('projects-list')
 }
 
@@ -123,7 +124,7 @@ export async function saveOfferDetails(input: {
   description: string
   /** ISO string; only used for webinars. */
   startTime?: string
-  /** An https image link (no uploads); empty clears it, undefined leaves it as is. */
+  /** The cover: an uploaded image (a data: URL, shrunk in the browser) or an https link. Empty clears it, undefined leaves it. */
   thumbnail?: string
 }): Promise<ActionResult> {
   const owner = await requireOwner(input.id)
@@ -136,9 +137,11 @@ export async function saveOfferDetails(input: {
     description: input.description?.trim().slice(0, DESCRIPTION_MAX) || null,
   }
   if (input.thumbnail !== undefined) {
-    const link = input.thumbnail.trim()
-    if (link && !/^https:\/\/[^\s]{4,500}$/i.test(link)) return { ok: false, error: 'The image link must start with https://' }
-    data.thumbnail = link || null
+    const image = input.thumbnail.trim()
+    const uploaded = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image)
+    if (image && !uploaded && !/^https:\/\/[^\s]{4,500}$/i.test(image)) return { ok: false, error: 'Upload a JPG, PNG or WebP image' }
+    if (uploaded && image.length > THUMBNAIL_MAX) return { ok: false, error: 'That image is too large. Try a smaller one.' }
+    data.thumbnail = image || null
   }
   if (owner.webinar?.kind === 'PROJECT' && input.startTime) {
     const startTime = new Date(input.startTime)

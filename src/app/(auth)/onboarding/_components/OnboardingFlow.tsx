@@ -15,7 +15,7 @@ import type { FirstAgentBuild } from '@/lib/onboarding/firstAgent'
 import { cn } from '@/lib/utils'
 import { WARP_CAROUSEL_CARDS, WarpCarousel, type WarpCard } from '@/components/ui/warp-carousel'
 import { PartnerLogo } from '../../../(protectedRoutes)/integrations/_components/PartnerLogos'
-import { CARD_CHIP, CARD_GHOST, CARD_INPUT, CARD_PRIMARY, PALETTES, StepCard } from './StepCard'
+import { CARD_CHIP, CARD_GHOST, CARD_INPUT, CARD_PRIMARY, PALETTES, StepCard } from '@/components/ReusableComponent/StepCard'
 import { useGuideVoice } from './useGuideVoice'
 
 /**
@@ -126,6 +126,11 @@ const LEAD_SOURCES: { label: string; Icon: LucideIcon; color: string }[] = [
   { label: 'Website enrichment', Icon: Globe, color: 'text-orange-500' },
 ]
 const MAX_TAGS = 8
+/**
+ * Finish waits for the agents so setup never ends with some of them missing. A slow AI provider
+ * must not trap anyone here, though: after this long "Go to home" works anyway.
+ */
+const FINISH_WAIT_MS = 120_000
 
 const KEY_LINKS = {
   gemini: { label: 'Gemini', placeholder: 'AIza…', href: 'https://aistudio.google.com/apikey', note: 'Free' },
@@ -210,6 +215,14 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
     }
   }, [watching, building])
 
+  // Finish holds "Go to home" while agents build, up to FINISH_WAIT_MS.
+  const [finishWaitOver, setFinishWaitOver] = useState(false)
+  useEffect(() => {
+    if (card !== 'finish' || !building) return
+    const timer = window.setTimeout(() => setFinishWaitOver(true), FINISH_WAIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [card, building])
+
   // The wizard says when the agent lands.
   useEffect(() => {
     if (readyName) void speak('ready', { agent: readyName })
@@ -275,7 +288,7 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
       const finalTags = tagText.trim() ? addTags(tagText) : tags
       const started = await startFirstAgent({ services, tags: finalTags, goals, tone, language })
       if (!started.ok) return started.error
-      setAgentBuild({ status: 'building', services, agentNames: [], starter: false })
+      setAgentBuild({ status: 'building', services, agentNames: [], progress: {}, starter: false })
       const moved = await advanceOnboarding('tools')
       if (!moved.ok) return moved.error
       go('tools')
@@ -317,6 +330,31 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
         )}
       </p>
     ) : null
+
+  // Finish: one line per picked service, filled in as each agent lands.
+  const agentChecklist = agentBuild ? (
+    <ul className="flex flex-col gap-1.5 text-sm">
+      {agentBuild.services.map((id) => {
+        const item = agentBuild.progress?.[id] ?? (agentBuild.status === 'building' ? null : { status: 'failed' as const, name: null })
+        return (
+          <li key={id} className="flex min-w-0 items-center gap-2">
+            {!item ? (
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+            ) : item.status === 'ready' ? (
+              <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            ) : (
+              <X className="h-3.5 w-3.5 shrink-0 text-rose-200" aria-hidden />
+            )}
+            <span className="shrink-0 font-medium">{ASSISTANT_SERVICE_META[id].label}</span>
+            <span className="truncate text-white/65">
+              {!item ? 'building…' : item.status === 'ready' ? item.name : "couldn't build. Make it in AI Agents."}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  ) : null
+  const waitingForAgents = agentBuild?.status === 'building' && !finishWaitOver
 
   const badge =
     card === 'keys' ? null : (
@@ -652,11 +690,20 @@ export function OnboardingFlow({ start, businessName: initialBusinessName, saved
       break
 
     case 'finish':
-      body = agentStatus
+      body = (
+        <div className="flex flex-col gap-3">
+          {agentChecklist}
+          {agentBuild?.starter && agentBuild.status !== 'building' ? (
+            <p className="text-xs text-white/70">Some use a starter prompt: edit it in AI Agents.</p>
+          ) : null}
+        </div>
+      )
       footer = (
         <>
-          <span />
-          {primary('Go to home', () => void finish())}
+          <span className="text-xs text-white/70">
+            {waitingForAgents ? 'Finishing your agents…' : agentBuild?.status === 'building' ? 'The rest keep building after you leave.' : ''}
+          </span>
+          {primary('Go to home', () => void finish(), waitingForAgents)}
         </>
       )
       break

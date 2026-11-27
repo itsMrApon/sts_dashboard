@@ -69,6 +69,7 @@ function alertCreator(offer: PublicOfferRecord, contactId: string, message: stri
     sendOfferChatAlert({
       creatorUserId: offer.creatorUserId,
       webinarId: offer.id,
+      offerSlug: offer.slug,
       offerTitle: offer.title,
       contactId,
       message,

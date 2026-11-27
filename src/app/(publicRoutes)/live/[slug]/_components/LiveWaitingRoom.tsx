@@ -250,6 +250,7 @@ export function LiveWaitingRoom({ offer, contact: initialContact, registered: in
               slug={offer.slug}
               source={source}
               submitLabel={isLive ? 'Join now' : 'Save my seat'}
+              requireName
               onCaptured={async (captured) => {
                 setContact(captured)
                 if (isLive) await join()

@@ -49,6 +49,7 @@ export async function linkedTelegram(userId: string) {
 export async function sendOfferChatAlert(input: {
   creatorUserId: string
   webinarId: string
+  offerSlug: string
   offerTitle: string
   contactId: string
   message: string
@@ -76,10 +77,11 @@ export async function sendOfferChatAlert(input: {
       alertRef(input.webinarId, input.contactId),
     ].join('\n')
 
-    const pipelineUrl = `${appUrl()}/projects/${input.webinarId}/pipeline`
+    // Opens Messages on this buyer's conversation (offer chats are `offer:<slug>:<contact>`).
+    const chatUrl = `${appUrl()}/projects?inbox=${encodeURIComponent(`offer:${input.offerSlug}:${input.contactId}`)}`
     const result = await sendTelegramMessage(telegram.token, telegram.chatId, text, {
       // Telegram only accepts public https links on buttons.
-      buttonUrl: pipelineUrl.startsWith('https://') ? { label: 'Open the chat', url: pipelineUrl } : undefined,
+      buttonUrl: chatUrl.startsWith('https://') ? { label: 'Open the chat', url: chatUrl } : undefined,
     })
     if (!result.ok) console.warn('[telegram-alert]', result.error)
   } catch (error) {

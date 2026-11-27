@@ -28,8 +28,8 @@ export default async function ProjectQuestionsPage({ params }: Props) {
           <ArrowLeft className="size-4" />
           Projects
         </Link>
-        <Link href={`/projects/${project.id}/pipeline`} className="hover:text-foreground">
-          Pipeline
+        <Link href="/projects?inbox=1" className="hover:text-foreground">
+          Conversations
         </Link>
       </div>
       <div>

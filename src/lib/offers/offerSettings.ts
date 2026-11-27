@@ -11,7 +11,7 @@ import { stripe } from '@/lib/stripe'
 import { prismaClient } from '@/lib/prismaClient'
 import { userCanGoLive } from '@/lib/billing/paidAccess'
 import type { WebinarLinkVariant } from '@/lib/webinarLinkVariants'
-import { buildOfferShareLinks } from './offerLinks'
+import { primaryOfferLink } from './offerLinks'
 import { publicBaseUrl } from './publicBaseUrl'
 import { pickDefaultPrice } from './offerSummary'
 import {
@@ -325,7 +325,10 @@ export async function getOfferSettingsForOwner(webinarId: string, userId: string
       webinar.publishProducts.some((link) => link.publishProfileId === business.publishProfileId),
     stripeConnected: !!webinar.presenter.stripeConnectId,
     hasPaidAccess: webinar.presenter.subscription || (await userCanGoLive(userId)),
-    shareLinks: buildOfferShareLinks(webinar.slug, modes, baseUrl),
+    // One link to hand out: a webinar's Live link, a product's Share (or pay) link. Never both.
+    shareLinks: [primaryOfferLink({ kind: webinar.kind === 'PRODUCT' ? 'PRODUCT' : 'PROJECT', slug: webinar.slug }, modes, baseUrl)].filter(
+      (link): link is NonNullable<typeof link> => link !== null,
+    ),
     orders: orders.map((order) => ({
       id: order.id,
       status: order.status,

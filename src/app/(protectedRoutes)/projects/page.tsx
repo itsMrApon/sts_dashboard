@@ -9,7 +9,6 @@ import ProjectCard from './_components/ProjectCard '
 import ProjectsEmptyState from './_components/ProjectsEmptyState'
 import { ProjectWizard } from './_components/ProjectWizard'
 import { Button } from '@/components/ui/button'
-import { publicBaseUrl } from '@/lib/offers/publicBaseUrl'
 import { listCreatorOffers, parseOfferFilter, type OfferFilter } from '@/lib/offers/creatorOffers'
 import { cn } from '@/lib/utils'
 
@@ -44,8 +43,6 @@ const page = async ({ searchParams }: Props) => {
     userCanGoLive(checkUser.user.id),
   ])
 
-  const shareBaseUrl = publicBaseUrl()
-
   return (
     <>
       <ProjectWizard canCreate={canGoLive} />
@@ -58,7 +55,7 @@ const page = async ({ searchParams }: Props) => {
           mobileHeading="Projects"
           hideSearch
         >
-          <nav aria-label="Filter projects" className="flex flex-wrap gap-2">
+          <nav aria-label="Filter projects" className="flex w-full flex-wrap items-center gap-2">
             {FILTER_TABS.map((tab) => (
               <Link
                 key={tab.value}
@@ -79,7 +76,8 @@ const page = async ({ searchParams }: Props) => {
               General questions
             </Link>
             {canGoLive ? (
-              <Button asChild size="sm">
+              // Far right, and the same 40px height as the filter tabs.
+              <Button asChild className="ml-auto h-10 px-5">
                 <Link href={`/projects?${filter === 'all' ? '' : `filter=${filter}&`}new=1`} scroll={false}>
                   + New
                 </Link>
@@ -91,7 +89,7 @@ const page = async ({ searchParams }: Props) => {
         {offers.length > 0 ? (
           <div className="grid w-full grid-cols-1 place-content-start place-items-start gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {offers.map((offer) => (
-              <ProjectCard key={offer.id} project={offer} shareBaseUrl={shareBaseUrl} />
+              <ProjectCard key={offer.id} project={offer} />
             ))}
           </div>
         ) : (

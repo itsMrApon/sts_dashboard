@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { auth } from '@clerk/nextjs/server'
 import { prismaClient } from '@/lib/prismaClient'
 import { loadPublicOffer, toPublicView } from '@/lib/offers/publicOffer'
 import { getBuyerContactId } from '@/lib/offers/buyerSession'
@@ -22,6 +23,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title, description, openGraph: { title, description, type: 'website' }, twitter: { card: 'summary', title, description } }
 }
 
+async function viewerIsCreator(creatorUserId: string): Promise<boolean> {
+  const { userId: clerkId } = await auth()
+  if (!clerkId) return false
+  const viewer = await prismaClient.user.findUnique({ where: { clerkId }, select: { id: true } })
+  return viewer?.id === creatorUserId
+}
+
 /**
  * The Live link: a waiting room that counts down to the creator's start time. Visitors save a
  * seat with their email or WhatsApp; when the creator goes live the doors open into the live room.
@@ -41,6 +49,9 @@ export default async function LiveLinkPage({ params, searchParams }: Props) {
       </main>
     )
   }
+
+  // The creator opening their own Live link goes straight to the host room (go live from there).
+  if (await viewerIsCreator(offer.creatorUserId)) redirect(`/live/${offer.slug}/room`)
 
   const contactId = await getBuyerContactId(offer.creatorUserId)
   const contactRow = contactId

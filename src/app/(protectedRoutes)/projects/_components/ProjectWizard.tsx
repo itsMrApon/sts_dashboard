@@ -1,16 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Check, Copy, Loader2, Search } from 'lucide-react'
+import { ArrowRight, Check, Copy, ImagePlus, Loader2, Search, X } from 'lucide-react'
 import { toast } from '@/lib/toast'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { CARD_CHIP, CARD_GHOST, CARD_INPUT, CARD_PRIMARY, PALETTES, StepCard } from '@/components/ReusableComponent/StepCard'
+import { openMessages } from '@/components/messages/openMessages'
 import { cn } from '@/lib/utils'
 import {
   createOffer,
@@ -26,8 +23,24 @@ import {
 } from '@/actions/offers'
 import type { AiService, OfferKindInput, OfferSettingsView, OrderModeKey, OrderModesInput } from '@/lib/offers/offerTypes'
 
-const STEPS = ['Type', 'Details', 'Price', 'How people buy', 'Done'] as const
 type Step = 0 | 1 | 2 | 3 | 4
+const TOTAL = 5
+
+/** Each step's two-line title, top left of the card (same look as onboarding). */
+const TITLES: Record<Step, [string, string]> = {
+  0: ['What are you', 'selling?'],
+  1: ['The', 'details'],
+  2: ['Its', 'price'],
+  3: ['How people', 'buy'],
+  4: ['Your', 'link'],
+}
+
+const CARD_TEXTAREA =
+  'min-h-24 w-full resize-y rounded-xl border border-white/20 bg-white/10 px-3.5 py-2.5 text-[15px] text-white placeholder:text-white/45 outline-none transition-colors focus:border-white/55 focus:bg-white/15'
+const CARD_SELECT = cn(CARD_INPUT, 'appearance-none [&>option]:text-black')
+const CARD_OPTION =
+  'rounded-xl border border-white/20 px-3.5 py-3 text-left transition-colors hover:bg-white/10 aria-pressed:border-white aria-pressed:bg-white aria-pressed:text-black disabled:opacity-40'
+const CARD_BOX = 'rounded-xl border border-white/15 bg-black/15 p-3.5'
 
 const usd = (cents: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100)
@@ -59,39 +72,121 @@ const PANELS: { id: AiService; label: string }[] = [
   { id: 'SPEAK', label: 'Voice' },
 ]
 
-function StepNav({ step, maxStep, onGo }: { step: Step; maxStep: Step; onGo: (step: Step) => void }) {
+/** Largest side of an uploaded cover, and the size it must fit in once encoded. */
+const COVER_MAX_SIDE = 1200
+const COVER_MAX_CHARS = 850_000
+
+/** Shrinks a picked photo in the browser and returns it as a JPEG data: URL (saved with the project). */
+async function shrinkImage(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file)
+  const encode = (maxSide: number, quality: number) => {
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg', quality)
+  }
+  let image = encode(COVER_MAX_SIDE, 0.82)
+  if (image.length > COVER_MAX_CHARS) image = encode(900, 0.7)
+  if (image.length > COVER_MAX_CHARS) image = encode(700, 0.6)
+  bitmap.close()
+  if (image.length > COVER_MAX_CHARS) throw new Error('too large')
+  return image
+}
+
+/** A white on/off switch for the card. */
+function CardToggle({ checked, onChange, label, disabled }: { checked: boolean; onChange: (next: boolean) => void; label: string; disabled?: boolean }) {
   return (
-    <ol className="flex flex-wrap gap-1.5" aria-label="Steps">
-      {STEPS.map((label, index) => {
-        const reachable = index <= maxStep
-        return (
-          <li key={label}>
-            <button
-              type="button"
-              disabled={!reachable}
-              onClick={() => onGo(index as Step)}
-              aria-current={index === step ? 'step' : undefined}
-              className={cn(
-                'rounded-full border px-3 py-1 text-xs transition-colors',
-                index === step ? 'border-primary bg-primary/15 font-medium text-primary' : 'border-border text-muted-foreground',
-                reachable && index !== step && 'hover:text-foreground',
-                !reachable && 'opacity-40',
-              )}
-            >
-              {index + 1}. {label}
-            </button>
-          </li>
-        )
-      })}
-    </ol>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50',
+        checked ? 'border-white bg-white' : 'border-white/40 bg-white/10',
+      )}
+    >
+      <span className={cn('absolute top-0.5 h-[18px] w-[18px] rounded-full transition-all', checked ? 'left-[22px] bg-black' : 'left-0.5 bg-white/80')} />
+    </button>
+  )
+}
+
+/** The card every step sits on: onboarding's mesh card, with step dots and a close button. */
+function Frame({
+  step,
+  maxStep,
+  onGo,
+  onClose,
+  line,
+  footer,
+  children,
+}: {
+  step: Step
+  maxStep: Step
+  onGo: (step: Step) => void
+  onClose: () => void
+  line?: string
+  footer?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <StepCard
+      palette={PALETTES[step % PALETTES.length]}
+      title={TITLES[step]}
+      step={step + 1}
+      total={TOTAL}
+      line={line}
+      footer={footer}
+      className="min-h-[460px] max-w-none"
+      badge={
+        <span className="flex items-center gap-3">
+          <ol className="flex items-center gap-1.5" aria-label="Steps">
+            {([0, 1, 2, 3, 4] as Step[]).map((index) => (
+              <li key={index}>
+                <button
+                  type="button"
+                  disabled={index > maxStep}
+                  onClick={() => onGo(index)}
+                  aria-label={`Step ${index + 1}: ${TITLES[index].join(' ')}`}
+                  aria-current={index === step ? 'step' : undefined}
+                  className={cn(
+                    'block h-2 rounded-full transition-all disabled:opacity-30',
+                    index === step ? 'w-5 bg-white' : 'w-2 bg-white/50 hover:bg-white/80',
+                  )}
+                />
+              </li>
+            ))}
+          </ol>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-white/70 transition-colors hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </span>
+      }
+    >
+      {children}
+    </StepCard>
+  )
+}
+
+function Primary({ label, onClick, disabled, busy }: { label: string; onClick: () => void; disabled?: boolean; busy?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={busy || disabled} className={CARD_PRIMARY}>
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      {label}
+      {busy ? null : <ArrowRight className="h-4 w-4" />}
+    </button>
   )
 }
 
 /**
  * Create or edit a product or webinar in five steps: Type, Details, Price (from the creator's Stripe
- * products), How people buy, Done (links, Menu, orders). Each step is saved when you go on, so
+ * products), How people buy, Done (the link, Menu, orders). Each step is saved when you go on, so
  * closing halfway keeps what was done. Opens with ?new=1 (optionally &type=product|webinar) or
- * ?edit=<id> on /projects.
+ * ?edit=<id> on /projects. Same card design as onboarding.
  */
 export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
   const router = useRouter()
@@ -107,7 +202,10 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
   const [step, setStep] = useState<Step>(0)
   const [maxStep, setMaxStep] = useState<Step>(0)
   const [offer, setOffer] = useState<OfferSettingsView | null>(null)
+  /** Set as soon as a new project exists, so a failed save never makes a second one. */
+  const [createdId, setCreatedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [saving, startSaving] = useTransition()
 
   // Details
@@ -124,6 +222,7 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
   }, [params, pathname, router])
 
   const goTo = (next: Step) => {
+    setError(null)
     setStep(next)
     setMaxStep((current) => (next > current ? next : current))
   }
@@ -141,7 +240,7 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
     async (id: string) => {
       const result = await getOfferForEdit({ id })
       if (result.ok) fill(result.offer)
-      else toast.error(result.error)
+      else setError(result.error)
       return result.ok ? result.offer : null
     },
     [fill],
@@ -151,6 +250,8 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
   useEffect(() => {
     if (!open) return
     setOffer(null)
+    setCreatedId(null)
+    setError(null)
     if (editId) {
       setLoading(true)
       reload(editId).then((view) => {
@@ -177,11 +278,13 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
   const saveDetails = () =>
     startSaving(async () => {
       if (!kind) return
-      let id = offer?.id
+      setError(null)
+      let id = offer?.id ?? createdId
       if (!id) {
         const created = await createOffer({ kind, title })
-        if (!created.ok) return void toast.error(created.error)
+        if (!created.ok) return setError(created.error)
         id = created.id
+        setCreatedId(id)
       }
       const saved = await saveOfferDetails({
         id,
@@ -190,7 +293,7 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
         thumbnail,
         startTime: kind === 'WEBINAR' && startTime ? new Date(startTime).toISOString() : undefined,
       })
-      if (!saved.ok) return void toast.error(saved.error)
+      if (!saved.ok) return setError(saved.error)
       const view = await reload(id)
       if (view) {
         router.refresh()
@@ -198,76 +301,125 @@ export function ProjectWizard({ canCreate }: { canCreate: boolean }) {
       }
     })
 
-  const title_ = offer ? 'Edit ' + (offer.kind === 'PRODUCT' ? 'product' : 'webinar') : 'New product or webinar'
+  const frame = {
+    step,
+    maxStep,
+    onGo: (target: Step) => (offer || target <= 1 ? goTo(target) : null),
+    onClose: close,
+  }
+  const errorLine = error ? <p className="text-xs text-rose-200">{error}</p> : null
+
+  let card: ReactNode
+  if (loading) {
+    card = (
+      <Frame {...frame}>
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-white/80" />
+        </div>
+      </Frame>
+    )
+  } else if (step === 0) {
+    card = (
+      <Frame {...frame} line="A product people buy any time, or a webinar at a set time.">
+        <TypeStep
+          value={kind}
+          locked={Boolean(offer)}
+          onPick={(next) => {
+            setKind(next)
+            goTo(1)
+          }}
+        />
+      </Frame>
+    )
+  } else if (step === 1) {
+    card = (
+      <Frame
+        {...frame}
+        line="Name it and say what buyers get. Your AI sells from this."
+        footer={
+          <>
+            {offer ? <span /> : <button type="button" onClick={() => goTo(0)} disabled={saving} className={CARD_GHOST}>Back</button>}
+            <Primary
+              label={offer || createdId ? 'Save and continue' : 'Create and continue'}
+              onClick={saveDetails}
+              busy={saving}
+              disabled={!title.trim() || !kind}
+            />
+          </>
+        }
+      >
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-white/75">Name</span>
+          <input
+            value={title}
+            maxLength={255}
+            autoFocus
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={kind === 'WEBINAR' ? 'Webinar name' : 'Product name'}
+            className={CARD_INPUT}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-white/75">What buyers get</span>
+          <textarea
+            rows={3}
+            maxLength={2000}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="What's included and who it's for"
+            className={CARD_TEXTAREA}
+          />
+        </label>
+        {kind === 'WEBINAR' ? (
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs text-white/75">When you go live</span>
+            <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={cn(CARD_INPUT, '[color-scheme:dark]')} />
+          </label>
+        ) : null}
+        <CoverField value={thumbnail} onChange={setThumbnail} />
+        {errorLine}
+      </Frame>
+    )
+  } else if (!offer) {
+    // The project exists but couldn't be loaded: offer a retry instead of a blank card.
+    card = (
+      <Frame {...frame} line="Couldn't load it just now.">
+        {errorLine}
+        <div>
+          <Primary label="Try again" onClick={() => void (createdId ? reload(createdId) : Promise.resolve(null))} disabled={!createdId} />
+        </div>
+      </Frame>
+    )
+  } else if (step === 2) {
+    card = <PriceStep frame={frame} offer={offer} title={title} onSaved={async () => { await reload(offer.id); router.refresh(); goTo(3) }} onSkip={() => goTo(3)} />
+  } else if (step === 3) {
+    card = <WaysStep frame={frame} offer={offer} startTime={startTime} onSaved={async () => { await reload(offer.id); router.refresh(); goTo(4) }} />
+  } else {
+    card = (
+      <DoneStep
+        frame={frame}
+        offer={offer}
+        onChanged={() => reload(offer.id).then(() => router.refresh())}
+        onDeleted={() => {
+          close()
+          router.refresh()
+        }}
+      />
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : close())}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-[640px]">
-        <DialogHeader className="space-y-3">
-          <DialogTitle>{offer ? offer.title || title_ : title_}</DialogTitle>
-          <DialogDescription className="sr-only">Five steps: type, details, price, how people buy, done.</DialogDescription>
-          <StepNav step={step} maxStep={maxStep} onGo={(target) => (offer || target <= 1 ? setStep(target) : null)} />
-        </DialogHeader>
-
-        {loading ? (
-          <div className="flex h-40 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : step === 0 ? (
-          <TypeStep
-            value={kind}
-            locked={Boolean(offer)}
-            onPick={(next) => {
-              setKind(next)
-              goTo(1)
-            }}
-          />
-        ) : step === 1 ? (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="pw-title">Name</Label>
-              <Input id="pw-title" value={title} maxLength={255} onChange={(e) => setTitle(e.target.value)} placeholder={kind === 'WEBINAR' ? 'Tax basics, live' : 'Home insurance check'} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pw-description">What buyers get</Label>
-              <Textarea
-                id="pw-description"
-                rows={4}
-                maxLength={2000}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What it is, who it's for and what's included. Your AI sells from this, so be specific."
-              />
-            </div>
-            {kind === 'WEBINAR' ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="pw-start">When you go live</Label>
-                <Input id="pw-start" type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-              </div>
-            ) : null}
-            <div className="space-y-1.5">
-              <Label htmlFor="pw-image">Image link (optional)</Label>
-              <Input id="pw-image" value={thumbnail} onChange={(e) => setThumbnail(e.target.value)} placeholder="https://…/cover.jpg" />
-            </div>
-            <div className="flex justify-between gap-2 pt-2">
-              {offer ? <span /> : <Button variant="outline" onClick={() => setStep(0)}>Back</Button>}
-              <Button onClick={saveDetails} disabled={saving || !title.trim() || !kind}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {offer ? 'Save and continue' : 'Create and continue'}
-              </Button>
-            </div>
-          </div>
-        ) : !offer ? null : step === 2 ? (
-          <PriceStep offer={offer} title={title} onSaved={async () => { await reload(offer.id); router.refresh(); goTo(3) }} onSkip={() => goTo(3)} />
-        ) : step === 3 ? (
-          <WaysStep offer={offer} startTime={startTime} onSaved={async () => { await reload(offer.id); router.refresh(); goTo(4) }} />
-        ) : (
-          <DoneStep offer={offer} onChanged={() => reload(offer.id).then(() => router.refresh())} onDeleted={() => { close(); router.refresh() }} onClose={close} />
-        )}
+      <DialogContent isHideCloseButton className="max-h-[92vh] gap-0 overflow-y-auto border-0 bg-transparent p-0 shadow-none sm:max-w-[500px]">
+        <DialogTitle className="sr-only">{offer ? `Edit ${offer.title}` : 'New product or webinar'}</DialogTitle>
+        <DialogDescription className="sr-only">Five steps: type, details, price, how people buy, your link.</DialogDescription>
+        {card}
       </DialogContent>
     </Dialog>
   )
 }
+
+type FrameProps = { step: Step; maxStep: Step; onGo: (step: Step) => void; onClose: () => void }
 
 function TypeStep({ value, locked, onPick }: { value: OfferKindInput | null; locked: boolean; onPick: (kind: OfferKindInput) => void }) {
   const options: { kind: OfferKindInput; title: string; detail: string }[] = [
@@ -275,29 +427,87 @@ function TypeStep({ value, locked, onPick }: { value: OfferKindInput | null; loc
     { kind: 'WEBINAR', title: 'Webinar', detail: 'A live session at a set time, with an offer you drop while live' },
   ]
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="flex flex-col gap-2">
       {options.map((option) => (
         <button
           key={option.kind}
           type="button"
+          aria-pressed={value === option.kind}
           disabled={locked && value !== option.kind}
           onClick={() => onPick(option.kind)}
-          className={cn(
-            'rounded-2xl border p-4 text-left transition-colors',
-            value === option.kind ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50',
-            locked && value !== option.kind && 'opacity-40',
-          )}
+          className={CARD_OPTION}
         >
-          <p className="font-semibold">{option.title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{option.detail}</p>
+          <span className="block text-sm font-medium">{option.title}</span>
+          <span className="mt-0.5 block text-xs opacity-75">{option.detail}</span>
         </button>
       ))}
-      {locked ? <p className="text-xs text-muted-foreground sm:col-span-2">The type can&apos;t change after it&apos;s made.</p> : null}
+      {locked ? <p className="text-xs text-white/70">The type can&apos;t change after it&apos;s made.</p> : null}
     </div>
   )
 }
 
-function PriceStep({ offer, title, onSaved, onSkip }: { offer: OfferSettingsView; title: string; onSaved: () => Promise<void>; onSkip: () => void }) {
+/** The cover: an uploaded photo (shrunk in the browser), shown as a preview. */
+function CoverField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+
+  const pick = async (file: File | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) return void toast.error('Pick an image file')
+    setBusy(true)
+    try {
+      onChange(await shrinkImage(file))
+    } catch {
+      toast.error("Couldn't use that image. Try another one.")
+    } finally {
+      setBusy(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs text-white/75">Cover image (optional)</span>
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => void pick(e.target.files?.[0])} />
+      {value ? (
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="Cover" className="aspect-video w-32 rounded-lg object-cover" />
+          <div className="flex flex-col items-start gap-1">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className={CARD_GHOST}>
+              {busy ? 'Loading…' : 'Change'}
+            </button>
+            <button type="button" onClick={() => onChange('')} className={CARD_GHOST}>Remove</button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-white/30 text-sm text-white/80 transition-colors hover:bg-white/10"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          Upload a cover
+        </button>
+      )}
+    </div>
+  )
+}
+
+function PriceStep({
+  frame,
+  offer,
+  title,
+  onSaved,
+  onSkip,
+}: {
+  frame: FrameProps
+  offer: OfferSettingsView
+  title: string
+  onSaved: () => Promise<void>
+  onSkip: () => void
+}) {
   const [products, setProducts] = useState<StripeCatalogProduct[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -323,20 +533,29 @@ function PriceStep({ offer, title, onSaved, onSkip }: { offer: OfferSettingsView
   const monthlyChoices = allPrices.filter((price) => price.billing === 'MONTHLY' && price.priceId !== priceId)
 
   if (!offer.stripeConnected) {
+    // No Stripe: say so and let them carry on. The price can be added later from this step.
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">Prices come from your Stripe products. Connect Stripe first, then come back to this step.</p>
-        <div className="flex justify-between gap-2">
-          <Button asChild variant="outline"><Link href="/settings">Connect Stripe</Link></Button>
-          <Button variant="outline" onClick={onSkip}>Skip for now</Button>
-        </div>
-      </div>
+      <Frame
+        {...frame}
+        line="Prices come from your Stripe products. Connect Stripe any time and pick the price here."
+        footer={
+          <>
+            <a href="/settings" target="_blank" rel="noopener noreferrer" className={CARD_GHOST}>
+              Connect Stripe
+            </a>
+            <Primary label="Continue without a price" onClick={onSkip} />
+          </>
+        }
+      >
+        <p className="text-sm text-white/75">Buyers can still leave their details and talk to your AI. Checkout turns on once a price is set.</p>
+      </Frame>
     )
   }
 
   const save = () =>
     startBusy(async () => {
       if (!priceId) return
+      setError(null)
       const result = await saveOfferStripePricing({
         id: offer.id,
         priceId,
@@ -346,14 +565,15 @@ function PriceStep({ offer, title, onSaved, onSkip }: { offer: OfferSettingsView
             ? { depositCents: Math.round(Number(depositDollars) * 100), balanceDueDays: Math.round(Number(balanceDays)) }
             : null,
       })
-      if (!result.ok) return void toast.error(result.error)
+      if (!result.ok) return setError(result.error)
       await onSaved()
     })
 
   const createProduct = () =>
     startBusy(async () => {
+      setError(null)
       const result = await createStripeCatalogPrice({ name: newName, amountCents: Math.round(Number(newAmount) * 100), billing: newMonthly ? 'MONTHLY' : 'ONE_TIME' })
-      if (!result.ok) return void toast.error(result.error)
+      if (!result.ok) return setError(result.error)
       setProducts((current) => [result.product, ...(current ?? [])])
       setPriceId(result.product.prices[0].priceId)
       setCreating(false)
@@ -361,92 +581,88 @@ function PriceStep({ offer, title, onSaved, onSkip }: { offer: OfferSettingsView
     })
 
   return (
-    <div className="space-y-4">
-      {!offer.pricing.stripe && offer.pricing.amountCents > 0 ? (
-        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-          Now: {usd(offer.pricing.amountCents)} typed in the app, not in Stripe. Pick a Stripe price to replace it, or keep it and skip.
-        </p>
-      ) : null}
-
+    <Frame
+      {...frame}
+      line="Pick the price from your Stripe products, or add a new one."
+      footer={
+        <>
+          <button type="button" onClick={onSkip} disabled={busy} className={CARD_GHOST}>Skip for now</button>
+          <Primary label="Save and continue" onClick={save} busy={busy} disabled={!priceId} />
+        </>
+      }
+    >
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search your Stripe products" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" aria-hidden />
+          <input className={cn(CARD_INPUT, 'pl-9')} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search your Stripe products" aria-label="Search your Stripe products" />
         </div>
-        <Button variant="outline" onClick={() => setCreating((value) => !value)}>
-          {creating ? 'Cancel' : '+ New in Stripe'}
-        </Button>
+        <button type="button" onClick={() => setCreating((value) => !value)} aria-pressed={creating} className={CARD_CHIP}>
+          {creating ? 'Cancel' : '+ New'}
+        </button>
       </div>
 
       {creating ? (
-        <div className="space-y-3 rounded-2xl border border-border p-4">
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Product name" aria-label="Product name" />
-            <Input value={newAmount} onChange={(e) => setNewAmount(e.target.value.replace(/[^\d.]/g, ''))} placeholder="Price ($)" inputMode="decimal" aria-label="Price in dollars" />
+        <div className={cn(CARD_BOX, 'flex flex-col gap-3')}>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+            <input className={CARD_INPUT} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Product name" aria-label="Product name" />
+            <input className={CARD_INPUT} value={newAmount} onChange={(e) => setNewAmount(e.target.value.replace(/[^\d.]/g, ''))} placeholder="Price ($)" inputMode="decimal" aria-label="Price in dollars" />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Switch checked={newMonthly} onCheckedChange={setNewMonthly} aria-label="Monthly" /> Charge monthly
+          <label className="flex items-center justify-between gap-3 text-sm">
+            Charge monthly
+            <CardToggle checked={newMonthly} onChange={setNewMonthly} label="Charge monthly" />
           </label>
-          <Button onClick={createProduct} disabled={busy || !newName.trim() || !Number(newAmount)}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Create in Stripe
-          </Button>
+          <div>
+            <Primary label="Create in Stripe" onClick={createProduct} busy={busy} disabled={!newName.trim() || !Number(newAmount)} />
+          </div>
         </div>
       ) : null}
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {!products && !error ? (
-        <div className="flex h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        <div className="flex h-20 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-white/70" /></div>
       ) : null}
-      {products && products.length === 0 ? <p className="text-sm text-muted-foreground">No products in your Stripe yet. Create one above.</p> : null}
+      {products && products.length === 0 ? <p className="text-sm text-white/75">No products in your Stripe yet. Add one with + New.</p> : null}
 
-      <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
-        {shown.map((product) => (
-          <li key={product.productId} className="rounded-2xl border border-border p-3">
-            <p className="truncate text-sm font-medium">{product.name}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {product.prices.map((price) => (
-                <button
-                  key={price.priceId}
-                  type="button"
-                  onClick={() => setPriceId(price.priceId)}
-                  aria-pressed={price.priceId === priceId}
-                  className={cn(
-                    'rounded-full border px-3 py-1 text-xs',
-                    price.priceId === priceId ? 'border-primary bg-primary/15 font-medium text-primary' : 'border-border hover:border-primary/50',
-                  )}
-                >
-                  {usd(price.amountCents)}
-                  {price.billing === 'MONTHLY' ? '/month' : ' one-time'}
-                  {price.label ? ` · ${price.label}` : ''}
-                </button>
-              ))}
-            </div>
-          </li>
-        ))}
-      </ul>
+      {shown.length ? (
+        <ul className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
+          {shown.map((product) => (
+            <li key={product.productId} className={CARD_BOX}>
+              <p className="truncate text-sm font-medium">{product.name}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {product.prices.map((price) => (
+                  <button
+                    key={price.priceId}
+                    type="button"
+                    onClick={() => setPriceId(price.priceId)}
+                    aria-pressed={price.priceId === priceId}
+                    className={cn(CARD_CHIP, 'px-3 py-1 text-xs')}
+                  >
+                    {usd(price.amountCents)}
+                    {price.billing === 'MONTHLY' ? '/month' : ' one-time'}
+                    {price.label ? ` · ${price.label}` : ''}
+                  </button>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {picked?.billing === 'ONE_TIME' ? (
-        <div className="space-y-3 rounded-2xl border border-border p-4">
+        <div className={cn(CARD_BOX, 'flex flex-col gap-3')}>
           <label className="flex items-center justify-between gap-3 text-sm">
-            <span>Let buyers pay a deposit first</span>
-            <Switch checked={deposit} onCheckedChange={setDeposit} aria-label="Deposit" />
+            Let buyers pay a deposit first
+            <CardToggle checked={deposit} onChange={setDeposit} label="Deposit" />
           </label>
           {deposit ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input value={depositDollars} onChange={(e) => setDepositDollars(e.target.value.replace(/[^\d.]/g, ''))} aria-label="Deposit in dollars" placeholder="Deposit ($)" inputMode="decimal" />
-              <Input value={balanceDays} onChange={(e) => setBalanceDays(e.target.value.replace(/\D/g, ''))} aria-label="Days until the rest is due" placeholder="Rest due in (days)" inputMode="numeric" />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input className={CARD_INPUT} value={depositDollars} onChange={(e) => setDepositDollars(e.target.value.replace(/[^\d.]/g, ''))} aria-label="Deposit in dollars" placeholder="Deposit ($)" inputMode="decimal" />
+              <input className={CARD_INPUT} value={balanceDays} onChange={(e) => setBalanceDays(e.target.value.replace(/\D/g, ''))} aria-label="Days until the rest is due" placeholder="Rest due in (days)" inputMode="numeric" />
             </div>
           ) : null}
           {monthlyChoices.length ? (
-            <div className="space-y-1.5">
-              <p className="text-sm">Also offer a monthly option (optional)</p>
-              <select
-                className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
-                value={monthlyId ?? ''}
-                onChange={(e) => setMonthlyId(e.target.value || null)}
-                aria-label="Monthly option"
-              >
+            <label className="flex flex-col gap-1.5 text-sm">
+              Also offer a monthly option (optional)
+              <select className={CARD_SELECT} value={monthlyId ?? ''} onChange={(e) => setMonthlyId(e.target.value || null)} aria-label="Monthly option">
                 <option value="">No monthly option</option>
                 {monthlyChoices.map((price) => (
                   <option key={price.priceId} value={price.priceId}>
@@ -454,32 +670,27 @@ function PriceStep({ offer, title, onSaved, onSkip }: { offer: OfferSettingsView
                   </option>
                 ))}
               </select>
-            </div>
+            </label>
           ) : null}
         </div>
       ) : null}
-
-      <div className="flex justify-between gap-2 pt-1">
-        <Button variant="outline" onClick={onSkip}>Skip for now</Button>
-        <Button onClick={save} disabled={busy || !priceId}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Save and continue
-        </Button>
-      </div>
-    </div>
+      {error ? <p className="text-xs text-rose-200">{error}</p> : null}
+    </Frame>
   )
 }
 
-function WaysStep({ offer, startTime, onSaved }: { offer: OfferSettingsView; startTime: string; onSaved: () => Promise<void> }) {
+function WaysStep({ frame, offer, startTime, onSaved }: { frame: FrameProps; offer: OfferSettingsView; startTime: string; onSaved: () => Promise<void> }) {
   const [modes, setModes] = useState<OrderModesInput>(offer.modes)
   const [panels, setPanels] = useState<AiService[]>(offer.aiServices.length ? offer.aiServices : ['CHAT', 'WIZARD', 'SPEAK'])
-  // Null = the assistants picked in Services (recommended); an id = this product's own agent.
+  // Empty = the assistants picked in Services (recommended); an id = this product's own agent.
   const [agentId, setAgentId] = useState<string>(offer.livekitAgentId ?? '')
+  const [error, setError] = useState<string | null>(null)
   const [busy, startBusy] = useTransition()
   const ways = WAYS[offer.kind]
 
   const save = () =>
     startBusy(async () => {
+      setError(null)
       const result = await saveOfferOrderModes({
         id: offer.id,
         modes,
@@ -487,26 +698,34 @@ function WaysStep({ offer, startTime, onSaved }: { offer: OfferSettingsView; sta
         livekitAgentId: agentId || null,
         liveStartTime: modes.LIVE_HOST && startTime ? new Date(startTime).toISOString() : undefined,
       })
-      if (!result.ok) return void toast.error(result.error)
+      if (!result.ok) return setError(result.error)
       await onSaved()
     })
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Pick every way people can buy. They choose the one they like.</p>
+    <Frame
+      {...frame}
+      line="Turn on every way people can buy. They pick the one they like."
+      footer={
+        <>
+          <button type="button" onClick={() => frame.onGo(2)} disabled={busy} className={CARD_GHOST}>Back</button>
+          <Primary label="Save and continue" onClick={save} busy={busy} disabled={!ways.some((way) => modes[way.mode])} />
+        </>
+      }
+    >
       {ways.map((way) => {
         const on = modes[way.mode]
         return (
-          <div key={way.mode} className={cn('rounded-2xl border p-4', on ? 'border-primary/60 bg-primary/5' : 'border-border')}>
-            <label className="flex items-start justify-between gap-3">
+          <div key={way.mode} className={cn(CARD_BOX, on && 'border-white/50 bg-white/10')}>
+            <div className="flex items-start justify-between gap-3">
               <span>
-                <span className="block font-medium">{way.title}</span>
-                <span className="block text-sm text-muted-foreground">{way.detail}</span>
+                <span className="block text-sm font-medium">{way.title}</span>
+                <span className="block text-xs text-white/70">{way.detail}</span>
               </span>
-              <Switch checked={on} onCheckedChange={(next) => setModes((current) => ({ ...current, [way.mode]: next }))} aria-label={way.title} />
-            </label>
+              <CardToggle checked={on} onChange={(next) => setModes((current) => ({ ...current, [way.mode]: next }))} label={way.title} />
+            </div>
             {way.mode === 'AI_ASSISTANT' && on ? (
-              <div className="mt-3 space-y-3 border-t border-border pt-3">
+              <div className="mt-3 flex flex-col gap-3 border-t border-white/15 pt-3">
                 <div className="flex flex-wrap gap-1.5">
                   {PANELS.map((panel) => {
                     const active = panels.includes(panel.id)
@@ -516,7 +735,7 @@ function WaysStep({ offer, startTime, onSaved }: { offer: OfferSettingsView; sta
                         type="button"
                         aria-pressed={active}
                         onClick={() => setPanels((current) => (active ? current.filter((id) => id !== panel.id) : [...current, panel.id]))}
-                        className={cn('rounded-full border px-3 py-1 text-xs', active ? 'border-primary bg-primary/15 font-medium text-primary' : 'border-border')}
+                        className={cn(CARD_CHIP, 'px-3 py-1 text-xs')}
                       >
                         {panel.label}
                       </button>
@@ -524,151 +743,134 @@ function WaysStep({ offer, startTime, onSaved }: { offer: OfferSettingsView; sta
                   })}
                 </div>
                 {panels.includes('WIZARD') ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-white/70">
                     The tour is {offer.tour.status === 'published' ? 'live' : 'a draft'} ({offer.tour.steps} steps).{' '}
                     <Link href={`/services/wizard?product=${offer.id}`} className="underline underline-offset-2">Edit it in Services → Tour</Link>
                   </p>
                 ) : null}
-                <div className="space-y-1.5">
-                  <Label htmlFor="pw-agent" className="text-xs">Who answers</Label>
-                  <select id="pw-agent" className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+                <label className="flex flex-col gap-1.5 text-xs text-white/75">
+                  Who answers
+                  <select className={CARD_SELECT} value={agentId} onChange={(e) => setAgentId(e.target.value)}>
                     <option value="">Your Services assistants (recommended)</option>
                     {offer.agents.map((agent) => (
                       <option key={agent.id} value={agent.id}>{agent.name} (just for this one)</option>
                     ))}
                   </select>
-                </div>
+                </label>
               </div>
             ) : null}
           </div>
         )
       })}
-      <div className="flex justify-end pt-1">
-        <Button onClick={save} disabled={busy || !ways.some((way) => modes[way.mode])}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Save and continue
-        </Button>
-      </div>
-    </div>
+      {error ? <p className="text-xs text-rose-200">{error}</p> : null}
+    </Frame>
   )
 }
 
-function DoneStep({ offer, onChanged, onDeleted, onClose }: { offer: OfferSettingsView; onChanged: () => void; onDeleted: () => void; onClose: () => void }) {
-  const [copied, setCopied] = useState<string | null>(null)
-  const [more, setMore] = useState(false)
+function DoneStep({ frame, offer, onChanged, onDeleted }: { frame: FrameProps; offer: OfferSettingsView; onChanged: () => void; onDeleted: () => void }) {
+  const [copied, setCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [busy, startBusy] = useTransition()
-  const main = offer.shareLinks.find((link) => link.variant === (offer.kind === 'WEBINAR' && offer.modes.LIVE_HOST ? 'live' : 'share')) ?? offer.shareLinks[0] ?? null
-  const others = offer.shareLinks.filter((link) => link !== main)
+  // One link per project: a webinar's Live link, a product's Share (or pay) link.
+  const link = offer.shareLinks[0] ?? null
 
   const copy = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url)
-      setCopied(url)
-      setTimeout(() => setCopied(null), 1500)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
     } catch {
       toast.error("Couldn't copy. Select the link and copy it instead.")
     }
   }
 
   return (
-    <div className="space-y-4">
-      {main ? (
-        <div className="space-y-2 rounded-2xl border border-primary/40 bg-primary/5 p-4">
-          <p className="text-sm font-medium">Your link</p>
-          <p className="break-all rounded-lg bg-background/60 px-3 py-2 font-mono text-xs">{main.url}</p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => copy(main.url)}>
-              {copied === main.url ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied === main.url ? 'Copied' : 'Copy link'}
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <a href={`https://wa.me/?text=${encodeURIComponent(`${offer.title} ${main.url}`)}`} target="_blank" rel="noopener noreferrer">Share on WhatsApp</a>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <a href={main.url} target="_blank" rel="noopener noreferrer">Open</a>
-            </Button>
-          </div>
-          {others.length ? (
-            <button type="button" onClick={() => setMore((value) => !value)} className="text-xs text-muted-foreground underline underline-offset-2">
-              {more ? 'Hide other links' : `Other links (${others.length})`}
+    <Frame
+      {...frame}
+      line={link ? `Share this ${offer.kind === 'WEBINAR' ? 'live ' : ''}link. Buyers' chats and calls show up in Messages.` : 'Turn on a way to buy to get a link.'}
+      footer={
+        <>
+          {confirmDelete ? (
+            <span className="flex items-center gap-3">
+              Delete for good?
+              <button
+                type="button"
+                disabled={busy}
+                className="text-rose-200 underline-offset-2 hover:underline"
+                onClick={() =>
+                  startBusy(async () => {
+                    const result = await deleteOffer({ id: offer.id })
+                    if (!result.ok) return void toast.error(result.error)
+                    toast.success(`${offer.title} deleted`)
+                    onDeleted()
+                  })
+                }
+              >
+                Yes, delete
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className={CARD_GHOST}>Keep it</button>
+            </span>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)} className="text-sm text-rose-200/90 transition-colors hover:text-rose-100">
+              Delete
             </button>
-          ) : null}
-          {more ? (
-            <ul className="space-y-1.5">
-              {others.map((link) => (
-                <li key={link.url} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="min-w-0">
-                    <span className="font-medium">{link.label}</span> · <span className="text-muted-foreground">{link.hint}</span>
-                  </span>
-                  <button type="button" onClick={() => copy(link.url)} className="shrink-0 underline underline-offset-2">
-                    {copied === link.url ? 'Copied' : 'Copy'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          )}
+          <button type="button" onClick={frame.onClose} className={CARD_PRIMARY}>
+            Done <Check className="h-4 w-4" />
+          </button>
+        </>
+      }
+    >
+      {link ? (
+        <div className={cn(CARD_BOX, 'flex flex-col gap-3')}>
+          <p className="break-all font-mono text-xs text-white/90">{link.url}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => void copy(link.url)} className={CARD_PRIMARY}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy link'}
+            </button>
+            <a href={link.url} target="_blank" rel="noopener noreferrer" className={CARD_GHOST}>Open</a>
+          </div>
         </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Turn on a way to buy to get a link.</p>
-      )}
+      ) : null}
 
       {offer.hasBusiness ? (
-        <label className="flex items-center justify-between gap-3 rounded-2xl border border-border p-4 text-sm">
+        <div className={cn(CARD_BOX, 'flex items-center justify-between gap-3')}>
           <span>
-            <span className="block font-medium">Show on my Menu</span>
-            <span className="block text-muted-foreground">Your Menu, website and AI can recommend it.</span>
+            <span className="block text-sm font-medium">Show on my Menu</span>
+            <span className="block text-xs text-white/70">Your Menu, website and AI can recommend it.</span>
           </span>
-          <Switch
+          <CardToggle
             checked={offer.onBusiness}
-            onCheckedChange={(enabled) =>
+            disabled={busy}
+            label="Show on my Menu"
+            onChange={(enabled) =>
               startBusy(async () => {
                 const result = await setOfferOnBusiness({ id: offer.id, enabled })
                 if (!result.ok) return void toast.error(result.error)
                 onChanged()
               })
             }
-            aria-label="Show on my Menu"
           />
-        </label>
+        </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border p-4 text-sm">
+      <div className={cn(CARD_BOX, 'flex flex-wrap items-center justify-between gap-2 text-sm')}>
         <span>
           {offer.orderSummary.paidCount} paid · {usd(offer.orderSummary.collectedCents)} collected
           {offer.orderSummary.balanceDueCents ? ` · ${usd(offer.orderSummary.balanceDueCents)} still due` : ''}
         </span>
-        <Link href={`/projects/${offer.id}/pipeline`} className="underline underline-offset-2">Buyers and chats</Link>
+        <button
+          type="button"
+          onClick={() => {
+            frame.onClose()
+            openMessages()
+          }}
+          className="underline underline-offset-2"
+        >
+          Conversations
+        </button>
       </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        {confirmDelete ? (
-          <span className="flex items-center gap-2 text-sm">
-            Delete it for good?
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={busy}
-              onClick={() =>
-                startBusy(async () => {
-                  const result = await deleteOffer({ id: offer.id })
-                  if (!result.ok) return void toast.error(result.error)
-                  toast.success(`${offer.title} deleted`)
-                  onDeleted()
-                })
-              }
-            >
-              Yes, delete
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmDelete(false)}>Keep it</Button>
-          </span>
-        ) : (
-          <button type="button" onClick={() => setConfirmDelete(true)} className="text-sm text-destructive underline-offset-2 hover:underline">
-            Delete
-          </button>
-        )}
-        <Button onClick={onClose}>Done</Button>
-      </div>
-    </div>
+    </Frame>
   )
 }

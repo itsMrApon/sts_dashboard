@@ -16,8 +16,10 @@ export type FirstAgentBuild = {
   /** ready = at least one agent was built; failed = none could be. */
   status: 'building' | 'ready' | 'failed'
   services: AssistantService[]
-  /** Names of the agents that were built, in the order of `services`. */
+  /** Names of the agents built so far, in the order they finished. */
   agentNames: string[]
+  /** Each service's agent as it finishes, so setup can show them one by one. */
+  progress: Partial<Record<AssistantService, { status: 'ready' | 'failed'; name: string | null }>>
   /** True when Gemini couldn't write one of them and the starter prompt was used. */
   starter: boolean
 }
@@ -128,21 +130,34 @@ async function buildFirstAgent(input: FirstAgentInput): Promise<{ name: string; 
 export async function runFirstAgentBuild(input: FirstAgentsInput): Promise<void> {
   const { services, ...answers } = input
   markFirstAgentBuilding(input.userId, services)
-  const results = await Promise.allSettled(services.map((service) => buildFirstAgent({ ...answers, service })))
   const built: { name: string; starter: boolean }[] = []
-  results.forEach((result, i) => {
-    if (result.status === 'fulfilled') built.push(result.value)
-    else console.error(`[firstAgent] ${services[i]}:`, result.reason instanceof Error ? result.reason.message : result.reason)
-  })
-  builds.set(input.userId, {
-    status: built.length ? 'ready' : 'failed',
-    services,
-    agentNames: built.map((agent) => agent.name),
-    starter: built.some((agent) => agent.starter),
-  })
+  const progress: FirstAgentBuild['progress'] = {}
+  // Each agent is reported the moment it lands, so setup shows them one by one.
+  const report = (status: FirstAgentBuild['status']) =>
+    builds.set(input.userId, {
+      status,
+      services,
+      agentNames: built.map((agent) => agent.name),
+      progress: { ...progress },
+      starter: built.some((agent) => agent.starter),
+    })
+  await Promise.all(
+    services.map(async (service) => {
+      try {
+        const agent = await buildFirstAgent({ ...answers, service })
+        built.push(agent)
+        progress[service] = { status: 'ready', name: agent.name }
+      } catch (error) {
+        console.error(`[firstAgent] ${service}:`, error instanceof Error ? error.message : error)
+        progress[service] = { status: 'failed', name: null }
+      }
+      if (Object.keys(progress).length < services.length) report('building')
+    }),
+  )
+  report(built.length ? 'ready' : 'failed')
 }
 
 /** Set before the response, so the next card's first status check already sees "building". */
 export function markFirstAgentBuilding(userId: string, services: AssistantService[]): void {
-  builds.set(userId, { status: 'building', services, agentNames: [], starter: false })
+  builds.set(userId, { status: 'building', services, agentNames: [], progress: {}, starter: false })
 }

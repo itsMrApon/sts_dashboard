@@ -1,10 +1,8 @@
 'use client'
-import { Button } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
 import { User } from '.prisma/client'
 import React from 'react'
 import dynamic from 'next/dynamic'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import PurpleIcon from '../PurpleIcon'
 import STS2 from '@/icons/sts-2'
 import { cn } from '@/lib/utils'
@@ -22,7 +20,6 @@ type Props = {
 
 const Header = ({ user }: Props) => {
   const pathname = usePathname()
-  const router = useRouter()
   // /home draws its cubes background behind the header, so the header is see-through there and
   // scrolls away with the page (a clear sticky bar would sit on top of the hero text).
   const overHero = pathname === '/home'
@@ -33,18 +30,9 @@ const Header = ({ user }: Props) => {
         overHero ? 'relative z-30 bg-transparent' : 'sticky top-0 z-30 bg-background',
       )}
     >
-        {pathname.includes('pipeline') ? (
-          <Button
-          className="bg-primary/10 border border-border rounded-xl" 
-          variant="outline" onClick={() => router.push('/projects')}
-          >
-          <ArrowLeft /> Back to Projects
-          </Button>
-        ): (
         <div className="px-4 py-2 flex justify-center text-bold items-center rounded-xl bg-background border border-border text-primary capitalize">
           {pathname.split('/')[1]}
-          </div>
-        )}
+        </div>
         {/* create todo and create a booking button */}
         <div className="flex gap-3 md:gap-6 items-center">
           {user.subscription ? (

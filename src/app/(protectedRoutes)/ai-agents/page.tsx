@@ -2,15 +2,17 @@ import { cookies } from 'next/headers'
 import { getAssistantServiceSettings, listAssistants } from '@/actions/assistants'
 import { getAgentEngineSettings } from '@/actions/agentEngine'
 import { PageViewport } from '@/components/ReusableComponent/PageViewport'
-import { LOOK_KEYS, isAssistantService, type AssistantService } from '@/lib/agents/assistantServices'
+import { ASSISTANT_SERVICE_META, LOOK_KEYS, isAssistantService, type AssistantService } from '@/lib/agents/assistantServices'
 import { describeEngine, engineSpeaksBangla } from '@/lib/agents/engineOptions'
 import { getBusinessServices } from '@/lib/services/serviceConfig'
 import { canSendEmail } from '@/lib/email/sendEmail'
 import { sanitizeChatConfig, sanitizeFormConfig, sanitizeSpeakConfig } from '@/lib/services/types'
 import { getOrCreateBusinessWizard } from '@/lib/wizard/wizardRepo'
+import { getFirstAgentBuild } from '@/lib/onboarding/firstAgent'
 import { loadServicesContext } from '../services/_lib/servicesContext'
 import { RAIL_COOKIE } from './_components/railCookie'
 import { AssistantWorkspace, type AssistantBehaviour } from './_components/AssistantWorkspace'
+import { FirstAgentsBuilding } from './_components/FirstAgentsBuilding'
 
 type Props = { searchParams: Promise<{ assistant?: string; new?: string; list?: string }> }
 
@@ -64,11 +66,15 @@ export default async function AiAgentsPage({ searchParams }: Props) {
   }
   // Tour content belongs to the business tour; only a Tour-capable assistant edits it.
   const tour = selected && (selected.service === 'tour' || selected.service === null) ? await getOrCreateBusinessWizard(business) : null
+  // Setup's assistants build in the background; say so while they do, or the list looks short.
+  const firstBuild = getFirstAgentBuild(user.id)
+  const building = firstBuild?.status === 'building' ? firstBuild.services.map((id) => ASSISTANT_SERVICE_META[id].noun) : null
 
   return (
     // Pull the workspace up into the layout's top padding and keep a small bottom gap: the list
     // and editor scroll inside it, so the extra page padding was just empty bands.
     <PageViewport bottomPad={16} className="flex min-h-0 w-full flex-col overflow-hidden md:-mt-6">
+      {building ? <FirstAgentsBuilding labels={building} /> : null}
       <AssistantWorkspace
         key={selected?.id ?? `new-${newService}`}
         roomName={business.roomName}
@@ -85,6 +91,7 @@ export default async function AiAgentsPage({ searchParams }: Props) {
             : null
         }
         railCollapsed={railCollapsed}
+        autoSelected={Boolean(selected) && selected?.id !== params.assistant}
         voiceLabel={engineSummary ? `${engineSummary.voice} · ${engineSummary.voiceProvider}` : 'Default voice'}
         voiceSpeaksBangla={engineView ? engineSpeaksBangla(engineView.engine) : false}
         ownerEmail={user.email ?? ''}

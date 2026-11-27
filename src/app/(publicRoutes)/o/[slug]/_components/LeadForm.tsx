@@ -24,10 +24,12 @@ type Props = {
   submitLabel?: string
   /** Runs after the lead is saved; the form stays busy until it settles. */
   onCaptured: (contact: BuyerContactView) => void | Promise<void>
+  /** Ask for the name too (the Live link shows it in the room, so nothing is made up). */
+  requireName?: boolean
 }
 
 /** Email or WhatsApp (no code, nothing strict) plus an optional name. */
-export function LeadForm({ slug, source, submitLabel = 'Continue', onCaptured }: Props) {
+export function LeadForm({ slug, source, submitLabel = 'Continue', onCaptured, requireName = false }: Props) {
   const [method, setMethod] = useState<'email' | 'whatsapp'>('email')
   const [value, setValue] = useState('')
   const [name, setName] = useState('')
@@ -91,11 +93,11 @@ export function LeadForm({ slug, source, submitLabel = 'Continue', onCaptured }:
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="lead-name">
-            Name <span className="font-normal text-muted-foreground">(optional)</span>
+            {requireName ? 'Your name' : <>Name <span className="font-normal text-muted-foreground">(optional)</span></>}
           </Label>
-          <Input id="lead-name" autoComplete="name" value={name} maxLength={100} onChange={(event) => setName(event.target.value)} />
+          <Input id="lead-name" autoComplete="name" value={name} maxLength={100} required={requireName} onChange={(event) => setName(event.target.value)} />
         </div>
-        <Button type="submit" className="w-full" disabled={busy || !value.trim()}>
+        <Button type="submit" className="w-full" disabled={busy || !value.trim() || (requireName && !name.trim())}>
           {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {submitLabel}
         </Button>

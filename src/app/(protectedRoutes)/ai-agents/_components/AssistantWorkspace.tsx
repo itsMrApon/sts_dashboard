@@ -53,6 +53,11 @@ type Props = {
   emailReady: boolean
   /** Rail state saved in a cookie, read on the server. */
   railCollapsed: boolean
+  /**
+   * The open assistant was picked by default (no ?assistant). Phones then show the list first:
+   * opening straight into one assistant hid the others, so it looked like only one existed.
+   */
+  autoSelected?: boolean
 }
 
 export function AssistantWorkspace(props: Props) {
@@ -84,7 +89,9 @@ export function AssistantWorkspace(props: Props) {
       }),
     )
 
-  const detailOpen = Boolean(selected || newService)
+  // On phones, a default pick keeps the list in front; md+ shows both side by side anyway.
+  const detailOpen = Boolean(newService || (selected && !props.autoSelected))
+  const detailShown = Boolean(selected || newService)
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-se-xl border border-border bg-background md:flex-row">
@@ -103,7 +110,7 @@ export function AssistantWorkspace(props: Props) {
       </aside>
 
       <section className={cn('min-h-0 min-w-0 flex-1 flex-col', detailOpen ? 'flex' : 'hidden md:flex')}>
-        {detailOpen ? (
+        {detailShown ? (
           <button
             type="button"
             onClick={() => go('/ai-agents?list')}

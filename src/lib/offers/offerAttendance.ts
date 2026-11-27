@@ -26,11 +26,12 @@ export async function registerContactOnOffer(
   contact: { email: string | null; phone: string | null; name: string | null },
 ): Promise<Attendee> {
   const email = attendeeEmailFor(contact)
-  const name = contact.name ?? contact.email?.split('@')[0] ?? 'Guest'
+  // Only the name they gave: never one made up from their email address.
+  const name = contact.name?.trim() || 'Guest'
   const attendee = await prismaClient.attendee.upsert({
     where: { email },
     create: { email, name },
-    update: {},
+    update: contact.name?.trim() ? { name } : {},
   })
   await prismaClient.attendance.upsert({
     where: { attendeeId_webinarId: { attendeeId: attendee.id, webinarId } },

@@ -1,6 +1,6 @@
 import 'server-only'
 import { decryptToken } from '@/lib/messages/encrypt'
-import { appendCreatorReply } from '@/lib/offers/offerPipeline'
+import { appendCreatorReply } from '@/lib/offers/offerReplies'
 import { prismaClient } from '@/lib/prismaClient'
 import { parseAlertRef } from './telegramAlerts'
 import { reactToTelegramMessage, sendTelegramMessage, type TelegramUpdate } from './telegramApi'

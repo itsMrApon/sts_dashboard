@@ -86,7 +86,8 @@ const PageHeader = ({
           ) : null}
           {children ? (
             <div
-              className={`${mobileAside ? 'hidden sm:flex' : 'flex'} w-full shrink-0 flex-wrap items-center justify-end gap-2 md:w-auto`}
+              // Without a search box the controls get the whole row (so one can sit at the far right).
+              className={`${mobileAside ? 'hidden sm:flex' : 'flex'} w-full shrink-0 flex-wrap items-center justify-end gap-2 ${hideSearch ? 'md:flex-1' : 'md:w-auto'}`}
             >
               {children}
             </div>

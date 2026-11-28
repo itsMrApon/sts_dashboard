@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import os
 
-from livekit.agents import Agent
+from livekit.agents import Agent, llm, tts
 from livekit.plugins import cartesia, deepgram, elevenlabs, fishaudio, google, openai, silero, xai
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
@@ -162,12 +162,33 @@ def _create_stt(config: RoomConfig):
 # --- Thinks ----------------------------------------------------------------
 
 
+# New Google projects lose access to older pinned models (404 "no longer available to new
+# users"), so a pinned model gets fallbacks, like text chat (src/lib/messages/geminiText.ts).
+# Concrete version first: the google plugin turns on thought signatures (needed for tool calls on
+# Gemini 2.5+) and its Gemini 3 settings from the model NAME, which a "-latest" alias hides. The
+# alias is the last resort only: it still answers, but a turn after a tool call may fail.
+# gemini-3.8-flash is the model Google's own 404 points new projects to.
+GEMINI_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-flash-latest")
+# Per attempt, time to the first token. Long prompts with tools can pass LiveKit's 5s default.
+GEMINI_ATTEMPT_TIMEOUT_S = 15.0
+
+
+def _create_google_llm(model: str, config: RoomConfig):
+    api_key = _key(config, "google")
+    models = list(dict.fromkeys([model, *GEMINI_FALLBACK_MODELS]))
+    instances = [google.LLM(model=name, api_key=api_key, temperature=0.7) for name in models]
+    if len(instances) == 1:
+        return instances[0]
+    # A model that fails is marked unavailable and skipped on later turns (probed in the background).
+    return llm.FallbackAdapter(instances, attempt_timeout=GEMINI_ATTEMPT_TIMEOUT_S)
+
+
 def _create_llm(config: RoomConfig):
     model = config.llm_model or os.getenv("LLM_CHOICE", "gemini-2.5-flash")
     provider = _norm(config.llm_provider, "google")
 
     if provider == "google":
-        return google.LLM(model=model, api_key=_key(config, "google"), temperature=0.7)
+        return _create_google_llm(model, config)
     if provider == "openai":
         return openai.LLM(model=model, api_key=_key(config, "openai"))
     if provider == "openrouter":
@@ -188,6 +209,23 @@ def _create_llm(config: RoomConfig):
 
 
 # --- Speaks ----------------------------------------------------------------
+
+
+# Gemini TTS: same 404 risk for new Google projects as the LLM. The current model stays first so
+# nothing changes for creators it works for; then the versioned models the google plugin knows.
+GEMINI_TTS_FALLBACK_MODELS = ("gemini-2.5-flash-tts", "gemini-3.8-flash-tts", "gemini-3.1-flash-tts-preview")
+
+
+def _create_gemini_tts(voice: str, instructions: str, config: RoomConfig):
+    api_key = _key(config, "google")
+    instances = []
+    for model in GEMINI_TTS_FALLBACK_MODELS:
+        kwargs = {"model": model, "voice_name": voice or "Kore", "api_key": api_key}
+        if instructions:
+            kwargs["instructions"] = instructions
+        instances.append(google.beta.GeminiTTS(**kwargs))
+    # No retries on one model: a 404 won't change, so move to the next one at once.
+    return tts.FallbackAdapter(instances, max_retry_per_tts=0)
 
 
 def _create_tts(config: RoomConfig):
@@ -247,12 +285,9 @@ def _create_tts(config: RoomConfig):
             kwargs["instructions"] = style
         return openai.TTS(**kwargs)
     if provider == "google":
-        kwargs = {"model": "gemini-2.5-flash-tts", "voice_name": voice or "Kore", "api_key": _key(config, "google")}
         # Gemini TTS has no speed setting; ask for the pace in its style instructions instead.
         pace = ("Speak at a slightly slower pace." if speed < 1 else "Speak at a slightly faster pace.") if custom_speed else ""
-        if style or pace:
-            kwargs["instructions"] = " ".join(part for part in (style, pace) if part)
-        return google.beta.GeminiTTS(**kwargs)
+        return _create_gemini_tts(voice, " ".join(part for part in (style, pace) if part), config)
     if provider == "xai":
         return xai.TTS(voice=voice or "ara", language="bn" if bangla else "en", api_key=_key(config, "xai"))
 

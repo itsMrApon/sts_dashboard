@@ -1,6 +1,6 @@
 {
   "name": "@sts-ai/sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "One package for every sts-ai service on your own website: Chat AI, Voice AI, Form, Tour and business details. Your design, our services. React, Vue/Nuxt or plain JavaScript.",
   "license": "MIT",
   "type": "module",

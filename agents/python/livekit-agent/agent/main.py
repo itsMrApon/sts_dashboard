@@ -18,6 +18,9 @@ from livekit.agents import (
     cli,
     mcp,
 )
+from livekit.agents import APIConnectOptions, SessionConnectOptions
+from livekit.agents import tts as lk_tts
+from livekit.agents.llm import FallbackAdapter as LLMFallbackAdapter
 from livekit.agents.llm import function_tool
 
 from .config import get_mcp_server_config, load_room_config, RoomConfig
@@ -294,6 +297,16 @@ async def entrypoint(ctx: JobContext):
             config.voice_provider,
             config.realtime_provider,
         )
+        # A fallback adapter already walks its models; the session's own retries (3 by default)
+        # would replay the whole chain, leaving the visitor in silence for much longer.
+        no_retry = APIConnectOptions(max_retry=0)
+        llm_fallback = isinstance(session_kwargs["llm"], LLMFallbackAdapter)
+        tts_fallback = isinstance(session_kwargs.get("tts"), lk_tts.FallbackAdapter)
+        if llm_fallback or tts_fallback:
+            session_kwargs["conn_options"] = SessionConnectOptions(
+                **({"llm_conn_options": no_retry} if llm_fallback else {}),
+                **({"tts_conn_options": no_retry} if tts_fallback else {}),
+            )
         session = AgentSession(**session_kwargs)
 
         transcript_logger = TranscriptLogger(config)

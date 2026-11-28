@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowRight, Globe2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { WebsiteConnection } from '@/lib/embed/websiteConnectionShared'
+import { connectionFromOrigins, type WebsiteConnection } from '@/lib/embed/websiteConnectionShared'
 import { WebsiteKeyCard } from './WebsiteKeyCard'
 
 type Gate = {
@@ -75,7 +75,7 @@ export function WebsiteConnectionProvider({
           </DialogHeader>
           <WebsiteKeyCard
             roomName={roomName}
-            onConnected={(origin) => setConnection({ connected: true, origin })}
+            onConnected={(allowedOrigins) => setConnection(connectionFromOrigins(allowedOrigins))}
           />
           <div className="flex items-center justify-between gap-2 pt-1">
             <Link href="/services/connection" className="text-xs text-muted-foreground underline-offset-4 hover:underline">

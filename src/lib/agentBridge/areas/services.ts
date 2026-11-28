@@ -115,7 +115,14 @@ export const SERVICE_TOOLS: AgentTool[] = [
       ])
       const assistant = (agent: { id: string; name: string } | null) => (agent ? { id: agent.id, name: agent.name } : null)
       const result = {
-        website: { connected: website.connected, address: website.origin },
+        website: {
+          connected: website.connected,
+          address: website.origin,
+          localOnly: website.localOnly,
+          ...(website.localOnly
+            ? { note: 'Only localhost is allowed, so the live website is refused (ORIGIN_NOT_ALLOWED). The creator adds its address in sts-ai → Services → Connection.' }
+            : {}),
+        },
         canGoLive,
         chat: {
           on: services.chat.enabled,

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, Loader2, RefreshCw, Save } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Loader2, RefreshCw, Save } from 'lucide-react'
 import { toast } from '@/lib/toast'
+import { normalizeOrigin } from '@/lib/embed/origin'
+import { connectionFromOrigins, isLocalOrigin } from '@/lib/embed/websiteConnectionShared'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -14,11 +16,24 @@ type EmbedConfig = {
   siteKeyPrefix: string | null
 }
 
+/** The live website address the input edits: the first allowed origin that isn't localhost. */
+function liveOriginOf(origins: string[]): string | null {
+  return origins.find((o) => !isLocalOrigin(o)) ?? null
+}
+
 /**
  * The allowed website and its site key (one for every service). The full key is shown once,
- * right after it is created or rotated.
+ * right after it is created or rotated. The input edits the live address; other allowed
+ * addresses (localhost for testing, set by `npx @sts-ai/cli init`) are kept when it is saved.
  */
-export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; onConnected?: (origin: string) => void }) {
+export function WebsiteKeyCard({
+  roomName,
+  onConnected,
+}: {
+  roomName: string
+  /** Every allowed origin after a save. */
+  onConnected?: (allowedOrigins: string[]) => void
+}) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -38,7 +53,7 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
         return
       }
       setConfig(data)
-      setDomain(data.allowedOrigins[0] || '')
+      setDomain(liveOriginOf(data.allowedOrigins) ?? '')
     } catch {
       toast.error("Couldn't load the connection")
     } finally {
@@ -56,12 +71,21 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
       toast.error('Add your website URL (e.g. https://your-site.com)')
       return
     }
+    const next = normalizeOrigin(trimmed)
+    if (!next) {
+      toast.error("That isn't a website address (e.g. https://your-site.com)")
+      return
+    }
+    // A live address replaces the old live one; a localhost one is added. Everything else is kept.
+    const current = config?.allowedOrigins ?? []
+    const previousLive = liveOriginOf(current)
+    const kept = isLocalOrigin(next) ? current : current.filter((origin) => origin !== previousLive)
     setSaving(true)
     try {
       const res = await fetch('/api/embed/v1/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName, allowedOrigins: [trimmed], enabled: true }),
+        body: JSON.stringify({ roomName, allowedOrigins: [next, ...kept], enabled: true }),
       })
       const data = (await res.json()) as EmbedConfig & { siteKey?: string; error?: string }
       if (!res.ok) {
@@ -69,13 +93,14 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
         return
       }
       setConfig(data)
+      setDomain(liveOriginOf(data.allowedOrigins) ?? '')
       if (data.siteKey) {
         setSiteKeyOnce(data.siteKey)
         toast.success("Website connected! Copy the key now, you'll only see it once.")
       } else {
         toast.success('Website saved')
       }
-      if (data.allowedOrigins[0]) onConnected?.(data.allowedOrigins[0])
+      if (data.allowedOrigins.length) onConnected?.(data.allowedOrigins)
       // The header's connection pill is server-rendered.
       router.refresh()
     } catch {
@@ -128,6 +153,11 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
     )
   }
 
+  const allowed = config?.allowedOrigins ?? []
+  const savedLive = liveOriginOf(allowed)
+  const alsoAllowed = allowed.filter((origin) => origin !== savedLive)
+  const localOnly = config?.enabled !== false && connectionFromOrigins(allowed).localOnly
+
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="space-y-2">
@@ -138,6 +168,15 @@ export function WebsiteKeyCard({ roomName, onConnected }: { roomName: string; on
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           </Button>
         </div>
+        {alsoAllowed.length ? (
+          <p className="text-xs text-muted-foreground">Also allowed (kept when you save): {alsoAllowed.join(', ')}</p>
+        ) : null}
+        {localOnly ? (
+          <p className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            Only localhost is allowed, so your live website is refused. Add its address (e.g. https://your-site.com) and save.
+          </p>
+        ) : null}
       </div>
 
       {config?.configured ? (

@@ -174,6 +174,16 @@ function siteOrigin(value: string): string | null {
   }
 }
 
+/** localhost / 127.0.0.1 (any port): fine for testing, never the live website. */
+function isLocalhost(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin)
+    return hostname === 'localhost' || hostname === '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
 type Plan = { agent: Client | null; site: SiteProject | null; siteUrl: string | null }
 
 async function plan(flags: Flags, ask: ReturnType<typeof prompter>): Promise<Plan> {
@@ -278,7 +288,7 @@ async function init(flags: Flags) {
       if (result.note) console.log(`\n  ${result.note}`)
     }
 
-    if (todo.site) await connectSite(baseUrl, saved.token, todo.site, todo.siteUrl, flags, ask)
+    const allowedOrigins = todo.site ? await connectSite(baseUrl, saved.token, todo.site, todo.siteUrl, flags, ask) : []
 
     console.log(`\n${bold('Next')}`)
     let n = 1
@@ -287,6 +297,13 @@ async function init(flags: Flags) {
       console.log(`  ${n++}. Copy a prompt from ${cyan(`${baseUrl}/social`)} and paste it in.`)
     }
     if (todo.site) {
+      if (allowedOrigins.every(isLocalhost)) {
+        // Without it the live site gets ORIGIN_NOT_ALLOWED on every call, with no hint in the browser.
+        console.log(
+          `  ${n++}. ${bold('Before you deploy')}: only localhost is allowed now. Add your live address (https://your-site.com)\n` +
+            `     in ${cyan(`${baseUrl}/services/connection`)}, or the website's assistant is refused.`,
+        )
+      }
       console.log(`  ${n++}. Turn services on or off in ${cyan(`${baseUrl}/services`)} (Chat, Voice, Form, Tour).`)
       console.log(`  ${n++}. Build your own chat box, orb, form or tour with the SDK:\n`)
       console.log(exampleFor(todo.site).split('\n').map((line) => `       ${dim(line)}`).join('\n'))
@@ -330,7 +347,7 @@ async function connectSite(
   siteUrl: string | null,
   flags: Flags,
   ask: ReturnType<typeof prompter>,
-) {
+): Promise<string[]> {
   const origins = [siteUrl, `http://localhost:${site.devPort}`].filter((o): o is string => Boolean(o))
   let result = await setupSite(baseUrl, token, { origins, replace: flags.replaceKey })
   if (result.status === 'exists') {
@@ -364,6 +381,8 @@ async function connectSite(
     console.log(`\n  Add this where your app starts (we couldn't place it safely):\n`)
     console.log(wired.manual.split('\n').map((line) => `    ${line}`).join('\n'))
   }
+  // Everything the key works on now (sts-ai merges these with what was already allowed).
+  return result.allowedOrigins
 }
 
 async function whoami(flags: Flags) {

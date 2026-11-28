@@ -34,15 +34,19 @@ export async function ServicesShell({ title, actions, children }: Props) {
                 <p className="text-xs font-medium uppercase tracking-widest text-primary">{business.name}</p>
                 <Link
                   href="/services/connection"
+                  title={connection.localOnly ? 'Only localhost is allowed: add your live website address' : undefined}
                   className={cn(
                     'flex max-w-[220px] items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors',
-                    connection.connected
+                    connection.connected && !connection.localOnly
                       ? 'border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400'
                       : 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
                   )}
                 >
                   <Globe2 className="h-3 w-3 shrink-0" aria-hidden />
-                  <span className="truncate">{connection.origin ? hostOf(connection.origin) : 'Connect website'}</span>
+                  <span className="truncate">
+                    {connection.origin ? hostOf(connection.origin) : 'Connect website'}
+                    {connection.localOnly ? ' · add live site' : ''}
+                  </span>
                 </Link>
               </div>
               <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>

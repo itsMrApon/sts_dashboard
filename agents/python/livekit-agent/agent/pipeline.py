@@ -164,13 +164,16 @@ def _create_stt(config: RoomConfig):
 
 # New Google projects lose access to older pinned models (404 "no longer available to new
 # users"), so a pinned model gets fallbacks, like text chat (src/lib/messages/geminiText.ts).
-# Concrete version first: the google plugin turns on thought signatures (needed for tool calls on
-# Gemini 2.5+) and its Gemini 3 settings from the model NAME, which a "-latest" alias hides. The
-# alias is the last resort only: it still answers, but a turn after a tool call may fail.
-# gemini-3.8-flash is the model Google's own 404 points new projects to.
-GEMINI_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-flash-latest")
-# Per attempt, time to the first token. Long prompts with tools can pass LiveKit's 5s default.
-GEMINI_ATTEMPT_TIMEOUT_S = 15.0
+# Versioned names only: the google plugin turns on thought signatures (needed for tool calls on
+# Gemini 2.5+) and its Gemini 3 settings from the model NAME, and it calls API v1, where the
+# "-latest" aliases text chat uses are 404. gemini-3.8-flash is the model Google's 404 points new
+# projects to; gemini-3.5-flash is a second model for when 3.8 answers 503 "high demand".
+GEMINI_FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-3.5-flash")
+# Per attempt, time to the first token: a caller won't wait longer, so move on to the next model.
+GEMINI_ATTEMPT_TIMEOUT_S = 10.0
+# One quick retry per model for retryable errors (503 "high demand"); a 404 is never retried.
+GEMINI_RETRY_PER_MODEL = 1
+GEMINI_RETRY_INTERVAL_S = 1.0
 
 
 def _create_google_llm(model: str, config: RoomConfig):
@@ -180,7 +183,12 @@ def _create_google_llm(model: str, config: RoomConfig):
     if len(instances) == 1:
         return instances[0]
     # A model that fails is marked unavailable and skipped on later turns (probed in the background).
-    return llm.FallbackAdapter(instances, attempt_timeout=GEMINI_ATTEMPT_TIMEOUT_S)
+    return llm.FallbackAdapter(
+        instances,
+        attempt_timeout=GEMINI_ATTEMPT_TIMEOUT_S,
+        max_retry_per_llm=GEMINI_RETRY_PER_MODEL,
+        retry_interval=GEMINI_RETRY_INTERVAL_S,
+    )
 
 
 def _create_llm(config: RoomConfig):
